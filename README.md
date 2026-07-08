@@ -1,122 +1,121 @@
-# 🚀 BobbyTools 
+<div align="center">
+  
+# 🤖 BobbyTools
 
-> AI Provider Manager & CLI Launcher. Satu pintu buat manage puluhan akun AI lo tanpa harus ribet gonta-ganti API Key manual.
+**The Ultimate AI Provider & CLI Launcher for Lazy Developers.**
 
-Jujur aja, nge-manage banyak akun AI (OpenAI, Anthropic, Groq, local LLM, dll) itu ribet banget. Apalagi kalo lo punya banyak "tuyul" (akun) dan tiap provider punya *requirement* credential yang beda-beda (ada yang butuh Account ID, Org ID, dll). Terus pas mau jalanin tools AI CLI kayak `opencode` atau `aider`, lo harus nge-set *environment variables* (ENV) manual satu-satu setiap kali ganti akun. Capek kan?
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18.0.0-green.svg)](https://nodejs.org/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
-Nah, **BobbyTools** dibikin khusus buat ngeberesin masalah *workflow* itu.
-
-Lo tinggal setup provider dan akun lo sekali di sini, selanjutnya BobbyTools bakal ngurusin *injection* ENV-nya secara otomatis, manajemen akun biar gampang gonta-ganti, dan langsung nge-*launch* CLI favorit lo (kayak opencode, aider, atau *custom command* lo sendiri) langsung dari satu tempat.
-
-## 🔥 Kenapa Lo Butuh Ini?
-
-- **Multi-Provider & Multi-Account Ready**: Setup sekali, pake berkali-kali. Cocok banget buat lo yang hobi ternak akun atau manage banyak *billing* beda.
-- **Dynamic Credentials**: Nggak cuma nangkep API Key. Kalo provider lo butuh `Account ID`, `Org ID`, atau parameter aneh lainnya, lo bisa nambahin *field custom* sendiri pas setup.
-- **Smart CLI Launcher**: Nggak cuma nyimpen API Key doang, tapi langsung nge-*inject* semua *env vars* yang dibutuhin (kayak `OPENAI_BASE_URL` dan `OPENAI_API_KEY`) ke dalam *child process* pas lo ngejalanin CLI.
-- **Native Support Buat Semua AI**: Mau pakai standar OpenAI? Bisa. Mau nembak API asli kayak Anthropic atau Gemini lewat Opencode? Bisa banget, tinggal ganti nama *plugin* SDK-nya di menu edit.
-- **UX Dibuat Pake Logika Manusia**: Menu panjang otomatis bisa di-*search*, menu pendek gampang di-klik. Mau hapus banyak akun? Nggak perlu satu-satu, tinggal *batch delete* pake spasi.
+</div>
 
 ---
 
-## 🛠️ Tutorial Instalasi (Step-by-Step)
+**Jujur aja,** nge-manage banyak akun AI (OpenAI, Anthropic, Groq, local LLM, dll) itu *pain in the ass*. 
+
+Apalagi kalo lo punya banyak "tuyul" (akun) dan tiap provider punya *requirement* credential yang beda-beda (ada yang butuh Account ID, Org ID, dll). Terus pas mau jalanin tools CLI AI kayak `opencode` atau `aider`, lo harus nge-set *environment variables* (ENV) manual satu-satu setiap kali ganti akun. Capek, boros waktu, dan rentan salah copas.
+
+Berawal dari rasa males itu, **BobbyTools** lahir. 
+
+Lo tinggal setup provider dan akun lo *sekali* aja di sini. Selanjutnya, BobbyTools bakal ngurusin *injection* ENV-nya ke terminal secara otomatis, ngasih lo menu interaktif buat gonta-ganti akun dengan gampang, dan langsung nge-*launch* CLI favorit lo dari satu pintu.
+
+## 🔥 Kenapa Lo Butuh Ini?
+
+- 🏭 **Multi-Provider & Multi-Account Ready**: Setup sekali, pake berkali-kali. Cocok banget buat lo yang hobi ternak akun atau manage *billing* klien yang beda-beda.
+- 🪛 **Dynamic Credentials**: Nggak cuma nangkep API Key standar. Kalo provider lo butuh `Account ID`, `Org ID`, atau parameter aneh lainnya, lo bisa nambahin *field custom* sendiri pas setup awal.
+- 💉 **Smart CLI Injector**: Nggak cuma nyimpen kredensial, BobbyTools langsung nge-*inject* semua *env vars* yang dibutuhin (misal `OPENAI_BASE_URL` dan `OPENAI_API_KEY`) ke dalam *child process* CLI lo.
+- 🧠 **Native SDK Support**: Mau pakai standar OpenAI? Bisa. Mau nembak API asli kayak Anthropic atau Gemini lewat Opencode? Bisa banget, tinggal ganti *plugin* SDK-nya di menu edit.
+- 🎯 **UX Dibuat Pake Logika Manusia**: Menu list panjang otomatis bisa di-*search*, menu pendek gampang di-klik pakai panah. Mau hapus banyak akun limit? Tinggal *batch delete* pake spasi.
+
+---
+
+## 🛠️ Instalasi (The Quick Way)
 
 Pastikan di laptop lo udah ke-install **Node.js** (wajib versi 18 ke atas biar aman).
 
-1. **Clone Repo Ini**
-   Buka terminal atau PowerShell lo, terus jalanin perintah ini buat nge-clone *source code* BobbyTools ke laptop lo:
-   ```bash
-   git clone https://github.com/username/bobbytools.git
-   ```
-   *(Jangan lupa ganti URL di atas pake link repo GitHub lo)*
+```bash
+# 1. Clone repo ini ke lokal lo
+git clone https://github.com/BobbyLeonardd/BobbyTools.git
 
-2. **Masuk ke Folder Project**
-   ```bash
-   cd bobbytools
-   ```
+# 2. Masuk ke foldernya
+cd BobbyTools
 
-3. **Install Dependencies**
-   Biar semua *library* (kayak menu interaktif Inquirer) ke-download:
-   ```bash
-   npm install
-   ```
+# 3. Install semua dependencies
+npm install
 
-4. **Jadiin Command Global**
-   Ini langkah krusial biar lo bisa manggil perintah `bobby` dari folder manapun di laptop lo (nggak harus selalu masuk ke folder bobbytools):
-   ```bash
-   npm link
-   ```
+# 4. Jadiin command "bobby" global di laptop lo
+npm link
+```
 
-Beres! Sekarang lo bisa nutup terminalnya, buka terminal baru di folder manapun yang lo mau, dan ketik `bobby`. Kalo muncul menunya, berarti instalasi lo sukses 100%.
+Beres! Lo bisa nutup terminalnya, buka terminal baru di folder *project* manapun yang lagi lo kerjain, dan ketik `bobby`. Kalo muncul menunya, instalasi lo sukses.
 
 ---
 
 ## 🎮 Cara Penggunaan (The Workflow)
 
-Cara pakenya gampang banget, alurnya cuma: **Pilih/Bikin Provider ➔ Masukin Akun ➔ Start Session**.
+Alurnya cuma tiga tahap: **Setup Provider ➔ Masukin Akun ➔ Start Session**.
 
-### Step 1: Buka BobbyTools
-Ketik aja *command* sakti ini di terminal:
+### 1. Buka BobbyTools
+Ketik *command* sakti ini di terminal manapun:
 ```bash
 bobby
 ```
 
-### Step 2: Setup Provider (Penyedia AI)
-1. Di menu utama, pilih **📦 Manage Providers**.
-2. Pilih **➕ Add Provider**.
-3. Di sini lo punya dua pilihan:
-   - **From Template:** Kalo lo males mikir, pilih ini. Kita udah nyediain puluhan template siap pakai (OpenAI, Groq, OpenRouter, DeepSeek, dll).
-   - **Custom Provider:** Kalo provider kesayangan lo belum ada di template, lo bisa bikin sendiri. Lo bisa ngatur *Base URL*, *Env Var* buat API Key (misal `ANTHROPIC_API_KEY`), sampe nambahin parameter *custom* kayak *Account ID*.
+### 2. Setup Provider
+- Pilih **📦 Manage Providers** ➔ **➕ Add Provider**.
+- **From Template:** Paling gampang. Udah ada puluhan template bawaan (OpenAI, Groq, OpenRouter, DeepSeek, dll).
+- **Custom Provider:** Kalo provider lo aneh atau baru rilis, lo bisa *define* sendiri *Base URL* sama *env var*-nya di sini.
 
-### Step 3: Masukin Akun (Tuyul) Lo
-Provider doang nggak ada gunanya kalo nggak ada isinya.
-1. Masih di menu Manage Providers, pilih **👤 Manage Accounts**. (Atau bisa juga langsung klik Manage Accounts di menu Manage Provider).
-2. Pilih provider yang barusan lo bikin.
-3. Klik **➕ Add Account**. 
-4. Masukin nama akunnya (misal: "tuyul-groq-1"), terus masukin *API Key*-nya. 
-*(Lo bisa nambahin sebanyak apapun akun yang lo mau di sini).*
+### 3. Masukin Akun (Tuyul Lo)
+- Pilih **👤 Manage Accounts**.
+- Pilih provider yang barusan lo bikin, terus klik **➕ Add Account**. 
+- Kasih nama (misal: "akun-gratisan-1"), terus *paste* API Key-nya. 
 
-### Step 4: Gas Launching! (Start Session)
-Kalo provider dan akun udah *ready*, balik ke Menu Utama (tekan `<` atau pilih menu *Back*).
-1. Pilih **🚀 Start Session**.
-2. **Select Provider:** Pilih provider mana yang mau lo pake.
-3. **Select Account:** Pilih akun mana yang mau lo tumbalin. Di sini bakal kelihatan akun mana yang statusnya masih hijau (Active) atau merah (Limited).
-4. **Select Model:** Ketik/pilih modelnya (misal `gpt-4o`, `llama3-70b`, dll).
-5. **Launch With:** Pilih lo mau ngejalanin CLI apa. (Bisa `opencode`, `aider`, atau lo ketik *custom command* lo sendiri).
+### 4. Gas Launching! (Start Session)
+Balik ke Menu Utama.
+- Pilih **🚀 Start Session**.
+- Pilih Provider ➔ Pilih Akun ➔ Pilih Model.
+- Pilih CLI yang mau di-*launch* (bisa `opencode`, `aider`, atau lo ketik *custom command* sendiri).
 
-*BAM!* BobbyTools bakal nge-set ENV di *background* dan langsung ngejalanin CLI tujuan lo. Lo tinggal nunggu *prompt* CLI-nya muncul dan bisa *coding* dengan tenang.
+*BAM!* BobbyTools bakal nge-set ENV di *background* dan langsung ngejalanin CLI lo. Tinggal ngoding aja bro.
 
 ---
 
-## 💡 Fitur Advanced (Tips & Trick)
+## 💡 Pro Tips (Biar Makin Cepet)
 
-**1. Quick Launch (Biar Gak Ribet Milih Lagi)**
-Kalo lo ngerasa capek milih provider dan akun yang sama terus tiap kali buka terminal, lo bisa *bypass* semua menu itu pakai perintah:
+### 🚀 Quick Launch
+Kalo lo ngerasa capek milih provider dan akun yang sama terus-terusan, lo bisa *bypass* semua menu itu pakai perintah:
 ```bash
 bobby go
 ```
-Ini bakal langsung ngebuka sesi terakhir yang lo pake. Super cepet!
+Ini bakal ngebaca *history* dan langsung *auto-launch* sesi terakhir lo. Menghemat umur lo 5 detik tiap hari.
 
-**2. Opencode Native Plugin (Selain OpenAI)**
-Standarnya, BobbyTools maksa `opencode` buat ngebaca API pakai standar OpenAI (`@ai-sdk/openai-compatible`). 
-Tapi kalo lo mau nembak API asli kayak Anthropic atau Gemini langsung tanpa perantara OpenRouter, lo gampang banget ubahnya:
+### 🔌 Opencode Native Plugin (Selain OpenAI)
+Standarnya, BobbyTools ngebaca API pakai standar OpenAI (`@ai-sdk/openai-compatible`). Kalo lo pengen `opencode` lo nembak langsung ke API asli Anthropic atau Gemini (tanpa proxy OpenRouter):
 - Masuk ke **Manage Providers** ➔ **Edit Provider**.
-- Pilih provider-nya, terus pilih menu edit **Opencode Plugin**.
-- Ubah isi *default*-nya jadi *plugin* bawaan Vercel AI SDK, misalnya `@ai-sdk/anthropic` atau `@ai-sdk/google`.
+- Edit bagian **Opencode Plugin**.
+- Ganti isinya jadi *plugin* Vercel AI SDK bawaan (contoh: `@ai-sdk/anthropic` atau `@ai-sdk/google`).
 
-**3. Batch Delete (Hapus Akun Massal)**
-Punya 50 akun dan mau dihapus semuanya karena udah kena *limit*? Nggak perlu pegel jempol. Masuk ke menu **Delete Account**, pencet **Spasi** buat nyentang akun mana aja yang mau dibuang, pencet huruf `a` buat *select all*, terus pencet **Enter**. Kelar.
+### 🧹 Batch Delete (Hapus Akun Kena Limit)
+Punya 50 akun dan kena limit semua? Jangan dihapus satu-satu pake jari, kriting ntar. 
+Masuk ke menu **Delete Account**, pencet **Spasi** buat nyentang akun mana aja, pencet tombol `a` buat *select all*, terus **Enter**. Musnah seketika.
 
 ---
 
-## 🧠 Konfigurasi Lokal
+## 🔒 Privasi & Konfigurasi Lokal
 
-Data rahasia (API Key dll) lo 100% aman dan nggak dikirim kemana-mana. BobbyTools cuma nyimpen datanya di lokal laptop lo, tepatnya di `~/.bobbytools/config.json`. 
+Kredensial dan API Key lo **100% aman** dan nggak dikirim ke server pihak ketiga mana pun (kecuali langsung ke API AI-nya). BobbyTools cuma nyimpen data akun lo murni di lokal laptop lo, letaknya di:
+`~/.bobbytools/config.json` 
 
-*(Pastiin lo nggak pernah iseng nge-push file config ini ke repo public ya!)*
+*(Warning: Kalo lo lagi iseng nge-backup dotfiles, pastiin config ini masuk ke `.gitignore` ya!)*
 
 ## 🤝 Berkontribusi
 
-Nemu *bug*? Punya ide fitur yang lebih gila? Atau ngerasa kodenya bisa dibikin lebih rapi? *Feel free* buat buka Issue atau lempar *Pull Request*. Santai aja bro, semua *PR welcome*!
+Nemu *bug*? Punya ide fitur sinting? Atau ngerasa kodenya masih bisa di-refactor? 
+*Feel free* buat buka Issue atau lempar *Pull Request*. Proyek ini *open-source* dari *developer* buat *developer*. Santai aja bro!
 
 ---
-Dibuat dengan keringat dan kopi ☕ oleh **Bobby Leonardo** & Contributors.
+<div align="center">
+Dibuat dengan 💧 keringat, ☕ kopi, dan banyak 🐛 bug fixing oleh <b>Bobby Leonardo</b> & Contributors.
+</div>
