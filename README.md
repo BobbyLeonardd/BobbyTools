@@ -98,11 +98,13 @@ bobby update
 ```
 BobbyTools bakal otomatis narik versi terbaru dari GitHub dan nge-*install* ulang *dependencies*-nya. Gampang kan?
 
-### 🔌 Opencode Native Plugin (Selain OpenAI)
+### 🔌 Opencode & Native CLIs
 Standarnya, BobbyTools ngebaca API pakai standar OpenAI (`@ai-sdk/openai-compatible`). Kalo lo pengen `opencode` lo nembak langsung ke API asli Anthropic atau Gemini (tanpa proxy OpenRouter):
 - Masuk ke **Manage Providers** ➔ **Edit Provider**.
 - Edit bagian **Opencode Plugin**.
 - Ganti isinya jadi *plugin* Vercel AI SDK bawaan (contoh: `@ai-sdk/anthropic` atau `@ai-sdk/google`).
+
+*(Fun Fact: Kita juga nyediain template khusus **Native Antigravity CLI (agy)** buat lo yang udah punya akun langganan Google AI Pro dan pengen nge-launch `agy` secara utuh (bypass akun & model) dari dalem BobbyTools!)*
 
 ### 🧹 Batch Delete (Hapus Akun Kena Limit)
 Punya 50 akun dan kena limit semua? Jangan dihapus satu-satu pake jari, kriting ntar. 
