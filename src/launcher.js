@@ -179,6 +179,7 @@ async function doLaunch(config, provider, account, model, cli) {
   let command = cli;
   let args = [];
   if (cli === 'aider') args = ['--model', `openai/${model}`];
+  if (cli === 'agy') args = ['--model', model];
   if (cli === 'opencode') {
     syncOpencodeConfig(config, provider, account, model);
     args = ['-m', `${provider.id}/${model}`];
