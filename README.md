@@ -91,6 +91,13 @@ bobby go
 ```
 Ini bakal ngebaca *history* dan langsung *auto-launch* sesi terakhir lo. Menghemat umur lo 5 detik tiap hari.
 
+### 🔄 Auto Update
+Kalo ada fitur baru atau *bug fix* dari GitHub, lo nggak perlu buka browser atau nge-*clone* ulang manual. Cukup ketik:
+```bash
+bobby update
+```
+BobbyTools bakal otomatis narik versi terbaru dari GitHub dan nge-*install* ulang *dependencies*-nya. Gampang kan?
+
 ### 🔌 Opencode Native Plugin (Selain OpenAI)
 Standarnya, BobbyTools ngebaca API pakai standar OpenAI (`@ai-sdk/openai-compatible`). Kalo lo pengen `opencode` lo nembak langsung ke API asli Anthropic atau Gemini (tanpa proxy OpenRouter):
 - Masuk ke **Manage Providers** ➔ **Edit Provider**.

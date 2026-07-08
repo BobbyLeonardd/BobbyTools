@@ -2,6 +2,9 @@ import { select, input } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { showBanner, VERSION, dim, info, success, error, warn, divider, clearScreen, pause } from './ui.js';
 import { getConfig, saveConfig, getConfigPath } from './config.js';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import { manageProviders } from './providers.js';
 import { launchSession, quickLaunch } from './launcher.js';
 import { PROVIDER_TEMPLATES } from './templates.js';
@@ -32,6 +35,13 @@ export async function main() {
       clearScreen();
       showBanner();
       showFullStatus();
+      return;
+    }
+
+    if (args[0] === 'update') {
+      clearScreen();
+      showBanner();
+      await updateBobbyTools();
       return;
     }
 
@@ -257,6 +267,7 @@ function showHelp() {
   console.log(chalk.gray('    bobby') + '           Interactive menu');
   console.log(chalk.gray('    bobby go') + '        Quick launch (last session)');
   console.log(chalk.gray('    bobby list') + '      Show all providers & accounts');
+  console.log(chalk.gray('    bobby update') + '    Update BobbyTools from GitHub');
   console.log(chalk.gray('    bobby -v') + '        Version');
   console.log(chalk.gray('    bobby -h') + '        This help');
   console.log();
@@ -269,5 +280,54 @@ function showHelp() {
   console.log(chalk.white.bold('  Round Robin:'));
   console.log(chalk.gray('    Accounts do NOT auto-rotate. You stay on the same account'));
   console.log(chalk.gray('    until YOU pick "Next (Round Robin)" to switch. No wasted quota.'));
+  console.log();
+}
+
+// ── Update ──
+
+async function updateBobbyTools() {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  const rootDir = path.join(__dirname, '..');
+  
+  console.log();
+  divider();
+  info(chalk.bold('Checking for updates...'));
+
+  const gitDir = path.join(rootDir, '.git');
+  if (!fs.existsSync(gitDir)) {
+    error('Cannot update via git. This installation was not cloned from GitHub.');
+    warn('If you installed via npm directly, try: npm update -g bobbytools');
+    return;
+  }
+
+  info('Pulling latest changes from GitHub (origin main)...');
+  const { spawn } = await import('child_process');
+  
+  const runCmd = (command, args, cwd) => new Promise((resolve) => {
+    const child = spawn(command, args, { stdio: 'inherit', shell: true, cwd });
+    child.on('error', (err) => resolve({ code: 1, err }));
+    child.on('close', (code) => resolve({ code }));
+  });
+
+  const pullResult = await runCmd('git', ['pull', 'origin', 'main'], rootDir);
+  
+  if (pullResult.code !== 0) {
+    error('Failed to pull latest changes. You might have uncommitted local changes.');
+    return;
+  }
+
+  info('Ensuring dependencies are up to date...');
+  const npmResult = await runCmd('npm', ['install'], rootDir);
+
+  if (npmResult.code !== 0) {
+    error('Failed to update npm dependencies.');
+    return;
+  }
+
+  console.log();
+  success('BobbyTools is now up to date! 🎉');
+  dim('Run "bobby" to start using the new version.');
+  divider();
   console.log();
 }
