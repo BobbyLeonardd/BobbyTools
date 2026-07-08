@@ -5,6 +5,7 @@ import { getConfig, saveConfig, getConfigPath } from './config.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { spawn, spawnSync } from 'child_process';
 import { manageProviders } from './providers.js';
 import { launchSession, quickLaunch } from './launcher.js';
 import { PROVIDER_TEMPLATES } from './templates.js';
@@ -72,9 +73,12 @@ export async function main() {
 // ── Main menu loop ──
 
 async function mainMenu() {
+  backgroundFetch(); // Fire and forget update checker
+
   while (true) {
     clearScreen();
     showBanner();
+    notifyUpdateIfAvailable();
     showQuickStatus();
 
     const config = getConfig();
@@ -134,6 +138,55 @@ function showQuickStatus() {
     dim('No providers yet — add one to get started!');
   }
   console.log();
+}
+
+// ── Update Notification ──
+
+function notifyUpdateIfAvailable() {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  const rootDir = path.join(__dirname, '..');
+  const gitDir = path.join(rootDir, '.git');
+  
+  if (!fs.existsSync(gitDir)) return;
+
+  try {
+    const res = spawnSync('git', ['rev-list', 'HEAD..origin/main', '--count'], { cwd: rootDir, encoding: 'utf8' });
+    if (res.status === 0) {
+      const count = parseInt(res.stdout.trim(), 10);
+      if (count > 0) {
+        console.log(chalk.yellow(`  ✨ Update tersedia (${count} commits)! Ketik ${chalk.bold('bobby update')} untuk memperbarui.\n`));
+      }
+    }
+  } catch (e) {
+    // Ignore errors (git not found, etc)
+  }
+}
+
+function backgroundFetch() {
+  const config = getConfig();
+  const now = Date.now();
+  // Check once every 12 hours
+  if (config.lastUpdateCheck && now - config.lastUpdateCheck < 12 * 60 * 60 * 1000) return;
+
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  const rootDir = path.join(__dirname, '..');
+  const gitDir = path.join(rootDir, '.git');
+  
+  if (!fs.existsSync(gitDir)) return;
+
+  try {
+    const child = spawn('git', ['fetch', 'origin', 'main'], {
+      cwd: rootDir,
+      detached: true,
+      stdio: 'ignore' // Silently fetch in background
+    });
+    child.unref();
+
+    config.lastUpdateCheck = now;
+    saveConfig(config);
+  } catch (e) {}
 }
 
 function showFullStatus() {
@@ -302,7 +355,6 @@ async function updateBobbyTools() {
   }
 
   info('Pulling latest changes from GitHub (origin main)...');
-  const { spawn } = await import('child_process');
   
   const runCmd = (command, args, cwd) => new Promise((resolve) => {
     const child = spawn(command, args, { stdio: 'inherit', shell: true, cwd });
