@@ -83,6 +83,11 @@ export async function launchSession() {
     } else if (step === 1) {
       account = await selectAccountForLaunch(provider);
       if (!account) { step = 0; continue; }
+      if (provider.skipModelSelection) {
+        model = null;
+        step = 3;
+        continue;
+      }
       step = 2;
     } else if (step === 2) {
       model = await selectModel(provider, account);
@@ -158,9 +163,11 @@ async function doLaunch(config, provider, account, model, cli) {
   info(chalk.bold('Launching Session'));
   label('Provider', provider.name);
   label('Account', `${account.name} ${account.status === 'active' ? chalk.green('●') : chalk.red('●')}`);
-  label('Model', model);
+  if (model) label('Model', model);
   label('CLI', cli);
-  label('Base URL', resolveBaseUrl(provider, account));
+  if (!provider.skipModelSelection) {
+    label('Base URL', resolveBaseUrl(provider, account));
+  }
 
   // Show all env vars being set
   const envKeys = Object.keys(env);
@@ -178,9 +185,9 @@ async function doLaunch(config, provider, account, model, cli) {
   // CLI-specific args
   let command = cli;
   let args = [];
-  if (cli === 'aider') args = ['--model', `openai/${model}`];
-  if (cli === 'agy') args = ['--model', model];
-  if (cli === 'opencode') {
+  if (cli === 'aider' && model) args = ['--model', `openai/${model}`];
+  if (cli === 'agy' && model) args = ['--model', model];
+  if (cli === 'opencode' && model) {
     syncOpencodeConfig(config, provider, account, model);
     args = ['-m', `${provider.id}/${model}`];
   }

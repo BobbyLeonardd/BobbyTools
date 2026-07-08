@@ -254,8 +254,19 @@ export const PROVIDER_TEMPLATES = [
   },
 
   // ═══════════════════════════════════
-  // LOCAL PROVIDERS
+  // LOCAL PROVIDERS / NATIVE CLIs
   // ═══════════════════════════════════
+  {
+    name: 'Native Antigravity CLI (agy)',
+    description: 'Direct launch agy (uses your native Google AI Pro config)',
+    category: 'local',
+    baseUrlTemplate: 'native',
+    modelsEndpoint: null,
+    baseUrlEnvVar: 'IGNORE',
+    defaultCli: 'agy',
+    skipModelSelection: true,
+    credentials: [], 
+  },
   {
     name: 'Ollama',
     description: 'Local LLM server',
