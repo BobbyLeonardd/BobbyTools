@@ -129,10 +129,13 @@ async function addFromTemplate() {
   });
   if (confirmAdd === 'back' || !confirmAdd) return 'back';
 
-  const { selectCliTool } = await import('./launcher.js');
-  const config = getConfig();
-  const cli = await selectCliTool(config, `Default CLI tool for ${template.name}?`);
-  if (!cli) return 'back';
+  let cli = template.defaultCli;
+  if (!cli) {
+    const { selectCliTool } = await import('./launcher.js');
+    const config = getConfig();
+    cli = await selectCliTool(config, `Default CLI tool for ${template.name}?`);
+    if (!cli) return 'back';
+  }
 
   return {
     id: randomUUID(),
