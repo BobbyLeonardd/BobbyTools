@@ -299,8 +299,12 @@ async function manageCliTools(config) {
       }
       const tool = await select({
         message: 'Remove which?',
-        choices: config.cliTools.map((t) => ({ name: t, value: t })),
+        choices: [
+          ...config.cliTools.map((t) => ({ name: t, value: t })),
+          { name: chalk.gray('↩️  Back'), value: 'back' },
+        ],
       });
+      if (tool === 'back') continue;
       config.cliTools = config.cliTools.filter((t) => t !== tool);
       if (config.settings.defaultCli === tool) {
         config.settings.defaultCli = config.cliTools[0];
