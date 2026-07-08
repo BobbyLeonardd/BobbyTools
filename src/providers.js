@@ -145,8 +145,8 @@ async function addFromTemplate() {
     accounts: [],
     models: [],
     lastAccountId: null,
+    skipModelSelection: template.skipModelSelection || false,
   };
-  if (template.skipModelSelection) newProvider.skipModelSelection = true;
 }
 
 async function addCustom() {
