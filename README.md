@@ -52,17 +52,8 @@ Syarat mutlak: Laptop lo udah harus ada **Node.js (versi 18 ke atas)**. Kalo bel
 Buka terminal, copas *command* ini:
 
 ```bash
-# 1. Clone reponya ke laptop lo
-git clone https://github.com/BobbyLeonardd/BobbyTools.git
-
-# 2. Masuk ke foldernya
-cd BobbyTools
-
-# 3. Install dependency & daftarin command "bobby" ke sistem
-npm install
-npm link
+npm install -g bobbytools
 ```
-*Catatan buat user Linux/Mac: Kalo `npm link` nolak karena error permission, tambahin `sudo` di depannya.*
 
 Udah. Silakan tutup terminalnya. Sekarang lo buka *project* apapun, ketik `bobby`, dan keajaiban akan terjadi.
 

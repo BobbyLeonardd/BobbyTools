@@ -1,10 +1,10 @@
 {
   "name": "bobbytools",
   "version": "2.0.0",
-  "description": "AI Provider Manager & CLI Launcher \u2014 manage multiple AI providers, accounts, and models, then launch any CLI tool with the right environment variables",
+  "description": "AI Provider Manager & CLI Launcher — manage multiple AI providers, accounts, and models, then launch any CLI tool with the right environment variables",
   "type": "module",
   "bin": {
-    "bobby": "./bin/bobby.js"
+    "bobby": "bin/bobby.js"
   },
   "scripts": {
     "start": "node bin/bobby.js"
@@ -28,7 +28,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/bobbytools/bobbytools"
+    "url": "git+https://github.com/bobbytools/bobbytools.git"
   },
   "homepage": "https://github.com/bobbytools/bobbytools#readme",
   "bugs": {
