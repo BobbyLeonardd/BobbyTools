@@ -43,36 +43,67 @@ Biar ekspektasi lo bener, ini fakta teknisnya:
 2.  **Gak Ada Auto-Rotate di Tengah Jalan**: Kalo lo lagi asik *generate* kode terus kena *rate limit*, BobbyTools nggak bakal otomatis nge-swap API key saat itu juga. Kenapa? Karena bikin *Local Proxy Server* buat nangani *streaming response* (SSE) itu ribet banget dan ngelanggar prinsip "simpel & males" gue. Solusinya? Pencet `Ctrl+C`, bilang ke Bobby akunnya limit, terus ketik `bobby go`. Kelar dalam 3 detik tanpa kode yang bengkak.
 3.  **Zero Encryption**: API Key lo disimpen *plain text* di `~/.bobbytools/config.json`. Jangan tolol nge-push folder ini ke GitHub publik kalo ga mau ditagih AWS jutaan rupiah.
 
-## 🚀 Instalasi
+---
 
-Syarat mutlak: Node.js >= 18.0.0.
+## 🚀 Tutorial Instalasi (The Quick Way)
+
+Syarat mutlak: Laptop lo udah harus ada **Node.js (versi 18 ke atas)**. Kalo belum, urus dulu gih.
+
+Buka terminal, copas *command* ini:
 
 ```bash
-# Clone reponya
+# 1. Clone reponya ke laptop lo
 git clone https://github.com/BobbyLeonardd/BobbyTools.git
+
+# 2. Masuk ke foldernya
 cd BobbyTools
 
-# Install dependency & link ke global
+# 3. Install dependency & daftarin command "bobby" ke sistem
 npm install
 npm link
 ```
-Udah. Ketik `bobby` di terminal mana aja buat ngebuka.
+*Catatan buat user Linux/Mac: Kalo `npm link` nolak karena error permission, tambahin `sudo` di depannya.*
 
-## 🎮 Cara Pake (Gak Pake Mikir)
+Udah. Silakan tutup terminalnya. Sekarang lo buka *project* apapun, ketik `bobby`, dan keajaiban akan terjadi.
 
-1. Ketik `bobby` di terminal.
-2. Buka **Manage Providers** -> Tambahin provider. Pilih *template* atau bikin *custom*. Di sini lo juga milih mau dipatenkin pake CLI apa (Default CLI).
-3. Buka **Manage Accounts** -> Masukin nama akun dan API Key lo.
-4. Balik ke depan, pilih **Start Session**. Pilih provider, akun, sama model. Bobby bakal nge-inject semuanya dan nge-launch CLI lo.
+---
+
+## 🎮 Cara Pake (Step-by-Step, Ga Pake Mikir)
+
+Buat lo yang anti baca doku panjang-panjang, alurnya cuma 3 tahap: **Setup Provider ➔ Masukin Akun Tuyul ➔ Gas Ngoding**.
+
+### Langkah 1: Buka Menunya
+Ketik command sakti ini di terminal manapun:
+```bash
+bobby
+```
+*(UI-nya interaktif, lo tinggal navigasi pake panah atas-bawah sama Enter).*
+
+### Langkah 2: Setup Provider (Bikin "Rumah" buat API Lo)
+- Pilih menu **📦 Manage Providers**.
+- Pilih **➕ Add Provider**.
+- Kalo lo pake yang umum kayak OpenAI, Groq, atau OpenRouter, langsung pilih **From Template**. 
+- Di dalem sini, BobbyTools bakal nanya: *"Default CLI tool buat provider ini apa?"*. Nah, pilih CLI kesayangan lo (misal: milih `opencode` buat Cloudflare). Biar besok-besok kaga usah ribet ngetik nama CLI manual lagi.
+
+### Langkah 3: Masukin Akun
+- Balik ke depan, pilih menu **👤 Manage Accounts**.
+- Cari provider yang barusan lo tambahin, terus klik **➕ Add Account**.
+- Kasih nama bebas (misal: "gratisan-tuyul-1"), terus *paste* API Key lo. 
+- *Pro tip: Ulangin langkah ini kalo lo punya banyak API Key buat diternakin.*
+
+### Langkah 4: Start Session (Magic Happens Here)
+- Balik ke menu utama, pilih **🚀 Start Session**.
+- Pilih Provider ➔ Pilih Akun ➔ Pilih Model (bisa milih dari *list* atau ngetik bebas).
+- *BAM!* BobbyTools bakal otomatis nge-set Environment Variables, nulis config di *background*, dan langsung nge-launch CLI lo. Lo tinggal fokus nulis (*atau nge-prompt*) kode.
 
 ---
 
 ## 🧙‍♂️ Pro-Tips buat Kaum Pemalas:
 
-*   `bobby go` : Males ngelewatin menu? Command ini langsung ngebuka sesi terakhir yang lo pake.
-*   `bobby update` : Otomatis nge-pull dari GitHub dan nge-install dependency baru kalo ada *update*. Gak usah buka browser.
-*   **Batch Delete** : Kalo akun tuyul lo mati massal, masuk ke menu Delete Account, pencet `a` (Select All), terus Enter. Langsung bersih.
-*   **Ganti Engine Opencode** : Mau nembak Anthropic asli pake `opencode`? Edit provider lo, ganti **Opencode Plugin** dari `@ai-sdk/openai-compatible` jadi `@ai-sdk/anthropic`.
+*   `bobby go` : Lo males ngelewatin menu karena pake akun yang itu-itu aja? Command ini langsung ngebuka sesi terakhir (history) yang lo pake. Ngirit umur 5 detik per hari.
+*   `bobby update` : Kalo gue iseng nge-push update fitur baru ke GitHub, lo kaga usah buka browser. Ketik ini aja, dia otomatis nge-pull dan install versi terbaru.
+*   **Batch Delete (Pemusnah Akun Limit)** : Punya 50 akun dan mati massal? Masuk ke menu *Delete Account*, pencet spasi buat nyentang (atau pencet tombol `a` buat *select all*), terus Enter. Langsung rata sama tanah.
+*   **Ganti Engine Opencode** : Kalo lo nembak API asli Anthropic (bukan OpenAI-compatible) via `opencode`, masuk ke Edit Provider, terus ganti opsi **Opencode Plugin** jadi `@ai-sdk/anthropic`. Opencode bakal langsung ganti bahasa.
 
 ## 🤝 Kontribusi
 
