@@ -187,6 +187,7 @@ async function doLaunch(config, provider, account, model, cli) {
   let args = [];
   if (cli === 'aider' && model) args = ['--model', `openai/${model}`];
   if (cli === 'agy' && model) args = ['--model', model];
+  if (cli === 'claude' && model) args = ['--model', model];
   if (cli === 'opencode' && model) {
     syncOpencodeConfig(config, provider, account, model);
     args = ['-m', `${provider.id}/${model}`];
@@ -284,7 +285,7 @@ export async function selectCliTool(config, message = 'Launch with') {
   const choices = [
     { name: chalk.gray('↩️  Back'), value: null },
     ...config.cliTools.map((t) => ({
-      name: t === config.settings.defaultCli ? `${t} ${chalk.gray('(default)')}` : t,
+      name: t,
       value: t,
     })),
     { name: chalk.cyan('✍️  Custom command'), value: '__custom__' }

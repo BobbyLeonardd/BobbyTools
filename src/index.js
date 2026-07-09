@@ -230,10 +230,6 @@ async function manageSettings() {
     const action = await select({
       message: 'Settings',
       choices: [
-        {
-          name: `Default CLI: ${chalk.white(config.settings.defaultCli)}`,
-          value: 'defaultCli',
-        },
         { name: 'Manage CLI Tools list', value: 'cliTools' },
         {
           name: chalk.gray(`Config: ${getConfigPath()}`),
@@ -245,17 +241,6 @@ async function manageSettings() {
     });
 
     if (action === 'back') return;
-
-    if (action === 'defaultCli') {
-      const cli = await select({
-        message: 'Set default CLI tool',
-        choices: config.cliTools.map((t) => ({ name: t, value: t })),
-      });
-      config.settings.defaultCli = cli;
-      saveConfig(config);
-      success(`Default CLI → "${cli}"`);
-      await pause();
-    }
 
     if (action === 'cliTools') {
       await manageCliTools(config);
@@ -306,9 +291,6 @@ async function manageCliTools(config) {
       });
       if (tool === 'back') continue;
       config.cliTools = config.cliTools.filter((t) => t !== tool);
-      if (config.settings.defaultCli === tool) {
-        config.settings.defaultCli = config.cliTools[0];
-      }
       saveConfig(config);
       success(`"${tool}" removed!`);
       await pause();
