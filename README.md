@@ -1,130 +1,63 @@
 <div align="center">
   
-# 🤖 BobbyTools
+# BobbyTools
 
-**The Ultimate AI Provider & CLI Launcher for Lazy Developers.**
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18.0.0-green.svg)](https://nodejs.org/)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
+**CLI Launcher & API Key Manager buat kuli kode yang males ngedit `.env`.**
 
 </div>
 
 ---
 
-Jujur aja, gue bikin *tools* ini gara-gara gue males banget. 
+Jujur aja, gue bikin *tools* ini gara-gara gue males ribet. 
 
-Nge-manage puluhan akun AI gratisan (OpenAI, Anthropic, Groq, local LLM, dll) itu beneran *pain in the ass*. Tiap kali mau ganti akun, harus ngedit `.env` manual. Tiap provider punya *requirement* credential yang aneh-aneh (ada yang butuh Account ID, Org ID, apalah). Terus pas mau jalanin CLI AI kayak `opencode` atau `aider`, harus nge-set *environment variables* (ENV) manual satu-satu. Capek, boros waktu, dan rentan salah copas.
+Kalo lo sering ternak akun AI gratisan (Groq, Genfity, dll) atau gonta-ganti API dari klien, lo pasti tau betapa nyebelinnya ngerubah file `.env` manual tiap kali kena *rate limit*. Belum lagi tiap *provider* punya format *env var* yang beda-beda. Ganti kunci, ganti URL, restart CLI. Buang-buang umur.
 
-Berawal dari kemalasan yang hakiki itu, **BobbyTools** lahir. 
+**BobbyTools** itu solusinya. Ini bukan *proxy* AI yang *over-engineered*. Ini murni "Babu Terminal" yang tugasnya nyuntikin kredensial ke CLI favorit lo (`opencode`, `aider`, `claude`, dll). Lo setup akun sekali, sisanya Bobby yang ngurusin.
 
-Lo cukup setup provider dan masukin akun lo **sekali aja**. Sisanya? BobbyTools yang bakal ngurusin *injection* ENV-nya ke terminal secara otomatis. Ngasih lo menu interaktif buat gonta-ganti akun dengan gampang, terus langsung ngebuka CLI favorit lo dari satu tempat. Selesai.
+## Apa yang BobbyTools lakuin (The Good Stuff)
 
-## 🔥 Fitur Utama (Kenapa Lo Butuh Ini)
+- **Manajemen Akun Fleksibel**: Lo bisa numpuk 50 akun *burner* di sini. Kalo satu kena limit 429, tinggal ganti ke akun berikutnya lewat menu.
+- **Injector Universal**: Provider lo butuh `OPENAI_API_KEY` atau `ANTHROPIC_API_KEY`? Bebas. Lo tinggal *define* nama env var-nya pas bikin provider, Bobby yang bakal nge-inject ke RAM pas nge-spawn CLI.
+- **Sinkronisasi Model Otomatis**: Lo milih model di BobbyTools, CLI lo langsung ngikut. Kalo pake `opencode`, BobbyTools bahkan ngedit file config `opencode.json` di *background* biar lo ga usah nyentuh file itu lagi.
+- **Default CLI per Provider**: Beda provider beda CLI? (misal Cloudflare maunya pake `opencode`, Genfity maunya pake `claude`). Bisa. Udah dipatenkin di settingan tiap provider.
 
-- 🏭 **Multi-Provider & Multi-Account Ready**: Setup sekali, pake berkali-kali. Cocok buat ternak akun atau manage *billing* klien.
-- 🪛 **Dynamic Credentials**: Nggak cuma nangkep API Key standar. Provider lo aneh minta `Account ID` atau param lain? Lo bisa tambahin *field custom* sendiri pas setup.
-- 💉 **Smart CLI Injector**: Nyimpen kredensial dan langsung nge-*inject* semua *env vars* (misal `OPENAI_BASE_URL` dan `OPENAI_API_KEY`) ke dalem *child process* CLI pilihan lo.
-- 🧠 **Native SDK Support**: Mau nembak API standar OpenAI? Bisa. Mau nembak API asli Anthropic/Gemini lewat Opencode? Tinggal ganti *plugin* SDK-nya di menu edit.
-- 🎯 **UX Dibuat Pake Logika Manusia**: Menu kepanjangan otomatis ada kolom search-nya. Mau hapus banyak akun yang kena limit? Tinggal *batch delete* pake spasi kayak milih file.
+## Apa yang BobbyTools GAK BISA lakuin (Brutal Honesty)
 
----
+Biar ekspektasi lo bener, ini fakta teknisnya:
 
-## 🛠️ Instalasi (The Quick Way)
+- **Bukan Translator API**: Kalo CLI lo cuma ngerti bahasa Anthropic, terus lo paksa nembak API OpenAI-compatible, bakal *error*. BobbyTools cuma ngasih kunci rumah, bukan nerjemahin bahasanya.
+- **Gak Ada Auto-Rotate di Tengah Jalan**: Kalo lo lagi asik *generate* kode terus kena *rate limit*, BobbyTools nggak bakal otomatis nge-swap API key saat itu juga. Kenapa? Karena bikin *Local Proxy Server* buat nangani *streaming response* (SSE) itu ribet banget dan ngelanggar prinsip "simpel & males" gue. Solusinya? Pencet `Ctrl+C`, bilang ke Bobby akunnya limit, terus ketik `bobby go`. Kelar dalam 3 detik tanpa kode yang bengkak.
+- **Zero Encryption**: API Key lo disimpen *plain text* di `~/.bobbytools/config.json`. Jangan tolol nge-push folder ini ke GitHub publik kalo ga mau ditagih AWS jutaan rupiah.
 
-Syarat wajib: Laptop lo udah harus ke-install **Node.js** (versi 18 ke atas biar aman). Kalo belom punya, install dulu gih.
+## Instalasi
 
-Buka terminal, trus ketik ginian (jangan di-skip):
+Syarat: Node.js >= 18.0.0.
 
 ```bash
-# 1. Clone repo ini ke lokal lo
 git clone https://github.com/BobbyLeonardd/BobbyTools.git
-
-# 2. Masuk ke foldernya
 cd BobbyTools
-
-# 3. Install semua dependencies-nya
 npm install
-
-# 4. Jadiin command "bobby" jalan secara global di laptop lo
 npm link
 ```
+Udah. Ketik `bobby` di terminal mana aja buat ngebuka.
 
-Beres! Lo bisa nutup terminalnya. Sekarang lo buka terminal baru di folder *project* kodingan manapun, ketik `bobby`. Kalo muncul menunya, berarti instalasi lo sukses.
+## Cara Pake (Gak Pake Mikir)
 
----
+1. Ketik `bobby`.
+2. Buka **Manage Providers** -> Tambahin provider. Pilih *template* atau bikin *custom*. Di sini lo juga milih mau dipatenkin pake CLI apa (Default CLI).
+3. Buka **Manage Accounts** -> Masukin nama akun dan API Key lo.
+4. Balik ke depan, pilih **Start Session**. Pilih provider, akun, sama model. Bobby bakal nge-inject semuanya dan nge-launch CLI lo.
 
-## 🎮 Cara Pake (Gak Pake Mikir)
+### Pro-Tips buat Kaum Pemalas:
 
-Alurnya cuma tiga tahap: **Setup Provider ➔ Masukin Akun ➔ Start Session**.
+- **`bobby go`**: Males ngelewatin menu? Command ini langsung ngebuka sesi terakhir yang lo pake.
+- **`bobby update`**: Otomatis nge-pull dari GitHub dan nge-install dependency baru kalo ada *update*. Gak usah buka browser.
+- **Batch Delete**: Kalo akun tuyul lo mati massal, masuk ke menu Delete Account, pencet `a` (Select All), terus Enter. Langsung bersih.
+- **Ganti Engine Opencode**: Mau nembak Anthropic asli pake `opencode`? Edit provider lo, ganti **Opencode Plugin** dari `@ai-sdk/openai-compatible` jadi `@ai-sdk/anthropic`.
 
-### 1. Buka Menu Utama
-Ketik *command* sakti ini:
-```bash
-bobby
-```
+## Kontribusi
 
-### 2. Setup Provider
-- Pilih **📦 Manage Providers** ➔ **➕ Add Provider**.
-- Kalo mau gampang, pilih **From Template**. Udah ada puluhan template bawaan (OpenAI, Groq, OpenRouter, DeepSeek, dll).
-- Kalo provider lo aneh atau baru rilis, lo bisa bikin sendiri lewat **Custom Provider**. Lo bisa *define* *Base URL* sama *env var*-nya di situ.
-
-### 3. Masukin Akun (Tuyul Lo)
-- Pilih **👤 Manage Accounts**.
-- Pilih provider yang barusan lo bikin, terus klik **➕ Add Account**. 
-- Kasih nama akunnya (misal: "gratisan-1"), terus *paste* API Key-nya. 
-
-### 4. Gas Ngoding! (Start Session)
-Balik ke Menu Utama.
-- Pilih **🚀 Start Session**.
-- Pilih Provider ➔ Pilih Akun ➔ Pilih Model.
-- Pilih CLI yang mau di-*launch* (bisa `opencode`, `aider`, atau `agy`).
-- *BAM!* BobbyTools bakal otomatis nge-set ENV di *background* dan langsung ngebuka CLI lo. Tinggal koding aja bro.
+Kalo lo nemu bug atau punya ide fitur, silakan buka PR. Tapi inget rule-nya: **Keep it simple**. Kalo lo masukin *abstraksi* 500 baris buat fitur yang sebenernya bisa diselesaiin pake logika sebaris, PR lo bakal gue *reject*. *Write less, do more.*
 
 ---
-
-## 💡 Tips Buat Orang Males (Pro Tips)
-
-### 🚀 Quick Launch (`bobby go`)
-Kalo lo ngerasa capek ngelewatin menu buat milih provider/akun yang sama terus, *bypass* aja semuanya:
-```bash
-bobby go
-```
-Ini bakal ngebaca history terakhir dan langsung nge-*launch* sesi lo yang kemaren. Menghemat umur lo 5 detik per hari.
-
-### 🔄 Auto Update (`bobby update`)
-Gue kadang iseng nge-push update fitur baru atau nge-fix bug ke GitHub. Lo ga usah repot-repot buka browser atau nge-*clone* ulang. Cukup ketik:
-```bash
-bobby update
-```
-Dia bakal nyamperin folder instalasinya, jalanin `git pull`, nge-install *dependencies* baru kalo ada, dan langsung *ready* dipake. 
-
-### 🔌 Opencode & Native CLIs
-Standarnya, BobbyTools ngebaca API pakai standar OpenAI (`@ai-sdk/openai-compatible`). Kalo lo pake `opencode` dan mau nembak API asli Anthropic atau Gemini (tanpa openrouter dkk):
-- Masuk ke **Manage Providers** ➔ **Edit Provider**.
-- Edit bagian **Opencode Plugin**.
-- Ganti isinya jadi *plugin* Vercel AI SDK bawaan (contoh: `@ai-sdk/anthropic` atau `@ai-sdk/google`).
-
-*(Fun Fact: Ada template sakti namanya **Native Antigravity CLI (agy)**. Ini khusus buat lo yang udah langganan Google AI Pro dan pengen nge-launch `agy` secara utuh (bypass akun & model) dari dalem BobbyTools. Bikin akun kosongan aja, langsung gas!)*
-
-### 🧹 Batch Delete (Pemusnah Akun Limit)
-Punya 50 akun dan kena limit semua? Jangan apus manual atu-atu, kriting jari lo ntar. 
-Masuk ke menu **Delete Account**, pencet **Spasi** buat nyentang akun mana aja yang mau dieksekusi, pencet tombol `a` buat *select all*, terus **Enter**. Kelar urusan.
-
----
-
-## 🔒 Privasi & Keamanan
-
-Data API Key lo **100% aman** dan kaga pernah dikirim ke server *third-party* (kecuali langsung ke API AI-nya). BobbyTools nyimpen config lo murni di lokal laptop, tempatnya di:
-`~/.bobbytools/config.json` 
-
-*(Warning: Kalo lo lagi iseng nge-backup dotfiles ke github publik, pastiin folder ini di-ignore ya, jangan sampe ke-push!)*
-
-## 🤝 Kontribusi
-
-Kalo lo nemu bug, punya ide sinting, atau gatel pengen refactor kodenya, sikat aja! Lempar issue atau buka *Pull Request*. Santai aja bro, ini proyek dari kuli kode buat kuli kode.
-
----
-<div align="center">
-Dibuat dengan 💧 keringat, ☕ kopi, dan males ngetik <code>.env</code> oleh <b>Bobby Leonardo</b> & Contributors.
-</div>
+*Built with coffee, spite for manual configuration, and sheer laziness.*
