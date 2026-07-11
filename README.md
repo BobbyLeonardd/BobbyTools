@@ -25,7 +25,7 @@
 
 Kalo lo sering ternak akun AI gratisan (Groq, OpenRouter, dll) atau sering gonta-ganti API dari klien, lo pasti tau betapa nyebelinnya ngerubah file `.env` manual tiap kali dapet error `429 Too Many Requests`. Ganti kunci, ganti URL, *restart* CLI. *Repeat*. Buang-buang umur bro.
 
-**BobbyTools** itu solusinya. Ini bukan *proxy* AI yang *over-engineered* dan bikin laptop lo panas. Ini murni "Babu Terminal" yang tugasnya nyuntikin kredensial secara gaib ke CLI favorit lo (`opencode`, `aider`, `claude`, dll). Lo setup akun sekali, sisanya Bobby yang kerja.
+**BobbyTools** itu solusinya. Ini bukan *proxy* AI yang *over-engineered* dan bikin laptop lo panas. Ini murni "Babu Terminal" yang tugasnya nyuntikin kredensial secara gaib ke CLI favorit lo (`opencode`, `aider`, `claude`, `agy`, `codex`, dll). Lo setup akun sekali, sisanya Bobby yang kerja.
 
 ## ✨ Kenapa Lo Butuh Ini? (The Good Stuff)
 

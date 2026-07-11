@@ -268,6 +268,17 @@ export const PROVIDER_TEMPLATES = [
     credentials: [], 
   },
   {
+    name: 'Native Codex CLI (codex)',
+    description: 'Direct launch codex (uses your native Codex config)',
+    category: 'local',
+    baseUrlTemplate: 'native',
+    modelsEndpoint: null,
+    baseUrlEnvVar: 'IGNORE',
+    defaultCli: 'codex',
+    skipModelSelection: true,
+    credentials: [], 
+  },
+  {
     name: 'Ollama',
     description: 'Local LLM server',
     category: 'local',
