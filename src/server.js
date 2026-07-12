@@ -12,6 +12,12 @@ export async function startRouterServer(port = 13337) {
       let aggregatedModels = [];
 
       for (const provider of config.providers) {
+        // Cegah "Inception" / Infinite Fractal Loop kalo user masukin LocalRouter ke dalem config
+        const url = provider.baseUrl || provider.url || '';
+        if (url.includes('127.0.0.1') || url.includes('localhost')) {
+          continue;
+        }
+
         if (provider.models && provider.models.length > 0) {
           for (const model of provider.models) {
             aggregatedModels.push({
