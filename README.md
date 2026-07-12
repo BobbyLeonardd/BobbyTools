@@ -141,6 +141,7 @@ claude -m google/gemini-1.5-pro
 *   **Jalur Cepat (`bobby go`)** : Kalo lo tipe setia dan pakenya API itu-itu aja, gausah buka menu interaktif. Ketik `bobby go` di terminal. Dia bakal langsung nge-*launch* sesi terakhir yang lo pake. Ngirit umur 5 detik.
 *   **Tombol Back Router** : Pas lo lagi nyalain `bobby serve`, terus pengen balik ke menu utama buat nambahin akun? Gak usah di Ctrl+C. Tinggal pencet huruf `b` atau `q` terus Enter. Dia bakal matiin server elegan dan balik ke menu utama.
 *   **Pemusnah Massal (Batch Delete)** : Punya 50 akun dan semuanya limit? Masuk ke menu *Manage Accounts* -> *Delete Account*, pencet tombol `A` (*select all*) atau Spasi buat nyentang, terus Enter. Langsung bersih rata sama tanah.
+*   **Jurus "Inception" (Auto-Rotate via Menu Klasik)** : Males ngetik model manual pas pake Router? Gampang! Nyalain `bobby serve`, lalu buka terminal baru dan bikin **Provider Custom** di menu `bobby` (Base URL: `http://127.0.0.1:13337/v1`, API Key: `sk-bobby`, Fetch Models: `YES`). Lo bakal dapet *dropdown* semua model PLUS fitur *Auto-Rotate*. Tenang aja, sistem udah di-*patch* anti *Infinite Loop*!
 
 ## 🚫 Apa yang BobbyTools GAK BISA (Brutal Honesty)
 
