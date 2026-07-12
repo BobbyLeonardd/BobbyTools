@@ -97,7 +97,14 @@ bobby serve
 Nanti bakal muncul notifikasi kalau router lo jalan di `http://127.0.0.1:13337`.
 
 ### Langkah 2: Setting Env Vars CLI Lo
-Buka terminal lain (tempat lo mau ngoding). Lo tinggal ngarahin CLI lo biar nembak ke router Bobby, bukan nembak ke API aslinya. Sesuaikan sama CLI yang lo pake:
+Buka terminal lain (tempat lo mau ngoding). Lo tinggal ngarahin CLI lo biar nembak ke router Bobby, bukan nembak ke API aslinya. Sesuaikan sama CLI yang lo pake.
+
+> ⚠️ **PENTING: Beda OS Beda Cara Nge-Set Env Vars!**
+> - **Mac/Linux/GitBash:** Pakai `export VAR="nilai"`
+> - **Windows PowerShell:** Pakai `$env:VAR="nilai"` (Contoh: `$env:OPENAI_BASE_URL="http://127.0.0.1:13337/v1"`)
+> - **Windows CMD:** Pakai `set VAR="nilai"`
+>
+> *(Contoh-contoh di bawah ini pake gaya `export` ala Linux, silakan sesuain sendiri kalo lo pake Windows).*
 
 **Untuk CLI berbasis OpenAI (kayak `opencode`, `aider`, `cursor`):**
 ```bash

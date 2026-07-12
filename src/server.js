@@ -156,6 +156,11 @@ export async function startRouterServer(port = 13337) {
       console.log(chalk.cyan.bold('\n  📖 TUTORIAL CARA PAKAI:'));
       console.log(chalk.white(`  1. Buka terminal baru (biarkan terminal ini menyala).`));
       console.log(chalk.white(`  2. Atur env vars di terminal baru (pilih sesuai bawaan CLI-mu):`));
+      console.log(chalk.red(`     ⚠️  PENTING (Beda OS Beda Cara):`));
+      console.log(chalk.gray(`     - Mac/Linux/GitBash  : pakai `) + chalk.yellow(`export VAR="nilai"`));
+      console.log(chalk.gray(`     - Windows PowerShell : pakai `) + chalk.yellow(`$env:VAR="nilai"`));
+      console.log(chalk.gray(`     - Windows CMD        : pakai `) + chalk.yellow(`set VAR="nilai"`));
+      console.log(chalk.gray(`     (Contoh di bawah pakai gaya Mac/Linux, silakan sesuaikan)`));
       
       console.log(chalk.gray(`\n     [Standar OpenAI - Paling banyak dipakai (opencode, aider, cursor)]`));
       console.log(chalk.yellow(`     export OPENAI_BASE_URL="http://127.0.0.1:${port}/v1"`));
