@@ -158,8 +158,9 @@ Kalo lo nemu *bug* atau punya ide gila lainnya, silakan buka PR. Tapi inget *rul
 ---
 
 ## 📦 Changelog Singkat
+- **v2.1.4**: *Update Major*: Router sekarang dilengkapi dengan **Smart Auth Header Injection**. Otomatis ngenalin dan ngeganti *header* otentikasi berdasarkan tipe CLI SDK-nya. Mau lu nembak pake format OpenAI (`Authorization: Bearer`), Anthropic (`x-api-key`), Google (`x-goog-api-key`), atau Azure (`api-key`), semuanya dijamin mulus tanpa *error* karena *header mismatch*. Nggak ada lagi drama token gak kebaca.
 - **v2.1.3**: *Upgrade* fitur `Toggle Status` jadi pake sistem *checkbox* biar bisa *mass-toggle* banyak akun sekaligus. *Fix bug UI* teks `(active)` yang bocor di terminal.
-- **v2.1.2**: *Bugfix* brutal. Benerin isu `401 Unauthorized` pas *auto-rotate* gara-gara Node.js ngubah *header* jadi huruf kecil (`authorization`), dan benerin *output* log `\x1b` yang bocor jadi teks literal di terminal.
+- **v2.1.2**: *Bugfix* brutal. Benerin isu `Z_DATA_ERROR` (crash gara-gara gzip content-encoding) dan isu `401 Unauthorized` pas *auto-rotate* (karena Node.js ngubah header `authorization` jadi huruf kecil). Fix juga *output* log `\x1b` yang bocor jadi teks literal di terminal.
 
 ---
 <div align="center">

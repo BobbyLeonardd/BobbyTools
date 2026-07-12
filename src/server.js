@@ -102,7 +102,15 @@ export async function startRouterServer(port = 13337) {
           delete headers.host;
           headers['content-length'] = Buffer.byteLength(newPayloadStr);
           if (apiKey) {
-             headers['authorization'] = `Bearer ${apiKey}`;
+            if (headers['x-api-key']) {
+              headers['x-api-key'] = apiKey;
+            } else if (headers['api-key']) {
+              headers['api-key'] = apiKey;
+            } else if (headers['x-goog-api-key']) {
+              headers['x-goog-api-key'] = apiKey;
+            } else {
+              headers['authorization'] = `Bearer ${apiKey}`;
+            }
           }
 
           process.stdout.write('\x1b[2K\r' + chalk.cyan(`[ROUTER] Routing to ${provider.name} (${currentAccount.name}) -> ${actualModel}`));
@@ -133,7 +141,10 @@ export async function startRouterServer(port = 13337) {
             }
           }
 
-          res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
+          const responseHeaders = Object.fromEntries(response.headers.entries());
+          delete responseHeaders['content-encoding'];
+          
+          res.writeHead(response.status, responseHeaders);
           if (response.body) {
             for await (const chunk of response.body) {
               res.write(chunk);
