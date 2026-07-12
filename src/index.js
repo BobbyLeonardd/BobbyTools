@@ -46,6 +46,16 @@ export async function main() {
       return;
     }
 
+    if (args[0] === 'serve') {
+      const portIndex = args.indexOf('-p') !== -1 ? args.indexOf('-p') : args.indexOf('--port');
+      const port = portIndex !== -1 ? parseInt(args[portIndex + 1]) : 13337;
+      clearScreen();
+      showBanner();
+      const { startRouterServer } = await import('./server.js');
+      await startRouterServer(port);
+      return;
+    }
+
     // Interactive mode
     while (true) {
       try {
@@ -97,6 +107,7 @@ async function mainMenu() {
     }
 
     choices.push(
+      { name: '🌐  Start Local AI Router', value: 'serve' },
       { name: '📦  Manage Providers', value: 'providers' },
       { name: '🔧  Settings', value: 'settings' },
       { name: '❌  Exit', value: 'exit' },
@@ -110,6 +121,12 @@ async function mainMenu() {
         break;
       case 'quick':
         await quickLaunch();
+        break;
+      case 'serve':
+        clearScreen();
+        showBanner();
+        const { startRouterServer } = await import('./server.js');
+        await startRouterServer(13337);
         break;
       case 'providers':
         await manageProviders();
@@ -305,6 +322,7 @@ function showHelp() {
   console.log(chalk.white.bold('  Usage:'));
   console.log(chalk.gray('    bobby') + '           Interactive menu');
   console.log(chalk.gray('    bobby go') + '        Quick launch (last session)');
+  console.log(chalk.gray('    bobby serve') + '     Start Local AI Router (9router mode)');
   console.log(chalk.gray('    bobby list') + '      Show all providers & accounts');
   console.log(chalk.gray('    bobby update') + '    Update BobbyTools from GitHub');
   console.log(chalk.gray('    bobby -v') + '        Version');

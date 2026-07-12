@@ -38,8 +38,8 @@ Kalo lo sering ternak akun AI gratisan (Groq, OpenRouter, dll) atau sering gonta
 
 Biar ekspektasi lo bener:
 1.  **Bukan Translator API**: Kalo CLI lo cuma ngerti bahasa Anthropic, terus lo paksa nembak API OpenAI-compatible, ya bakal *error*. BobbyTools cuma ngasih "kunci rumah", bukan nerjemahin bahasanya.
-2.  **Gak Ada Auto-Rotate di Tengah Jalan**: Kalo lo lagi asik nunggu respon terus kena *rate limit*, BobbyTools nggak bakal otomatis nge-swap API key saat itu juga. Kenapa? Karena bikin *Local Proxy Server* buat nangani *streaming* itu ribet banget dan ngelanggar prinsip males gue. Solusinya? Pencet `Ctrl+C`, ketik `bobby go`, pilih akun sebelah. Kelar 3 detik tanpa nulis *code* yang bengkak.
-3.  **Zero Encryption**: API Key lo disimpen *plain text* di `~/.bobbytools/config.json`. Jangan tolol nge-share file ini ke publik kalo nggak mau ditagih AWS jutaan rupiah.
+2. **Sekarang ADA Auto-Rotate di Tengah Jalan!**: Yoi, gue kemakan omongan gue sendiri. Kalau lo pake mode `bobby serve` (Local Router mode), pas kena *rate limit* (429), BobbyTools bakal ngumpetin *error*-nya, memutar ke akun tuyul lo berikutnya, dan me- *retry request* secara gaib di *background*. CLI lo (seperti `opencode` / `aider`) sama sekali nggak bakal sadar kalau *API Key*-nya baru aja ditukar!
+3. **Zero Encryption**: API Key lo disimpen *plain text* di `~/.bobbytools/config.json`. Jangan tolol nge-share file ini ke publik kalo nggak mau ditagih AWS jutaan rupiah.
 
 ---
 
@@ -94,6 +94,24 @@ bobby
 - Dari menu utama, pilih **🚀 Start Session**.
 - Pilih Provider ➔ Pilih Akun ➔ Pilih Model (bisa milih dari *list* atau ngetik bebas).
 - *BAM!* BobbyTools nge-set *Environment Variables* di RAM dan langsung ngebuka CLI lo. Tinggal fokus *prompting*.
+
+### 5. Mode Sultan: Local AI Router (NEW! 🔥)
+Males ngelewatin menu dan pengen BobbyTools jadi **Universal Gateway** (mirip OpenRouter lokal)?
+- Buka terminal dan jalankan:
+  ```bash
+  bobby serve
+  ```
+- Biarkan server menyala. Di terminal lain, arahkan CLI AI-mu ke router ini:
+  ```bash
+  export OPENAI_BASE_URL="http://127.0.0.1:13337/v1"
+  export OPENAI_API_KEY="bebas-isi-apa-aja"
+  ```
+- Sekarang panggil CLI dengan format `[NamaProvider]/[NamaModel]`:
+  ```bash
+  opencode -m groq/llama3-70b-8192
+  aider --model openrouter/anthropic/claude-3-haiku
+  ```
+- **Otomatis Autocomplete & Auto-Rotate!** Router ini sudah menangani fitur *list models* secara global, dan kalau akunmu *Limit* (429), dia bakal muter otomatis secara gaib!
 
 ---
 
