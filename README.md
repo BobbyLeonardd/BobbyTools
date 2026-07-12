@@ -158,6 +158,7 @@ Kalo lo nemu *bug* atau punya ide gila lainnya, silakan buka PR. Tapi inget *rul
 ---
 
 ## 📦 Changelog Singkat
+- **v2.1.3**: *Upgrade* fitur `Toggle Status` jadi pake sistem *checkbox* biar bisa *mass-toggle* banyak akun sekaligus. *Fix bug UI* teks `(active)` yang bocor di terminal.
 - **v2.1.2**: *Bugfix* brutal. Benerin isu `401 Unauthorized` pas *auto-rotate* gara-gara Node.js ngubah *header* jadi huruf kecil (`authorization`), dan benerin *output* log `\x1b` yang bocor jadi teks literal di terminal.
 
 ---
