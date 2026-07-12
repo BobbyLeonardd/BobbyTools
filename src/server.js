@@ -155,13 +155,25 @@ export async function startRouterServer(port = 13337) {
       
       console.log(chalk.cyan.bold('\n  📖 TUTORIAL CARA PAKAI:'));
       console.log(chalk.white(`  1. Buka terminal baru (biarkan terminal ini menyala).`));
-      console.log(chalk.white(`  2. Atur env vars di terminal baru tersebut:`));
+      console.log(chalk.white(`  2. Atur env vars di terminal baru (pilih sesuai bawaan CLI-mu):`));
+      
+      console.log(chalk.gray(`\n     [Standar OpenAI - Paling banyak dipakai (opencode, aider, cursor)]`));
       console.log(chalk.yellow(`     export OPENAI_BASE_URL="http://127.0.0.1:${port}/v1"`));
-      console.log(chalk.yellow(`     export OPENAI_API_KEY="sk-bobby" `) + chalk.gray(`(Bebas isi apa saja)`));
-      console.log(chalk.white(`  3. Panggil CLI favoritmu dan format nama modelnya seperti ini:`));
-      console.log(chalk.yellow(`     opencode -m <nama-provider>/<nama-model>`));
-      console.log(chalk.gray(`     Contoh: opencode -m groq/llama3-70b-8192`));
-      console.log(chalk.gray(`     Contoh: aider --model openrouter/anthropic/claude-3-haiku`));
+      console.log(chalk.yellow(`     export OPENAI_API_KEY="sk-bobby"`));
+      
+      console.log(chalk.gray(`\n     [Standar Anthropic - Untuk claude-code dll]`));
+      console.log(chalk.yellow(`     export ANTHROPIC_BASE_URL="http://127.0.0.1:${port}/v1"`));
+      console.log(chalk.yellow(`     export ANTHROPIC_API_KEY="sk-bobby"`));
+
+      console.log(chalk.gray(`\n     [Standar Lainnya - Google Gemini / Groq / Cohere]`));
+      console.log(chalk.yellow(`     export GEMINI_BASE_URL="http://127.0.0.1:${port}/v1"   export GEMINI_API_KEY="sk-bobby"`));
+      console.log(chalk.yellow(`     export GROQ_BASE_URL="http://127.0.0.1:${port}/v1"     export GROQ_API_KEY="sk-bobby"`));
+
+      console.log(chalk.white(`\n  3. Panggil CLI favoritmu dan gabungkan Provider + Model:`));
+      console.log(chalk.yellow(`     <nama-cli> -m <nama-provider>/<nama-model>`));
+      console.log(chalk.gray(`     Contoh 1: opencode -m groq/llama3-70b-8192`));
+      console.log(chalk.gray(`     Contoh 2: aider --model openrouter/anthropic/claude-3-haiku`));
+      console.log(chalk.gray(`     Contoh 3: claude -m google/gemini-1.5-pro`));
       
       console.log(chalk.cyan.bold('\n  ✨ MAGIC YANG TERJADI:'));
       console.log(chalk.white(`  - Router akan memotong nama depan (misal: "groq") dan mencari akun Groq-mu.`));
@@ -177,12 +189,14 @@ export async function startRouterServer(port = 13337) {
       const key = data.toString().trim().toLowerCase();
       if (key === 'b' || key === 'q') {
         console.log(chalk.yellow('\nMematikan router dan kembali ke menu...'));
+        process.stdin.off('data', onData);
+        process.stdin.pause();
         server.close(() => {
-          process.stdin.off('data', onData);
           resolve();
         });
       }
     };
+    process.stdin.resume();
     process.stdin.on('data', onData);
   });
 }
