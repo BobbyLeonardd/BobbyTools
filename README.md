@@ -156,6 +156,11 @@ Biar ekspektasi lo bener:
 Kalo lo nemu *bug* atau punya ide gila lainnya, silakan buka PR. Tapi inget *rule* mutlak gue: **Keep it simple**. Kalo lo masukin *abstraksi* panjang atau nambah *library* raksasa buat fitur yang sebenernya bisa diselesaiin pake logika sebaris native Node.js, PR lo bakal gue tolak mentah-mentah. *Write less, do more.*
 
 ---
+
+## 📦 Changelog Singkat
+- **v2.1.2**: *Bugfix* brutal. Benerin isu `401 Unauthorized` pas *auto-rotate* gara-gara Node.js ngubah *header* jadi huruf kecil (`authorization`), dan benerin *output* log `\x1b` yang bocor jadi teks literal di terminal.
+
+---
 <div align="center">
 <i>Built with coffee, spite for manual configuration, and sheer laziness.</i>
 </div>

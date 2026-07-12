@@ -102,10 +102,10 @@ export async function startRouterServer(port = 13337) {
           delete headers.host;
           headers['content-length'] = Buffer.byteLength(newPayloadStr);
           if (apiKey) {
-             headers['Authorization'] = `Bearer ${apiKey}`;
+             headers['authorization'] = `Bearer ${apiKey}`;
           }
 
-          console.log(chalk.cyan(`[ROUTER] Routing to ${provider.name} (${currentAccount.name}) -> ${actualModel}`));
+          process.stdout.write('\x1b[2K\r' + chalk.cyan(`[ROUTER] Routing to ${provider.name} (${currentAccount.name}) -> ${actualModel}`));
 
           const response = await fetch(targetUrl, {
             method: 'POST',
@@ -114,7 +114,7 @@ export async function startRouterServer(port = 13337) {
           });
 
           if (response.status === 429 || response.status === 401 || response.status === 402) {
-            console.log(chalk.yellow(`[ROUTER] Account "${currentAccount.name}" hit limit (${response.status}). Auto-rotating...`));
+            process.stdout.write('\x1b[2K\r' + chalk.yellow(`[ROUTER] Account "${currentAccount.name}" hit limit (${response.status}). Auto-rotating...`));
             
             const p = config.providers.find(x => x.id === provider.id);
             const a = p?.accounts.find(x => x.id === currentAccount.id);
@@ -127,7 +127,7 @@ export async function startRouterServer(port = 13337) {
               attempt++;
               continue; 
             } else {
-               console.log(chalk.red(`[ROUTER] All accounts for ${provider.name} are limited.`));
+               process.stdout.write('\x1b[2K\r' + chalk.red(`[ROUTER] All accounts for ${provider.name} are limited.`));
                saveConfig(config);
                break; 
             }
@@ -147,7 +147,7 @@ export async function startRouterServer(port = 13337) {
         res.end(JSON.stringify({ error: 'All accounts for this provider hit limits' }));
 
       } catch (err) {
-        console.error(chalk.red('[ROUTER] Error:'), err);
+        process.stdout.write('\x1b[2K\r' + chalk.red('[ROUTER] Error: ') + (err.message || err));
         res.writeHead(500);
         res.end('Router Internal Error');
       }
