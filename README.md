@@ -1,17 +1,9 @@
 <div align="center">
 
-```text
-  ____        _     _           _____           _     
- |  _ \      | |   | |         |_   _|         | |    
- | |_) | ___ | |__ | |__  _   _  | | ___   ___ | |___ 
- |  _ < / _ \| '_ \| '_ \| | | | | |/ _ \ / _ \| / __|
- | |_) | (_) | |_) | |_) | |_| | | | (_) | (_) | \__ \
- |____/ \___/|_.__/|_.__/ \__, | \_/\___/ \___/|_|___/
-                           __/ |                      
-                          |___/                       
-```
-
-**Babu Terminal & Universal AI Router buat kuli kode yang males ngurusin `.env` berulang kali.**
+  <img src="assets/logo.jpg" alt="BobbyTools Logo" width="500" />
+  <br/>
+  
+  **Babu Terminal & Universal AI Router buat kuli kode yang males ngurusin `.env` berulang kali.**
 
 [![npm version](https://img.shields.io/npm/v/bobbytools.svg)](https://www.npmjs.com/package/bobbytools)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
