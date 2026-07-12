@@ -274,13 +274,47 @@ async function testAccount(provider) {
 // ── Toggle status ──
 
 async function toggleAccount(config, provider) {
-  const account = await pickAccount(provider, 'Toggle status for');
-  if (!account) return;
+  while (true) {
+    clearScreen();
+    showBanner();
+    console.log(chalk.bold('  🔄  Toggle Account Status\n'));
 
-  account.status = account.status === 'active' ? 'limited' : 'active';
-  saveConfig(config);
-  success(`"${account.name}" → ${account.status}`);
-  await pause();
+    if (provider.accounts.length === 0) {
+      error('No accounts to toggle!');
+      await pause();
+      return;
+    }
+
+    const { checkbox } = await import('@inquirer/prompts');
+    
+    const choices = provider.accounts.map(a => ({
+      name: `${a.status === 'active' ? chalk.green('●') : chalk.red('●')} ${a.name} ${chalk.gray(`(${a.status})`)}`,
+      value: a.id
+    }));
+    
+    dim('Press <Space> to select, <a> to select all, <Enter> to confirm, or <Enter> with 0 selected to cancel.');
+    console.log();
+    
+    const selectedIds = await checkbox({
+      message: 'Select account(s) to toggle their status:',
+      choices,
+      pageSize: 15
+    });
+
+    if (selectedIds.length === 0) return;
+
+    for (const id of selectedIds) {
+      const acc = provider.accounts.find(a => a.id === id);
+      if (acc) {
+        acc.status = acc.status === 'active' ? 'limited' : 'active';
+      }
+    }
+    
+    saveConfig(config);
+    success(`Toggled status for ${selectedIds.length} account(s)!`);
+    await pause();
+    return;
+  }
 }
 
 // ── Account picker ──

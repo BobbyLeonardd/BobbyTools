@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 
-export const VERSION = '2.1.1';
+export const VERSION = '2.1.2';
 
 const BRAND = chalk.hex('#FF6B35');
 const ACCENT = chalk.hex('#00D4AA');
