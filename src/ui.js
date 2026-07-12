@@ -6,10 +6,18 @@ const BRAND = chalk.hex('#FF6B35');
 const ACCENT = chalk.hex('#00D4AA');
 
 export function showBanner() {
-  console.log();
-  console.log(BRAND.bold('  ⚡ BobbyTools ') + chalk.gray(`v${VERSION}`));
-  console.log(chalk.gray('     AI Provider Manager & CLI Launcher'));
-  console.log(BRAND('  ──────────────────────────────────────'));
+  const logo = `
+    ____        __    __        ______            __    
+   / __ )____  / /_  / /_  __  /_  __/___  ____  / /____
+  / __  / __ \\/ __ \\/ __ \\/ / / / / / __ \\/ __ \\/ / ___/
+ / /_/ / /_/ / /_/ / /_/ / /_/ / / / /_/ / /_/ / /__  / 
+/_____/\\____/_.___/_.___/\\__, /_/  \\____/\\____/_/____/  
+                        /____/                          
+`;
+  console.log(BRAND.bold(logo));
+  console.log(BRAND.bold(`                                           v${VERSION}`));
+  console.log(chalk.gray('        AI Provider Manager & CLI Launcher'));
+  console.log(BRAND('  ───────────────────────────────────────────────────'));
   console.log();
 }
 
