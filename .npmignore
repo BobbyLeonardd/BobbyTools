@@ -1,4 +1,4 @@
-node_modules/
-.aider*
 .ai-context.md
 scratch.js
+.gitignore
+.aider*
