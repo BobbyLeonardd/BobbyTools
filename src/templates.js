@@ -285,6 +285,72 @@ export const PROVIDER_TEMPLATES = [
       { label: 'API Key', key: 'apiKey', envVar: 'OPENAI_API_KEY', secret: true, required: true },
     ],
   },
+  {
+    name: 'Anyscale Endpoints',
+    description: 'Fast Ray-based inference',
+    category: 'cloud',
+    baseUrlTemplate: 'https://api.endpoints.anyscale.com/v1',
+    modelsEndpoint: '/models',
+    baseUrlEnvVar: 'OPENAI_BASE_URL',
+    credentials: [
+      { label: 'API Key', key: 'apiKey', envVar: 'OPENAI_API_KEY', secret: true, required: true },
+    ],
+  },
+  {
+    name: 'Nebius AI',
+    description: 'High performance NVIDIA cluster',
+    category: 'cloud',
+    baseUrlTemplate: 'https://api.studio.nebius.ai/v1',
+    modelsEndpoint: '/models',
+    baseUrlEnvVar: 'OPENAI_BASE_URL',
+    credentials: [
+      { label: 'API Key', key: 'apiKey', envVar: 'OPENAI_API_KEY', secret: true, required: true },
+    ],
+  },
+  {
+    name: 'NVIDIA NIM',
+    description: 'NVIDIA inference microservices',
+    category: 'cloud',
+    baseUrlTemplate: 'https://integrate.api.nvidia.com/v1',
+    modelsEndpoint: '/models',
+    baseUrlEnvVar: 'OPENAI_BASE_URL',
+    credentials: [
+      { label: 'API Key', key: 'apiKey', envVar: 'OPENAI_API_KEY', secret: true, required: true },
+    ],
+  },
+  {
+    name: 'Alibaba DashScope',
+    description: 'Qwen models API',
+    category: 'cloud',
+    baseUrlTemplate: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+    modelsEndpoint: '/models',
+    baseUrlEnvVar: 'OPENAI_BASE_URL',
+    credentials: [
+      { label: 'API Key', key: 'apiKey', envVar: 'OPENAI_API_KEY', secret: true, required: true },
+    ],
+  },
+  {
+    name: 'Zhipu AI',
+    description: 'GLM models API',
+    category: 'cloud',
+    baseUrlTemplate: 'https://open.bigmodel.cn/api/paas/v4',
+    modelsEndpoint: null,
+    baseUrlEnvVar: 'OPENAI_BASE_URL',
+    credentials: [
+      { label: 'API Key', key: 'apiKey', envVar: 'OPENAI_API_KEY', secret: true, required: true },
+    ],
+  },
+  {
+    name: 'Moonshot AI',
+    description: 'Kimi models API',
+    category: 'cloud',
+    baseUrlTemplate: 'https://api.moonshot.cn/v1',
+    modelsEndpoint: '/models',
+    baseUrlEnvVar: 'OPENAI_BASE_URL',
+    credentials: [
+      { label: 'API Key', key: 'apiKey', envVar: 'OPENAI_API_KEY', secret: true, required: true },
+    ],
+  },
 
   // ═══════════════════════════════════
   // LOCAL PROVIDERS / NATIVE CLIs
