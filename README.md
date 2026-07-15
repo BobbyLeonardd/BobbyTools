@@ -73,6 +73,27 @@ Kalo lu males buka browser dan cuma mau jalanin satu tool dengan gampang tanpa p
 
 ---
 
+## 📚 Daftar Perintah (Commands)
+
+- **`bobby`**
+  Ngebuka menu utama interaktif (buat nambah akun, pilih model, dll).
+- **`bobby go`**
+  Jalan pintas orang malas. Langsung ngebuka sesi terakhir lu tanpa lewat menu klik-klik lagi.
+- **`bobby serve`**
+  Nyalain Web Dashboard di depan layar (foreground). Kalo terminalnya lu tutup, servernya ikut mati.
+- **`bobby serve-bg`**
+  Nyalain Web Dashboard di belakang layar (background/daemon). Terminal bebas lu tutup, server tetep idup dan otomatis ngebukain browser.
+- **`bobby list`**
+  Nampilin daftar lengkap semua Provider dan API Key (Akun) yang udah lu simpen, tanpa masuk ke menu.
+- **`bobby update`**
+  Ngasih tau instruksi cara update BobbyTools ke versi paling baru dari NPM.
+- **`bobby -v`** (atau `--version`)
+  Ngecek versi BobbyTools yang lagi lu pake sekarang.
+- **`bobby -h`** (atau `--help`)
+  Nampilin contekan/bantuan.
+
+---
+
 ## 🚫 Disclaimer
 
 1. **Bukan Translator:** BobbyTools gak nerjemahin format JSON Anthropic jadi format OpenAI. Kalo CLI lu cuma support Anthropic, pastiin lu nembak model Anthropic (kecuali CLI lu emang pinter).

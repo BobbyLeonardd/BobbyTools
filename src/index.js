@@ -356,26 +356,37 @@ async function showTutorial() {
 
 function showHelp() {
   showBanner();
-  console.log(chalk.white.bold('  Usage:'));
-  console.log(chalk.gray('    bobby') + '           Interactive menu');
-  console.log(chalk.gray('    bobby go') + '        Quick launch (last session)');
-  console.log(chalk.gray('    bobby serve') + '     Start Local AI Router (foreground)');
-  console.log(chalk.gray('    bobby serve-bg') + '  Start Local AI Router (background / daemon)');
-  console.log(chalk.gray('    bobby list') + '      Show all providers & accounts');
-  console.log(chalk.gray('    bobby update') + '    Update BobbyTools from GitHub');
-  console.log(chalk.gray('    bobby -v') + '        Version');
-  console.log(chalk.gray('    bobby -h') + '        This help');
+  console.log(chalk.cyan.bold('  📚 DAFTAR PERINTAH (COMMANDS) BOBBYTOOLS:\n'));
+  
+  console.log(chalk.yellow('  1. 💻 bobby'));
+  console.log(chalk.white('     Ngebuka menu utama interaktif (buat nambah akun, pilih model, dll).\n'));
+  
+  console.log(chalk.yellow('  2. 🚀 bobby go'));
+  console.log(chalk.white('     Jalan pintas orang malas. Langsung ngebuka sesi terakhir lu tanpa harus lewat menu klik-klik lagi.\n'));
+  
+  console.log(chalk.yellow('  3. 🌐 bobby serve'));
+  console.log(chalk.white('     Nyalain Local AI Router / Web Dashboard tapi di depan layar (foreground). Kalo terminalnya lu tutup, servernya ikut mati.\n'));
+  
+  console.log(chalk.yellow('  4. 👻 bobby serve-bg'));
+  console.log(chalk.white('     Nyalain Local AI Router / Web Dashboard di belakang layar (background). Terminal bebas lu tutup, server tetep jalan jadi setan/daemon, plus otomatis ngebukain browser ke http://127.0.0.1:13337.\n'));
+  
+  console.log(chalk.yellow('  5. 📜 bobby list'));
+  console.log(chalk.white('     Nampilin daftar lengkap semua Provider dan API Key (Akun) yang udah lu simpen, tanpa masuk ke menu.\n'));
+  
+  console.log(chalk.yellow('  6. 🔄 bobby update'));
+  console.log(chalk.white('     Ngasih tau instruksi cara update BobbyTools ke versi paling baru dari NPM.\n'));
+  
+  console.log(chalk.yellow('  7. ℹ️  bobby -v (atau --version)'));
+  console.log(chalk.white('     Ngecek versi BobbyTools yang lagi lu pake sekarang.\n'));
+  
+  console.log(chalk.yellow('  8. ❓ bobby -h (atau --help)'));
+  console.log(chalk.white('     Nampilin contekan/bantuan ini.\n'));
+
+  console.log(chalk.white.bold('  🔥 Flow Mode Klasik:'));
+  console.log(chalk.gray('    1. Add provider -> 2. Add accounts -> 3. Start Session -> 4. Gas Ngoding'));
   console.log();
-  console.log(chalk.white.bold('  Flow:'));
-  console.log(chalk.gray(`    1. Add provider (from ${PROVIDER_TEMPLATES.length} templates or custom)`));
-  console.log(chalk.gray('    2. Add accounts (API keys) to the provider'));
-  console.log(chalk.gray('    3. Start Session → pick provider → account → model → CLI'));
-  console.log(chalk.gray('    4. BobbyTools launches your CLI with the right env vars'));
-  console.log();
-  console.log(chalk.white.bold('  Smart Auto-Rotate & Fallback (v3.0.0):'));
-  console.log(chalk.gray('    In Router Mode (serve), BobbyTools automatically rotates API keys'));
-  console.log(chalk.gray('    when hitting a 429 limit, and will fallback to a different provider'));
-  console.log(chalk.gray('    if all accounts are exhausted (Universal Fallback).'));
+  console.log(chalk.white.bold('  🔥 Flow Mode Router:'));
+  console.log(chalk.gray('    1. bobby serve-bg -> 2. export OPENAI_BASE_URL="http://127.0.0.1:13337/v1" -> 3. Gas Ngoding (Anti-Limit 429)'));
   console.log();
 }
 
