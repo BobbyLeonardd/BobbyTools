@@ -1,6 +1,6 @@
 {
   "name": "bobbytools",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "AI Provider Manager & CLI Launcher — manage multiple AI providers, accounts, and models, then launch any CLI tool with the right environment variables",
   "type": "module",
   "bin": {
