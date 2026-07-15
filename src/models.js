@@ -99,9 +99,12 @@ export async function selectModel(provider, account) {
     // Cache manual entry
     const config = getConfig();
     const p = config.providers.find((pr) => pr.id === provider.id);
-    if (p && !p.models.includes(model)) {
-      p.models.push(model);
-      saveConfig(config);
+    if (p) {
+      if (!p.models) p.models = [];
+      if (!p.models.includes(model)) {
+        p.models.push(model);
+        saveConfig(config);
+      }
     }
     // Update the in-memory provider reference too, just in case
     if (!provider.models) provider.models = [];
