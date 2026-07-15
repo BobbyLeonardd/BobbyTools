@@ -40,7 +40,8 @@ export async function startRouterServer(port = 13337, background = false) {
     }
     if (req.method === 'GET' && req.url === '/api/templates') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(PROVIDER_TEMPLATES));
+      const tpls = PROVIDER_TEMPLATES.map(t => ({ id: t.name.toLowerCase().replace(/[^a-z0-9]/g, '-'), ...t }));
+      res.end(JSON.stringify(tpls));
       return;
     }
     if (req.method === 'GET' && req.url === '/api/logs') {
