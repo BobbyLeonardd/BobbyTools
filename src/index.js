@@ -371,8 +371,9 @@ async function showTutorial() {
   console.log(chalk.gray('     Contoh: opencode -m groq/llama3-70b-8192\n'));
   
   console.log(chalk.cyan.bold('  PRO-TIPS:'));
-  console.log(chalk.gray('  - Ketik ') + chalk.yellow('bobby go') + chalk.gray(' di luar buat langsung ngebuka sesi terakhir lu.'));
-  console.log(chalk.gray('  - Kalo akun lu limit di Router Mode, Bobby bakal otomatis muter ke akun selanjutnya!'));
+  console.log(chalk.gray('  - Ketik ') + chalk.yellow('bobby go') + chalk.gray(' di terminal buat langsung ngebuka sesi terakhir lu tanpa lewat menu.'));
+  console.log(chalk.gray('  - Kalo akun lu limit di Router Mode, Bobby otomatis geser ke akun selanjutnya (Load Balancing).'));
+  console.log(chalk.gray('  - Kalo SEMUA akun lo abis, Bobby otomatis loncat nyari provider lain yang punya model yang sama (Universal Fallback)!'));
   console.log();
   await pause();
 }
@@ -397,9 +398,10 @@ function showHelp() {
   console.log(chalk.gray('    3. Start Session → pick provider → account → model → CLI'));
   console.log(chalk.gray('    4. BobbyTools launches your CLI with the right env vars'));
   console.log();
-  console.log(chalk.white.bold('  Round Robin:'));
-  console.log(chalk.gray('    Accounts do NOT auto-rotate. You stay on the same account'));
-  console.log(chalk.gray('    until YOU pick "Next (Round Robin)" to switch. No wasted quota.'));
+  console.log(chalk.white.bold('  Smart Auto-Rotate & Fallback (v3.0.0):'));
+  console.log(chalk.gray('    In Router Mode (serve), BobbyTools automatically rotates API keys'));
+  console.log(chalk.gray('    when hitting a 429 limit, and will fallback to a different provider'));
+  console.log(chalk.gray('    if all accounts are exhausted (Universal Fallback).'));
   console.log();
 }
 

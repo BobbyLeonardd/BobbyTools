@@ -379,16 +379,24 @@
         <h2 class="page-title">Panduan Cara Pakai</h2>
       </div>
       <div class="glass-card prose">
-        <h3>1. 9Router Mode + Web Dashboard</h3>
-        <p>Mode ini bikin BobbyTools jadi Universal Gateway. Cocok kalo lu punya banyak API Key gratisan dan males gonta-ganti pas kena limit.</p>
+        <h3>1. 9Router Mode + Web Dashboard (Auto-Rotate & Load Balancing)</h3>
+        <p>Mode ini bikin BobbyTools jadi Universal Gateway. Cocok kalo lu punya banyak API Key gratisan (ternak akun) dan males gonta-ganti manual pas kena limit (429).</p>
         <p>Langkah-langkah untuk CLI lo:</p>
-        <pre><code>Mac/Linux: export OPENAI_BASE_URL="http://127.0.0.1:13337/v1"
-Windows  : $env:OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
-        <p>Panggil CLI lu pake format <code>provider/model</code> (misal: <code>opencode -m groq/llama3-70b-8192</code>). Bobby bakal ngeroute request lu dan otomatis pindah akun kalo kena limit (429)!</p>
+        <pre><code>Mac/Linux/GitBash: export OPENAI_BASE_URL="http://127.0.0.1:13337/v1"
+Windows Powershell: $env:OPENAI_BASE_URL="http://127.0.0.1:13337/v1"
+Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
+        <p>Panggil CLI lu pake format <code>provider/model</code> (misal: <code>opencode -m groq/llama3-70b-8192</code>).</p>
+        <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); padding: 1rem; border-radius: 8px; margin-top: 1rem;">
+          <h4 style="color: var(--success); margin-bottom: 0.5rem;">✨ Magic v3.0.0 (God-Tier Features):</h4>
+          <ul style="padding-left: 1.5rem; color: var(--text-muted);">
+            <li style="margin-bottom: 0.5rem"><strong>Smart Load Balancing:</strong> Kalau akun A limit (429), router otomatis muter nyoba pake akun B saat itu juga. CLI lu dapet response sukses tanpa pernah sadar ada error!</li>
+            <li><strong>Universal Fallback:</strong> Kalau SEMUA akun Groq lu limit, router bakal nyari provider lain (misal OpenRouter) yang punya model yang sama, lalu langsung diproses otomatis tanpa putus!</li>
+          </ul>
+        </div>
 
-        <h3>2. Classic Launcher</h3>
-        <p>Kalo lu cuma mau pake 1 akun dan males setting environment variables, tinggal pake perintah <code>bobby</code> di terminal dan pilih <strong>🚀 Start Session</strong>. BobbyTools yang bakal nyuntik variabelnya ke memori buat lu.</p>
-        <p>Pro tip: Ketik <code>bobby go</code> di terminal buat langsung ngegas sesi terakhir!</p>
+        <h3>2. Classic Launcher (Buat Single Account)</h3>
+        <p>Kalo lu cuma mau jalanin 1 akun dan males ribet set environment variables, tinggal pake perintah <code>bobby</code> di terminal dan pilih <strong>🚀 Start Session</strong>. BobbyTools yang bakal nyuntik variabelnya ke memori secara gaib buat lu, terus langsung ngebuka CLI lu.</p>
+        <p>Pro tip: Ketik <code>bobby go</code> di terminal buat langsung ngegas sesi terakhir tanpa lewat menu!</p>
       </div>
     </div>
 
