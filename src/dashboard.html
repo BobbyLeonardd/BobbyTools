@@ -431,6 +431,7 @@ Windows  : $env:OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
   <script>
     let bobbyConfig = null;
     let configHash = '';
+    let logsHash = '';
 
     // -- Tab Navigation --
     function switchTab(tabId) {
@@ -447,7 +448,11 @@ Windows  : $env:OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
     async function loadLogs() {
       try {
         const res = await fetch('/api/logs');
-        const logs = await res.json();
+        const logsText = await res.text();
+        if (logsText === logsHash) return;
+        logsHash = logsText;
+
+        const logs = JSON.parse(logsText);
         const tbody = document.getElementById('logs-tbody');
         if(logs.length === 0) {
           tbody.innerHTML = '<tr><td colspan="5" class="empty-state" style="padding: 2rem">Belum ada request yang masuk bro.</td></tr>';
@@ -670,7 +675,7 @@ Windows  : $env:OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
       }
 
       const newAccount = {
-        id: 'acc_' + Date.now().toString(36),
+        id: 'acc_' + crypto.randomUUID(),
         name: name,
         credentials: creds,
         status: 'active',
@@ -693,7 +698,7 @@ Windows  : $env:OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
         const baseUrl = prompt("Base URL (ex: https://api.openai.com/v1)?");
         if(!baseUrl) return;
         tpl = {
-          id: 'custom_' + Date.now().toString(36),
+          id: 'custom_' + crypto.randomUUID(),
           name: name,
           baseUrlTemplate: baseUrl,
           credentials: [{ key: 'apiKey', label: 'API Key', secret: true }],
@@ -703,7 +708,7 @@ Windows  : $env:OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
         tpl = templatesCache.find(x => x.id === sel);
         if(!tpl) return;
         tpl = JSON.parse(JSON.stringify(tpl));
-        tpl.id = tpl.id + '_' + Date.now().toString(36);
+        tpl.id = tpl.id + '_' + crypto.randomUUID();
       }
       
       const newProv = {
