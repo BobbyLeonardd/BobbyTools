@@ -93,8 +93,8 @@ export async function selectModel(provider, account) {
 
   if (selected === '__manual__') {
     const model = await input({ message: 'Model name/ID (type "<" to go back):' });
-    if (model === '<') return null;
-    if (!model) return null;
+    if (model === '<') return selectModel(provider, account);
+    if (!model) return selectModel(provider, account);
 
     // Cache manual entry
     const config = getConfig();

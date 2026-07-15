@@ -295,8 +295,9 @@ export async function selectCliTool(config, message = 'Launch with') {
   const selected = await select({ message, choices, pageSize: 15 });
   if (selected === '__custom__') {
     const cmd = await input({ message: 'Command to run (type "<" to go back):' });
-    if (cmd === '<') return null;
-    return cmd || null;
+    if (cmd === '<') return selectCliTool(config, message);
+    if (!cmd) return selectCliTool(config, message);
+    return cmd;
   }
   return selected;
 }
