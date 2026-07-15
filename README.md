@@ -131,10 +131,11 @@ Contoh nembak Gemini pakai `claude-code`:
 claude -m google/gemini-1.5-pro
 ```
 
-**✨ Magic Yang Terjadi di Belakang Layar:**
+**✨ Magic v3.0.0 (God-Tier Features) Yang Terjadi di Belakang Layar:**
 1. Router nerima *request*, memotong kata depan (misal `groq/`), lalu nyari data akun Groq di konfigurasi BobbyTools lo.
 2. Router nembak ke API Groq asli pakai *API Key* lu.
-3. Kalo ternyata akun pertama limit (error 429), router **otomatis ngegeser ke akun Groq kedua lo** dan *retry request*-nya saat itu juga. CLI lu dapet balesan sukses seolah gak pernah ada error. Lo tinggal rebahan.
+3. **Smart Load Balancing**: Kalo ternyata akun pertama limit (error 429), router **otomatis muter ke akun Groq lo yang lain** dan nge-retry *request*-nya saat itu juga secara *background*. CLI lu bakal tetep dapet balesan sukses seolah gak pernah ada error.
+4. **Universal Cross-Provider Fallback**: Gimana kalo SEMUA akun Groq lo limit atau abis kuota? Tenang. BobbyTools bakal nyari otomatis ke provider *LAIN* (misal: OpenRouter) yang lu punya, ngecek apakah provider itu juga punya model `llama3-70b-8192` yang sama, terus otomatis nge-route *request*-nya ke sana pake *API key* provider tersebut. Lu ngga perlu ganti konfigurasi CLI lu sedetikpun! Ini murni *black magic*.
 
 ---
 
