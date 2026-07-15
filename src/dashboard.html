@@ -453,7 +453,24 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
 
       <div style="display: flex; gap: 1rem; margin-top: 2rem;">
         <button class="btn" style="background: rgba(255,255,255,0.1); color: white; flex: 1;" onclick="closeModal('addProviderModal')">Cancel</button>
+      <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+        <button class="btn" style="background: rgba(255,255,255,0.1); color: white; flex: 1;" onclick="closeModal('addProviderModal')">Cancel</button>
         <button class="btn btn-primary" style="flex: 1; justify-content: center;" onclick="saveNewProvider()">Add Provider</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toastContainer" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px;"></div>
+
+  <!-- Confirm Modal -->
+  <div class="modal-overlay" id="confirmModal">
+    <div class="modal" style="max-width: 400px; text-align: center;">
+      <h3 style="margin-bottom: 1rem" id="confirmTitle">Confirm</h3>
+      <p style="margin-bottom: 2rem; color: var(--text-muted);" id="confirmMessage">Are you sure?</p>
+      <div style="display: flex; gap: 1rem;">
+        <button class="btn" style="background: rgba(255,255,255,0.1); color: white; flex: 1;" onclick="resolveConfirm(false)">Cancel</button>
+        <button class="btn btn-danger" style="flex: 1; justify-content: center;" onclick="resolveConfirm(true)">OK</button>
       </div>
     </div>
   </div>
@@ -463,6 +480,62 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
     let bobbyConfig = null;
     let configHash = '';
     let logsHash = '';
+
+    // -- Custom UI Utilities --
+    function bobbyAlert(message, type = 'danger') {
+      const toast = document.createElement('div');
+      toast.style.padding = '12px 20px';
+      toast.style.borderRadius = '8px';
+      toast.style.color = '#fff';
+      toast.style.fontWeight = '500';
+      toast.style.fontSize = '0.9rem';
+      toast.style.boxShadow = '0 4px 12px rgba(0,0,0,0.5)';
+      toast.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(20px)';
+      toast.style.display = 'flex';
+      toast.style.alignItems = 'center';
+      toast.style.gap = '10px';
+      toast.style.backdropFilter = 'blur(12px)';
+      
+      if(type === 'danger') {
+        toast.style.background = 'rgba(239, 68, 68, 0.2)';
+        toast.style.border = '1px solid rgba(239, 68, 68, 0.5)';
+      } else {
+        toast.style.background = 'rgba(16, 185, 129, 0.2)';
+        toast.style.border = '1px solid rgba(16, 185, 129, 0.5)';
+      }
+      
+      toast.innerHTML = message;
+      document.getElementById('toastContainer').appendChild(toast);
+      
+      requestAnimationFrame(() => {
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+      });
+      
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(20px)';
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    let confirmResolver = null;
+    function bobbyConfirm(message) {
+      document.getElementById('confirmMessage').innerText = message;
+      document.getElementById('confirmModal').classList.add('active');
+      return new Promise(resolve => {
+        confirmResolver = resolve;
+      });
+    }
+    function resolveConfirm(result) {
+      document.getElementById('confirmModal').classList.remove('active');
+      if (confirmResolver) {
+        confirmResolver(result);
+        confirmResolver = null;
+      }
+    }
 
     // -- Tab Navigation --
     function switchTab(tabId) {
@@ -628,7 +701,7 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
     }
 
     async function removeCliTool(tool) {
-      if(bobbyConfig.cliTools.length <= 1) return alert("Minimal harus ada 1 CLI tool bro!");
+      if(bobbyConfig.cliTools.length <= 1) return bobbyAlert("Minimal harus ada 1 CLI tool bro!");
       bobbyConfig.cliTools = bobbyConfig.cliTools.filter(x => x !== tool);
       await saveConfig();
       renderCliTools();
@@ -636,7 +709,7 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
 
     // -- App Logic --
     async function shutdownRouter() {
-      if(!confirm("Matiin router sekarang?")) return;
+      if(!(await bobbyConfirm("Matiin router sekarang?"))) return;
       try {
         await fetch('/api/shutdown', { method: 'POST' });
         document.body.innerHTML = `
@@ -711,7 +784,7 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
         try {
           const res = await fetch('/api/templates');
           templatesCache = await res.json();
-        } catch(e) { return alert("Gagal ngambil daftar provider"); }
+        } catch(e) { return bobbyAlert("Gagal ngambil daftar provider"); }
       }
       
       let html = '';
@@ -744,12 +817,11 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
       const p = bobbyConfig.providers.find(x => x.id === providerId);
       
       const name = document.getElementById('accNameInput').value.trim();
-      if(!name) return alert("Isi nama akunnya bro");
+      if(!name) return bobbyAlert("Isi nama akunnya bro");
 
       const creds = {};
-      const inputs = document.querySelectorAll('.credential-input');
-      for(const inp of inputs) {
-        if(!inp.value.trim()) return alert("Semua credential wajib diisi");
+      for(const inp of document.querySelectorAll('.credential-input')) {
+        if(!inp.value.trim()) return bobbyAlert("Semua credential wajib diisi");
         creds[inp.dataset.key] = inp.value.trim();
       }
 
@@ -769,16 +841,16 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
     async function saveNewProvider() {
       let tpl;
       if (selectedProviderMode === 'template') {
-        if (!selectedProviderTemplate) return alert("Pilih template provider dulu bro!");
+        if (!selectedProviderTemplate) return bobbyAlert("Pilih template provider dulu bro!");
         tpl = templatesCache.find(x => x.id === selectedProviderTemplate);
         if(!tpl) return;
         tpl = JSON.parse(JSON.stringify(tpl));
         tpl.id = tpl.id + '_' + crypto.randomUUID();
       } else {
         const name = document.getElementById('customProvName').value.trim();
-        if(!name) return alert("Isi nama custom provider bro!");
+        if(!name) return bobbyAlert("Isi nama custom provider bro!");
         const baseUrl = document.getElementById('customProvUrl').value.trim();
-        if(!baseUrl) return alert("Isi Base URL bro!");
+        if(!baseUrl) return bobbyAlert("Isi Base URL bro!");
         
         tpl = {
           id: 'custom_' + crypto.randomUUID(),
@@ -807,7 +879,7 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
     }
 
     async function deleteAccount(providerId, accountId) {
-      if(!confirm("Yakin mau hapus akun ini?")) return;
+      if(!(await bobbyConfirm("Yakin mau hapus akun ini?"))) return;
       const p = bobbyConfig.providers.find(x => x.id === providerId);
       if(p) {
         p.accounts = p.accounts.filter(a => a.id !== accountId);
@@ -836,7 +908,7 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
     }
 
     async function deleteProvider(providerId) {
-      if(!confirm("Yakin mau hapus provider ini beserta semua akunnya?")) return;
+      if(!(await bobbyConfirm("Yakin mau hapus provider ini beserta semua akunnya?"))) return;
       bobbyConfig.providers = bobbyConfig.providers.filter(x => x.id !== providerId);
       await saveConfig();
     }
@@ -850,7 +922,7 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
         });
         await loadConfig();
       } catch (err) {
-        alert("Gagal nyimpen config: " + err.message);
+        bobbyAlert("Gagal nyimpen config: " + err.message);
       }
     }
 
