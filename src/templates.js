@@ -252,6 +252,39 @@ export const PROVIDER_TEMPLATES = [
       { label: 'API Key', key: 'apiKey', envVar: 'OPENAI_API_KEY', secret: true, required: true },
     ],
   },
+  {
+    name: 'Anthropic',
+    description: 'Official Claude API',
+    category: 'cloud',
+    baseUrlTemplate: 'https://api.anthropic.com',
+    modelsEndpoint: null,
+    baseUrlEnvVar: 'ANTHROPIC_BASE_URL',
+    credentials: [
+      { label: 'API Key', key: 'apiKey', envVar: 'ANTHROPIC_API_KEY', secret: true, required: true },
+    ],
+  },
+  {
+    name: 'SiliconFlow',
+    description: 'High performance AI platform',
+    category: 'cloud',
+    baseUrlTemplate: 'https://api.siliconflow.cn/v1',
+    modelsEndpoint: '/models',
+    baseUrlEnvVar: 'OPENAI_BASE_URL',
+    credentials: [
+      { label: 'API Key', key: 'apiKey', envVar: 'OPENAI_API_KEY', secret: true, required: true },
+    ],
+  },
+  {
+    name: 'Upstage',
+    description: 'Solar LLM API',
+    category: 'cloud',
+    baseUrlTemplate: 'https://api.upstage.ai/v1/solar',
+    modelsEndpoint: '/models',
+    baseUrlEnvVar: 'OPENAI_BASE_URL',
+    credentials: [
+      { label: 'API Key', key: 'apiKey', envVar: 'OPENAI_API_KEY', secret: true, required: true },
+    ],
+  },
 
   // ═══════════════════════════════════
   // LOCAL PROVIDERS / NATIVE CLIs
