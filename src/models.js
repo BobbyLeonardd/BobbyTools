@@ -41,14 +41,19 @@ export async function fetchModels(provider, account) {
 export async function selectModel(provider, account) {
   let models = await fetchModels(provider, account);
 
+  // Always get fresh config so we don't rely on stale in-memory data
+  const config = getConfig();
+  const p = config.providers.find((pr) => pr.id === provider.id);
+
   if (models && models.length > 0) {
     // Cache fetched models
-    const config = getConfig();
-    const p = config.providers.find((pr) => pr.id === provider.id);
     if (p) {
       p.models = models;
       saveConfig(config);
     }
+  } else if (p && p.models && p.models.length > 0) {
+    info('Using cached model list');
+    models = p.models;
   } else if (provider.models && provider.models.length > 0) {
     info('Using cached model list');
     models = provider.models;
@@ -80,7 +85,8 @@ export async function selectModel(provider, account) {
       }
       
       return results;
-    }
+    },
+    pageSize: 15
   });
 
   if (selected === null) return null;
@@ -97,6 +103,9 @@ export async function selectModel(provider, account) {
       p.models.push(model);
       saveConfig(config);
     }
+    // Update the in-memory provider reference too, just in case
+    if (!provider.models) provider.models = [];
+    if (!provider.models.includes(model)) provider.models.push(model);
     return model;
   }
 

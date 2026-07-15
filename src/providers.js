@@ -27,7 +27,7 @@ export async function manageProviders() {
 
     choices.push({ name: '↩️   Back', value: 'back' });
 
-    const action = await select({ message: 'Provider Management', choices });
+    const action = await select({ message: 'Provider Management', choices, pageSize: 15 });
     if (action === 'back') return;
 
     switch (action) {
@@ -55,6 +55,7 @@ async function addProvider() {
 
     const source = await select({
       message: 'How to add?',
+      pageSize: 15,
       choices: [
         { name: `📦  From Template (${PROVIDER_TEMPLATES.length} providers)`, value: 'template' },
         { name: '✍️   Custom Provider', value: 'custom' },
@@ -392,7 +393,7 @@ async function editProvider() {
         { name: chalk.gray('↩️  Back'), value: 'back' },
       ];
 
-      const field = await select({ message: `Edit ${provider.name}`, choices });
+      const field = await select({ message: `Edit ${provider.name}`, choices, pageSize: 15 });
       if (field === 'back') break; // break inner loop, go back to select provider
 
       if (field === 'defaultCli') {

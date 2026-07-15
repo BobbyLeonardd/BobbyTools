@@ -57,7 +57,7 @@ Ketik command sakti ini di terminal manapun:
 ```bash
 bobby
 ```
-*(UI-nya interaktif, navigasi pake panah atas-bawah sama Enter).*
+*(UI-nya interaktif, navigasi pake panah atas-bawah sama Enter. Kalo bingung, sekarang udah ada menu **📖 Cara Pakai (Tutorial)** langsung di dalemnya!)*
 
 ### 2. Setup Provider (Bikin "Rumah" API)
 - Pilih **📦 Manage Providers** ➔ **➕ Add Provider**.
@@ -77,16 +77,18 @@ bobby
 
 ---
 
-## 🔥 MODE SULTAN: Local AI Router (The 9Router Mode)
+## 🔥 MODE SULTAN: 9Router Mode + Web Dashboard
 
 Ini fitur *killer*-nya. Males ngelewatin menu dan pengen BobbyTools jadi **Universal Gateway**? Lo pengen **auto-rotate API Key** secara gaib di *background* pas kena *rate limit* (429) tanpa bikin CLI lo error? Pakai mode ini.
 
-### Langkah 1: Nyalain Servernya
-Buka terminal baru, jalanin ini, lalu **biarkan terminalnya tetap terbuka**:
-```bash
-bobby serve
-```
-Nanti bakal muncul notifikasi kalau router lo jalan di `http://127.0.0.1:13337`.
+### Langkah 1: Nyalain Servernya (Background Daemon)
+Buka menu `bobby`, lalu pilih **"🌐 Start Web Dashboard (Background)"**. 
+BobbyTools otomatis nge-*spawn* proses di balik layar. Lu bebas **tutup terminal lu** (gak perlu di-stay). 
+
+Buka browser lu ke **http://127.0.0.1:13337**. 
+Boom! Lu bakal dapet UI *Web Dashboard* gaya *glassmorphism* premium (animasi, *dark mode*, *auto-sync* dengan CLI). Lu bisa nge-CRUD akun, liat status API, dan mantau **Router Activity Logs** secara *real-time* langsung dari browser. Kalau mau matiin routernya, tinggal klik "Shutdown" di webnya, atau pilih menu "Stop Web Dashboard" dari CLI. Semua *state* dijamin tersinkronisasi 100%!
+
+*(Catatan: Kalo lu tipe orang lama yang suka liatin log jalan di terminal, lu bisa pake command `bobby serve` buat jalanin di foreground).*
 
 ### Langkah 2: Setting Env Vars CLI Lo
 Buka terminal lain (tempat lo mau ngoding). Lo tinggal ngarahin CLI lo biar nembak ke router Bobby, bukan nembak ke API aslinya. Sesuaikan sama CLI yang lo pake.
@@ -139,8 +141,7 @@ claude -m google/gemini-1.5-pro
 ## 🧙‍♂️ Pro-Tips Kaum Pemalas
 
 *   **Jalur Cepat (`bobby go`)** : Kalo lo tipe setia dan pakenya API itu-itu aja, gausah buka menu interaktif. Ketik `bobby go` di terminal. Dia bakal langsung nge-*launch* sesi terakhir yang lo pake. Ngirit umur 5 detik.
-*   **Tombol Back Router** : Pas lo lagi nyalain `bobby serve`, terus pengen balik ke menu utama buat nambahin akun? Gak usah di Ctrl+C. Tinggal pencet huruf `b` atau `q` terus Enter. Dia bakal matiin server elegan dan balik ke menu utama.
-*   **Pemusnah Massal (Batch Delete)** : Punya 50 akun dan semuanya limit? Masuk ke menu *Manage Accounts* -> *Delete Account*, pencet tombol `A` (*select all*) atau Spasi buat nyentang, terus Enter. Langsung bersih rata sama tanah.
+*   **Pemusnah Massal (Batch Delete)** : Punya 50 akun dan semuanya limit? Masuk ke menu *Manage Accounts* -> *Delete Account*, pencet tombol `A` (*select all*) atau Spasi buat nyentang, terus Enter. Langsung bersih rata sama tanah (atau mending pake Web Dashboard aja sekarang).
 *   **Jurus "Inception" (Auto-Rotate via Menu Klasik)** : Males ngetik model manual pas pake Router? Gampang! Nyalain `bobby serve`, lalu buka terminal baru dan bikin **Provider Custom** di menu `bobby` (Base URL: `http://127.0.0.1:13337/v1`, API Key: `sk-bobby`, Fetch Models: `YES`). Lo bakal dapet *dropdown* semua model PLUS fitur *Auto-Rotate*. Tenang aja, sistem udah di-*patch* anti *Infinite Loop*!
 
 ## 🚫 Apa yang BobbyTools GAK BISA (Brutal Honesty)
@@ -158,6 +159,9 @@ Kalo lo nemu *bug* atau punya ide gila lainnya, silakan buka PR. Tapi inget *rul
 ---
 
 ## 📦 Changelog Singkat
+- **v3.0.0**: *GOD-TIER UPDATE*: BobbyTools resmi nginjek leher proxy lain! Penambahan fitur **Smart Load Balancing (Round-Robin)** buat mecah traffic otomatis ke semua API key aktif. Penambahan fitur **Universal Fallback Provider** (kalau semua akun Groq habis/limit, otomatis pindah ke OpenRouter/provider lain yang punya model yang sama tanpa ngasih error ke CLI). Fitur *auto-update* purba diganti pure NPM. Usage tracking sekarang nambah otomatis di config tiap kali request sukses.
+- **v2.2.1**: *Bugfix & QoL*: Ngebenerin *bug ngeselin* di mana model yang diketik manual (buat *provider* yang gak punya `/models`) hilang dari daftar pas kita balik lagi dari CLI ke menu `Start Session`. Sekarang model manual langsung nyangkut permanen di memori & *cache*!
+- **v2.2.0**: *Update Major*: Penambahan **Web Dashboard (UI Glassmorphism Premium)** buat ngatur config secara visual. Udah *support* **Daemon Mode** (*run in background*), **Real-Time Sync** dua arah antara CLI dan Web (kalo lo ngedit di CLI, webnya otomatis *update*), dan fitur **Router Activity Logs** buat mantau *traffic* API. Semua menu interaktif di CLI juga udah di-*upgrade* limit *scroll*-nya (`pageSize: 15`) jadi tombol "Back" nggak gampang ilang, dan *cursor* tetep bisa loncat (loop) dari atas ke bawah.
 - **v2.1.4**: *Update Major*: Router sekarang dilengkapi dengan **Smart Auth Header Injection**. Otomatis ngenalin dan ngeganti *header* otentikasi berdasarkan tipe CLI SDK-nya. Mau lu nembak pake format OpenAI (`Authorization: Bearer`), Anthropic (`x-api-key`), Google (`x-goog-api-key`), atau Azure (`api-key`), semuanya dijamin mulus tanpa *error* karena *header mismatch*. Nggak ada lagi drama token gak kebaca.
 - **v2.1.3**: *Upgrade* fitur `Toggle Status` jadi pake sistem *checkbox* biar bisa *mass-toggle* banyak akun sekaligus. *Fix bug UI* teks `(active)` yang bocor di terminal.
 - **v2.1.2**: *Bugfix* brutal. Benerin isu `Z_DATA_ERROR` (crash gara-gara gzip content-encoding) dan isu `401 Unauthorized` pas *auto-rotate* (karena Node.js ngubah header `authorization` jadi huruf kecil). Fix juga *output* log `\x1b` yang bocor jadi teks literal di terminal.

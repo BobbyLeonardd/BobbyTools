@@ -52,7 +52,13 @@ export async function main() {
       clearScreen();
       showBanner();
       const { startRouterServer } = await import('./server.js');
-      await startRouterServer(port);
+      await startRouterServer(port, false);
+      return;
+    }
+    
+    if (args[0] === 'serve-bg') {
+      const { startRouterServer } = await import('./server.js');
+      await startRouterServer(13337, true);
       return;
     }
 
@@ -83,12 +89,9 @@ export async function main() {
 // ── Main menu loop ──
 
 async function mainMenu() {
-  backgroundFetch(); // Fire and forget update checker
-
   while (true) {
     clearScreen();
     showBanner();
-    notifyUpdateIfAvailable();
     showQuickStatus();
 
     const config = getConfig();
@@ -106,14 +109,23 @@ async function mainMenu() {
       });
     }
 
+    const routerRunning = await isRouterRunning();
+
+    if (routerRunning) {
+      choices.push({ name: '🛑  Stop Web Dashboard (Running)', value: 'stop_serve' });
+      choices.push({ name: '📜  Router Activity Logs', value: 'router_logs' });
+    } else {
+      choices.push({ name: '🌐  Start Web Dashboard (Background)', value: 'serve_bg' });
+    }
+
     choices.push(
-      { name: '🌐  Start Local AI Router', value: 'serve' },
       { name: '📦  Manage Providers', value: 'providers' },
       { name: '🔧  Settings', value: 'settings' },
+      { name: '📖  Cara Pakai (Tutorial)', value: 'tutorial' },
       { name: '❌  Exit', value: 'exit' },
     );
 
-    const action = await select({ message: 'What would you like to do?', choices });
+    const action = await select({ message: 'What would you like to do?', choices, pageSize: 15 });
 
     switch (action) {
       case 'launch':
@@ -122,17 +134,48 @@ async function mainMenu() {
       case 'quick':
         await quickLaunch();
         break;
-      case 'serve':
+      case 'serve_bg':
         clearScreen();
         showBanner();
-        const { startRouterServer } = await import('./server.js');
-        await startRouterServer(13337);
+        console.log(chalk.cyan('🚀 Memulai Web Dashboard di background...'));
+        const scriptPath = process.argv[1];
+        const child = spawn(process.argv[0], [scriptPath, 'serve-bg'], {
+          detached: true,
+          stdio: 'ignore'
+        });
+        child.unref();
+        
+        // Auto-launch browser
+        const url = 'http://127.0.0.1:13337';
+        const { exec } = await import('child_process');
+        const startCmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+        exec(`${startCmd} ${url}`);
+
+        console.log(chalk.green('✅ Web Dashboard berhasil jalan di background!'));
+        console.log(chalk.white('Browser otomatis dibuka ke: ') + chalk.yellow.bold(url));
+        console.log(chalk.gray('Terminal ini bebas ditutup.\n'));
+        await pause();
+        break;
+      case 'stop_serve':
+        try {
+          await fetch('http://127.0.0.1:13337/api/shutdown', { method: 'POST' });
+          success('Web Dashboard berhasil dimatikan.');
+        } catch (e) {
+          error('Gagal mematikan dashboard: ' + e.message);
+        }
+        await pause();
+        break;
+      case 'router_logs':
+        await viewRouterLogs();
         break;
       case 'providers':
         await manageProviders();
         break;
       case 'settings':
         await manageSettings();
+        break;
+      case 'tutorial':
+        await showTutorial();
         break;
       case 'exit':
         console.log();
@@ -155,55 +198,6 @@ function showQuickStatus() {
     dim('No providers yet — add one to get started!');
   }
   console.log();
-}
-
-// ── Update Notification ──
-
-function notifyUpdateIfAvailable() {
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
-  const rootDir = path.join(__dirname, '..');
-  const gitDir = path.join(rootDir, '.git');
-  
-  if (!fs.existsSync(gitDir)) return;
-
-  try {
-    const res = spawnSync('git', ['rev-list', 'HEAD..origin/main', '--count'], { cwd: rootDir, encoding: 'utf8' });
-    if (res.status === 0) {
-      const count = parseInt(res.stdout.trim(), 10);
-      if (count > 0) {
-        console.log(chalk.yellow(`  ✨ Update tersedia (${count} commits)! Ketik ${chalk.bold('bobby update')} untuk memperbarui.\n`));
-      }
-    }
-  } catch (e) {
-    // Ignore errors (git not found, etc)
-  }
-}
-
-function backgroundFetch() {
-  const config = getConfig();
-  const now = Date.now();
-  // Check once every 12 hours
-  if (config.lastUpdateCheck && now - config.lastUpdateCheck < 12 * 60 * 60 * 1000) return;
-
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
-  const rootDir = path.join(__dirname, '..');
-  const gitDir = path.join(rootDir, '.git');
-  
-  if (!fs.existsSync(gitDir)) return;
-
-  try {
-    const child = spawn('git', ['fetch', 'origin', 'main'], {
-      cwd: rootDir,
-      detached: true,
-      stdio: 'ignore' // Silently fetch in background
-    });
-    child.unref();
-
-    config.lastUpdateCheck = now;
-    saveConfig(config);
-  } catch (e) {}
 }
 
 function showFullStatus() {
@@ -234,6 +228,38 @@ function showFullStatus() {
   }
 }
 
+// ── Router Logs ──
+
+async function viewRouterLogs() {
+  clearScreen();
+  showBanner();
+  console.log(chalk.bold('  📜 Router Activity Logs\n'));
+  try {
+    const res = await fetch('http://127.0.0.1:13337/api/logs');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const logs = await res.json();
+    
+    if (logs.length === 0) {
+      console.log(chalk.gray('  Belum ada request yang masuk ke router.'));
+    } else {
+      for (const l of logs) {
+        const d = new Date(l.timestamp);
+        const timeStr = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+        let statusText = chalk.yellow('Processing...');
+        if(l.status === 'success') statusText = chalk.green('Success');
+        else if(l.status === 'limit') statusText = chalk.red('Limit (429)');
+        else if(l.status === 'error') statusText = chalk.red('Error');
+        
+        console.log(`  [${chalk.gray(timeStr)}] ${chalk.cyan(l.provider)} (${chalk.blue(l.account)}) -> ${chalk.white(l.model)} : ${statusText}`);
+      }
+    }
+  } catch (err) {
+    error('Gagal mengambil log dari router: ' + err.message);
+  }
+  console.log();
+  await pause();
+}
+
 // ── Settings ──
 
 async function manageSettings() {
@@ -246,6 +272,7 @@ async function manageSettings() {
 
     const action = await select({
       message: 'Settings',
+      pageSize: 15,
       choices: [
         { name: 'Manage CLI Tools list', value: 'cliTools' },
         {
@@ -273,6 +300,7 @@ async function manageCliTools(config) {
 
     const action = await select({
       message: `CLI Tools: ${config.cliTools.join(', ')}`,
+      pageSize: 15,
       choices: [
         { name: '➕  Add', value: 'add' },
         { name: '🗑️   Remove', value: 'remove' },
@@ -301,6 +329,7 @@ async function manageCliTools(config) {
       }
       const tool = await select({
         message: 'Remove which?',
+        pageSize: 15,
         choices: [
           ...config.cliTools.map((t) => ({ name: t, value: t })),
           { name: chalk.gray('↩️  Back'), value: 'back' },
@@ -315,6 +344,39 @@ async function manageCliTools(config) {
   }
 }
 
+// ── Tutorial ──
+
+async function showTutorial() {
+  clearScreen();
+  showBanner();
+  console.log(chalk.cyan.bold('  📖 PANDUAN CARA PAKAI BOBBYTOOLS\n'));
+  
+  console.log(chalk.white.bold('  MODE 1: Classic Launcher (Paling Gampang)'));
+  console.log(chalk.gray('  Cocok buat lu yang cuma mau jalanin opencode/aider pake 1 akun API.'));
+  console.log(chalk.white('  1. Pilih ') + chalk.yellow('📦 Manage Providers') + chalk.white(' -> ') + chalk.yellow('➕ Add Provider') + chalk.white(' (Misal: Groq)'));
+  console.log(chalk.white('  2. Pilih ') + chalk.yellow('Manage Accounts') + chalk.white(' -> ') + chalk.yellow('➕ Add Account') + chalk.white(' -> Masukin API Key lu.'));
+  console.log(chalk.white('  3. Balik ke menu awal, pilih ') + chalk.yellow('🚀 Start Session') + chalk.white('.'));
+  console.log(chalk.white('  4. Pilih Provider -> Akun -> Model -> Target CLI (misal: opencode).'));
+  console.log(chalk.gray('  Beres! Bobby bakal ngebuka CLI lu dengan env vars yang udah kesuntik.\n'));
+
+  console.log(chalk.white.bold('  MODE 2: 9Router Mode + Web Dashboard (Auto-Rotate Anti Limit)'));
+  console.log(chalk.gray('  Cocok kalo lu punya banyak API Key gratisan dan males gonta-ganti pas kena limit.'));
+  console.log(chalk.white('  1. Daftarin provider dan masukin SEMUA akun/API key lu (kayak langkah di atas).'));
+  console.log(chalk.white('  2. Dari menu utama, pilih ') + chalk.yellow('🌐 Start Web Dashboard (Background)'));
+  console.log(chalk.white('  3. Terminal lu bakal ngasih URL ') + chalk.cyan('http://127.0.0.1:13337') + chalk.white('. Lu bebas nutup terminalnya.'));
+  console.log(chalk.white('  4. Set Env Vars CLI lu biar nembak ke router (localhost:13337).'));
+  console.log(chalk.gray('     Mac/Linux: ') + chalk.yellow('export OPENAI_BASE_URL="http://127.0.0.1:13337/v1"'));
+  console.log(chalk.gray('     Windows  : ') + chalk.yellow('$env:OPENAI_BASE_URL="http://127.0.0.1:13337/v1"'));
+  console.log(chalk.white('  5. Panggil CLI lu pake format model: ') + chalk.yellow('<provider>/<model>'));
+  console.log(chalk.gray('     Contoh: opencode -m groq/llama3-70b-8192\n'));
+  
+  console.log(chalk.cyan.bold('  PRO-TIPS:'));
+  console.log(chalk.gray('  - Ketik ') + chalk.yellow('bobby go') + chalk.gray(' di luar buat langsung ngebuka sesi terakhir lu.'));
+  console.log(chalk.gray('  - Kalo akun lu limit di Router Mode, Bobby bakal otomatis muter ke akun selanjutnya!'));
+  console.log();
+  await pause();
+}
+
 // ── Help ──
 
 function showHelp() {
@@ -322,7 +384,8 @@ function showHelp() {
   console.log(chalk.white.bold('  Usage:'));
   console.log(chalk.gray('    bobby') + '           Interactive menu');
   console.log(chalk.gray('    bobby go') + '        Quick launch (last session)');
-  console.log(chalk.gray('    bobby serve') + '     Start Local AI Router (9router mode)');
+  console.log(chalk.gray('    bobby serve') + '     Start Local AI Router (foreground)');
+  console.log(chalk.gray('    bobby serve-bg') + '  Start Local AI Router (background / daemon)');
   console.log(chalk.gray('    bobby list') + '      Show all providers & accounts');
   console.log(chalk.gray('    bobby update') + '    Update BobbyTools from GitHub');
   console.log(chalk.gray('    bobby -v') + '        Version');
@@ -343,47 +406,23 @@ function showHelp() {
 // ── Update ──
 
 async function updateBobbyTools() {
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
-  const rootDir = path.join(__dirname, '..');
-  
   console.log();
   divider();
-  info(chalk.bold('Checking for updates...'));
-
-  const gitDir = path.join(rootDir, '.git');
-  if (!fs.existsSync(gitDir)) {
-    error('Cannot update via git. This installation was not cloned from GitHub.');
-    warn('If you installed via npm directly, try: npm update -g bobbytools');
-    return;
-  }
-
-  info('Pulling latest changes from GitHub (origin main)...');
-  
-  const runCmd = (command, args, cwd) => new Promise((resolve) => {
-    const child = spawn(command, args, { stdio: 'inherit', shell: true, cwd });
-    child.on('error', (err) => resolve({ code: 1, err }));
-    child.on('close', (code) => resolve({ code }));
-  });
-
-  const pullResult = await runCmd('git', ['pull', 'origin', 'main'], rootDir);
-  
-  if (pullResult.code !== 0) {
-    error('Failed to pull latest changes. You might have uncommitted local changes.');
-    return;
-  }
-
-  info('Ensuring dependencies are up to date...');
-  const npmResult = await runCmd('npm', ['install'], rootDir);
-
-  if (npmResult.code !== 0) {
-    error('Failed to update npm dependencies.');
-    return;
-  }
-
+  info(chalk.bold('Cara Update BobbyTools:'));
   console.log();
-  success('BobbyTools is now up to date! 🎉');
-  dim('Run "bobby" to start using the new version.');
+  console.log(chalk.white('  Karena lu instal via NPM, jalanin command ini di terminal:\n'));
+  console.log(chalk.yellow.bold('  npm update -g bobbytools\n'));
   divider();
   console.log();
+  await pause();
+}
+
+async function isRouterRunning() {
+  try {
+    const res = await fetch('http://127.0.0.1:13337/api/ping', { method: 'GET' });
+    if (res.ok) return true;
+  } catch (e) {
+    return false;
+  }
+  return false;
 }

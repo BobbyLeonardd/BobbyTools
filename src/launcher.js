@@ -277,7 +277,8 @@ async function selectAccountForLaunch(provider) {
       }
       
       return results;
-    }
+    },
+    pageSize: 15
   });
 }
 
@@ -291,7 +292,7 @@ export async function selectCliTool(config, message = 'Launch with') {
     { name: chalk.cyan('✍️  Custom command'), value: '__custom__' }
   ];
 
-  const selected = await select({ message, choices });
+  const selected = await select({ message, choices, pageSize: 15 });
   if (selected === '__custom__') {
     const cmd = await input({ message: 'Command to run (type "<" to go back):' });
     if (cmd === '<') return null;

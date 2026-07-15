@@ -1,11 +1,78 @@
 import http from 'http';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { randomUUID } from 'crypto';
 import { getConfig, saveConfig } from './config.js';
 import { resolveBaseUrl } from './helpers.js';
+import { PROVIDER_TEMPLATES } from './templates.js';
 import chalk from 'chalk';
 
-export async function startRouterServer(port = 13337) {
+const requestLogs = [];
+const MAX_LOGS = 100;
+
+export async function startRouterServer(port = 13337, background = false) {
   const server = http.createServer(async (req, res) => {
     
+    // --- 0. WEB DASHBOARD ENDPOINTS ---
+    if (req.method === 'GET' && req.url === '/') {
+      const __filename = fileURLToPath(import.meta.url);
+      const __dirname = path.dirname(__filename);
+      try {
+        const html = fs.readFileSync(path.join(__dirname, 'dashboard.html'), 'utf8');
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(html);
+      } catch (err) {
+        res.writeHead(500);
+        res.end('Dashboard file not found');
+      }
+      return;
+    }
+    if (req.method === 'GET' && req.url === '/api/ping') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok' }));
+      return;
+    }
+    if (req.method === 'GET' && req.url === '/api/config') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(getConfig()));
+      return;
+    }
+    if (req.method === 'GET' && req.url === '/api/templates') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(PROVIDER_TEMPLATES));
+      return;
+    }
+    if (req.method === 'GET' && req.url === '/api/logs') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(requestLogs));
+      return;
+    }
+    if (req.method === 'POST' && req.url === '/api/config') {
+      let body = '';
+      req.on('data', chunk => body += chunk.toString());
+      req.on('end', () => {
+        try {
+          const conf = JSON.parse(body);
+          saveConfig(conf);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        } catch(e) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: e.message }));
+        }
+      });
+      return;
+    }
+    if (req.method === 'POST' && req.url === '/api/shutdown') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+      setTimeout(() => {
+        server.close(() => process.exit(0));
+      }, 100);
+      return;
+    }
+
     // --- 1. ENDPOINT GET /v1/models ---
     if (req.method === 'GET' && req.url.endsWith('/models')) {
       const config = getConfig();
@@ -59,7 +126,7 @@ export async function startRouterServer(port = 13337) {
         const actualModel = modelParts.slice(1).join('/');
 
         const config = getConfig();
-        const provider = config.providers.find(p => 
+        let provider = config.providers.find(p => 
           p.id.toLowerCase() === providerQuery || p.name.toLowerCase().replace(/\s+/g, '-') === providerQuery
         );
 
@@ -72,15 +139,29 @@ export async function startRouterServer(port = 13337) {
         payload.model = actualModel;
         const newPayloadStr = JSON.stringify(payload);
 
-        let currentAccount = provider.accounts.find(a => a.status === 'active');
-        if (!currentAccount) {
-          res.writeHead(429);
-          res.end(JSON.stringify({ error: `No active accounts left for provider '${provider.name}'` }));
-          return;
+        let activeAccounts = provider.accounts.filter(a => a.status === 'active');
+        
+        if (activeAccounts.length === 0) {
+          const fallbackProvider = config.providers.find(p => p.id !== provider.id && p.accounts.some(a => a.status === 'active') && p.models && p.models.includes(actualModel));
+          if (fallbackProvider) {
+            process.stdout.write('\x1b[2K\r' + chalk.magenta(`[FALLBACK] ${provider.name} out of accounts. Auto-switching to ${fallbackProvider.name} for ${actualModel}...\n`));
+            provider = fallbackProvider;
+            activeAccounts = provider.accounts.filter(a => a.status === 'active');
+          } else {
+            res.writeHead(429);
+            res.end(JSON.stringify({ error: `No active accounts left for provider '${provider.name}' and no fallback found.` }));
+            return;
+          }
         }
 
+        activeAccounts.sort((a, b) => (a.lastUsed || 0) - (b.lastUsed || 0));
+        let currentAccount = activeAccounts[0];
+        
+        currentAccount.lastUsed = Date.now();
+        saveConfig(config);
+
         let attempt = 0;
-        const maxAttempts = provider.accounts.length;
+        let maxAttempts = activeAccounts.length;
 
         while (attempt < maxAttempts) {
           const baseUrl = resolveBaseUrl(provider, currentAccount).replace(/\/+$/, '');
@@ -115,6 +196,17 @@ export async function startRouterServer(port = 13337) {
 
           process.stdout.write('\x1b[2K\r' + chalk.cyan(`[ROUTER] Routing to ${provider.name} (${currentAccount.name}) -> ${actualModel}`));
 
+          const logEntry = {
+            id: randomUUID(),
+            timestamp: new Date().toISOString(),
+            provider: provider.name,
+            account: currentAccount.name,
+            model: actualModel,
+            status: 'pending'
+          };
+          requestLogs.unshift(logEntry);
+          if (requestLogs.length > MAX_LOGS) requestLogs.pop();
+
           const response = await fetch(targetUrl, {
             method: 'POST',
             headers,
@@ -122,6 +214,7 @@ export async function startRouterServer(port = 13337) {
           });
 
           if (response.status === 429 || response.status === 401 || response.status === 402) {
+            logEntry.status = 'limit';
             process.stdout.write('\x1b[2K\r' + chalk.yellow(`[ROUTER] Account "${currentAccount.name}" hit limit (${response.status}). Auto-rotating...`));
             
             const p = config.providers.find(x => x.id === provider.id);
@@ -131,13 +224,37 @@ export async function startRouterServer(port = 13337) {
             const nextAccount = p?.accounts.find(x => x.status === 'active' && x.id !== currentAccount.id);
             if (nextAccount) {
               currentAccount = nextAccount;
+              currentAccount.lastUsed = Date.now();
               saveConfig(config);
               attempt++;
               continue; 
             } else {
+               const fallback = config.providers.find(px => px.id !== provider.id && px.accounts.some(ax => ax.status === 'active') && px.models && px.models.includes(actualModel));
+               if (fallback) {
+                 process.stdout.write('\x1b[2K\r' + chalk.magenta(`[FALLBACK] ${provider.name} accounts exhausted. Switching to ${fallback.name}...\n`));
+                 provider = fallback;
+                 let fallbackActive = provider.accounts.filter(ax => ax.status === 'active');
+                 fallbackActive.sort((a, b) => (a.lastUsed || 0) - (b.lastUsed || 0));
+                 currentAccount = fallbackActive[0];
+                 currentAccount.lastUsed = Date.now();
+                 saveConfig(config);
+                 attempt = 0;
+                 maxAttempts = fallbackActive.length;
+                 continue;
+               }
                process.stdout.write('\x1b[2K\r' + chalk.red(`[ROUTER] All accounts for ${provider.name} are limited.`));
                saveConfig(config);
                break; 
+            }
+          }
+
+          logEntry.status = response.ok ? 'success' : 'error';
+          if (response.ok) {
+            const p = config.providers.find(x => x.id === provider.id);
+            const a = p?.accounts.find(x => x.id === currentAccount.id);
+            if (a) {
+              a.usageCount = (a.usageCount || 0) + 1;
+              saveConfig(config);
             }
           }
 
@@ -158,6 +275,17 @@ export async function startRouterServer(port = 13337) {
         res.end(JSON.stringify({ error: 'All accounts for this provider hit limits' }));
 
       } catch (err) {
+        requestLogs.unshift({
+          id: randomUUID(),
+          timestamp: new Date().toISOString(),
+          provider: 'Unknown',
+          account: 'Unknown',
+          model: 'Unknown',
+          status: 'error',
+          error: err.message
+        });
+        if (requestLogs.length > MAX_LOGS) requestLogs.pop();
+        
         process.stdout.write('\x1b[2K\r' + chalk.red('[ROUTER] Error: ') + (err.message || err));
         res.writeHead(500);
         res.end('Router Internal Error');
@@ -218,7 +346,12 @@ export async function startRouterServer(port = 13337) {
         });
       }
     };
-    process.stdin.resume();
-    process.stdin.on('data', onData);
+    
+    if (!background) {
+      process.stdin.resume();
+      process.stdin.on('data', onData);
+    } else {
+      resolve(); // if background, resolve immediately to not block anything (though it runs in detached process anyway)
+    }
   });
 }

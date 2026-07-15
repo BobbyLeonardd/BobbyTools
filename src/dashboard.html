@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BobbyTools Web Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #050505;
+      --bg-gradient: radial-gradient(circle at 15% 50%, rgba(20, 10, 40, 1), rgba(5, 5, 5, 1) 50%);
+      --glass-bg: rgba(20, 20, 25, 0.4);
+      --glass-border: rgba(255, 255, 255, 0.05);
+      --glass-border-hover: rgba(255, 255, 255, 0.15);
+      --primary: #6366f1;
+      --primary-glow: rgba(99, 102, 241, 0.5);
+      --primary-hover: #4f46e5;
+      --danger: #f43f5e;
+      --danger-hover: #e11d48;
+      --success: #10b981;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background-color: var(--bg-base);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(244, 63, 94, 0.1) 0px, transparent 50%);
+      background-attachment: fixed;
+      color: var(--text-main);
+      height: 100vh;
+      display: flex;
+      overflow: hidden;
+      letter-spacing: -0.01em;
+    }
+
+    /* --- SIDEBAR --- */
+    .sidebar {
+      width: 280px;
+      background: rgba(10, 10, 10, 0.6);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-right: 1px solid var(--glass-border);
+      display: flex;
+      flex-direction: column;
+      padding: 2rem 1.5rem;
+      z-index: 10;
+      box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+    }
+
+    .brand {
+      font-size: 1.6rem;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      background: linear-gradient(135deg, #e0e7ff 0%, #a5b4fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 2.5rem;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand-status {
+      font-size: 0.75rem;
+      color: var(--success);
+      font-weight: 600;
+      -webkit-text-fill-color: var(--success);
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .pulse-dot {
+      width: 8px; height: 8px;
+      background-color: var(--success);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--success);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    .nav-item {
+      padding: 0.85rem 1.2rem;
+      border-radius: 12px;
+      cursor: pointer;
+      margin-bottom: 0.5rem;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-weight: 500;
+      font-size: 0.95rem;
+      border: 1px solid transparent;
+    }
+
+    .nav-item:hover {
+      background: rgba(255, 255, 255, 0.03);
+      color: white;
+      transform: translateX(4px);
+    }
+
+    .nav-item.active {
+      background: rgba(99, 102, 241, 0.1);
+      color: #e0e7ff;
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      box-shadow: inset 0 0 20px rgba(99, 102, 241, 0.05);
+    }
+
+    .nav-bottom { margin-top: auto; }
+
+    .nav-item.danger:hover {
+      background: rgba(244, 63, 94, 0.1);
+      color: var(--danger);
+      border-color: rgba(244, 63, 94, 0.2);
+    }
+
+    /* --- MAIN CONTENT --- */
+    .main-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 3rem;
+      position: relative;
+    }
+
+    .tab-pane { display: none; animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+    .tab-pane.active { display: block; }
+    
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2.5rem;
+    }
+
+    .page-title {
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      background: linear-gradient(to right, #fff, #a5b4fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    /* --- UI COMPONENTS --- */
+    .btn {
+      padding: 0.6rem 1.25rem;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .btn-primary { 
+      background: var(--primary); 
+      color: white; 
+      box-shadow: 0 4px 15px var(--primary-glow);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .btn-primary:hover { 
+      background: var(--primary-hover); 
+      transform: translateY(-2px); 
+      box-shadow: 0 6px 20px var(--primary-glow);
+    }
+    .btn-danger { background: rgba(244, 63, 94, 0.1); color: var(--danger); border: 1px solid rgba(244, 63, 94, 0.2); }
+    .btn-danger:hover { background: var(--danger); color: white; transform: translateY(-2px); box-shadow: 0 4px 15px rgba(244, 63, 94, 0.4); }
+
+    .glass-card {
+      background: var(--glass-bg);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid var(--glass-border);
+      border-radius: 20px;
+      padding: 1.75rem;
+      margin-bottom: 1.5rem;
+      transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+      box-shadow: 0 4px 24px -1px rgba(0,0,0,0.2);
+    }
+    .glass-card:hover {
+      border-color: var(--glass-border-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px -1px rgba(0,0,0,0.4);
+    }
+
+    .provider-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 1.25rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--glass-border);
+    }
+    .provider-name { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.02em; }
+    .provider-url { font-size: 0.85rem; color: var(--text-muted); margin-top: 6px; font-family: monospace; background: rgba(0,0,0,0.3); padding: 4px 8px; border-radius: 6px; display: inline-block; }
+    
+    .account-list { display: grid; gap: 0.85rem; }
+    .account-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 1.1rem; background: rgba(0, 0, 0, 0.4); border-radius: 12px;
+      border: 1px solid transparent; transition: all 0.2s;
+    }
+    .account-item:hover { background: rgba(0, 0, 0, 0.6); border-color: rgba(255,255,255, 0.1); }
+    
+    .status-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 12px; cursor: pointer; transition: transform 0.2s; }
+    .status-dot:hover { transform: scale(1.2); }
+    .status-active { background: var(--success); box-shadow: 0 0 12px var(--success); }
+    .status-limited { background: var(--danger); box-shadow: 0 0 12px var(--danger); }
+    .badge { font-size: 0.75rem; padding: 4px 10px; border-radius: 20px; background: rgba(255,255,255,0.05); margin-left: 12px; font-weight: 600; border: 1px solid var(--glass-border); }
+
+    /* Modal Styles */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: all 0.3s ease; z-index: 50;
+    }
+    .modal-overlay.active { opacity: 1; pointer-events: auto; }
+    .modal {
+      background: #0f0f13; border: 1px solid rgba(255,255,255,0.1); border-radius: 24px;
+      width: 100%; max-width: 480px; padding: 2.5rem; transform: scale(0.95) translateY(10px); transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+    .modal-overlay.active .modal { transform: scale(1) translateY(0); }
+    .form-group { margin-bottom: 1.5rem; }
+    .form-group label { display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500; }
+    .form-control {
+      width: 100%; background: rgba(0, 0, 0, 0.5); border: 1px solid var(--glass-border);
+      color: white; padding: 0.85rem 1rem; border-radius: 10px; font-family: inherit; outline: none;
+      transition: all 0.2s;
+    }
+    .form-control:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2); }
+    .empty-state { text-align: center; padding: 4rem; color: var(--text-muted); font-weight: 500; }
+
+    /* Table Styles */
+    .table-container { width: 100%; overflow-x: auto; border-radius: 16px; }
+    table { width: 100%; border-collapse: separate; border-spacing: 0; text-align: left; }
+    th, td { padding: 1rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    th { color: var(--text-muted); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; background: rgba(0,0,0,0.3); }
+    td { font-size: 0.9rem; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; border: 1px solid transparent; }
+    .status-badge.success { background: rgba(16, 185, 129, 0.1); color: var(--success); border-color: rgba(16, 185, 129, 0.2); }
+    .status-badge.limit { background: rgba(244, 63, 94, 0.1); color: var(--danger); border-color: rgba(244, 63, 94, 0.2); }
+    .status-badge.pending { background: rgba(245, 158, 11, 0.1); color: #f59e0b; border-color: rgba(245, 158, 11, 0.2); }
+    .status-badge.error { background: rgba(244, 63, 94, 0.1); color: var(--danger); border-color: rgba(244, 63, 94, 0.2); }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    /* Tutorial Styling */
+    .prose h3 { margin-top: 2rem; margin-bottom: 1rem; color: #a5b4fc; font-weight: 700; letter-spacing: -0.02em; }
+    .prose p { margin-bottom: 1.25rem; line-height: 1.7; color: var(--text-muted); }
+    .prose pre { background: rgba(0,0,0,0.5); padding: 1.25rem; border-radius: 12px; border: 1px solid var(--glass-border); overflow-x: auto; margin-bottom: 1.75rem; }
+    .prose code { color: #c7d2fe; font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.9em; }
+  </style>
+</head>
+<body>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      BobbyTools
+      <div class="brand-status">
+        <div class="pulse-dot"></div>
+        Router Online
+      </div>
+    </div>
+
+    <div class="nav-item active" onclick="switchTab('providers')" id="nav-providers">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+      Providers
+    </div>
+    <div class="nav-item" onclick="switchTab('logs')" id="nav-logs">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+      Activity Logs
+    </div>
+    <div class="nav-item" onclick="switchTab('settings')" id="nav-settings">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+      Settings
+    </div>
+    <div class="nav-item" onclick="switchTab('tutorial')" id="nav-tutorial">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+      Quick Guide
+    </div>
+
+    <div class="nav-bottom">
+      <div class="nav-item danger" onclick="shutdownRouter()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+        Shutdown
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+    
+    <!-- VIEW: PROVIDERS -->
+    <div id="tab-providers" class="tab-pane active">
+      <div class="page-header">
+        <h2 class="page-title">Manage Providers</h2>
+        <button class="btn btn-primary" onclick="openAddProviderModal()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          Add Provider
+        </button>
+      </div>
+      <div id="providers-container">
+        <div class="empty-state">Loading configuration...</div>
+      </div>
+    </div>
+
+    <!-- VIEW: LOGS -->
+    <div id="tab-logs" class="tab-pane">
+      <div class="page-header">
+        <h2 class="page-title">Activity Logs</h2>
+        <button class="btn" style="background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1);" onclick="loadLogs()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+          Refresh
+        </button>
+      </div>
+      <div class="glass-card table-container" style="padding: 0">
+        <table>
+          <thead>
+            <tr>
+              <th>Waktu</th>
+              <th>Provider</th>
+              <th>Akun</th>
+              <th>Model</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="logs-tbody">
+            <tr><td colspan="5" class="empty-state" style="padding: 2rem">Loading logs...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- VIEW: SETTINGS -->
+    <div id="tab-settings" class="tab-pane">
+      <div class="page-header">
+        <h2 class="page-title">Settings</h2>
+      </div>
+      <div class="glass-card">
+        <h3 style="margin-bottom: 1rem">Target CLI Tools</h3>
+        <p style="color: var(--text-muted); margin-bottom: 1.5rem; font-size: 0.9rem">Daftar nama CLI yang bisa diluncurkan (via mode klasik / bobby go).</p>
+        <div id="cliToolsList" class="account-list" style="margin-bottom: 1.5rem;"></div>
+        <div class="form-group" style="display:flex; gap:0.5rem; max-width: 400px">
+          <input type="text" id="newCliToolInput" class="form-control" placeholder="Add new CLI tool (e.g. cursor)">
+          <button class="btn btn-primary" onclick="addCliTool()">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW: TUTORIAL -->
+    <div id="tab-tutorial" class="tab-pane">
+      <div class="page-header">
+        <h2 class="page-title">Panduan Cara Pakai</h2>
+      </div>
+      <div class="glass-card prose">
+        <h3>1. 9Router Mode + Web Dashboard</h3>
+        <p>Mode ini bikin BobbyTools jadi Universal Gateway. Cocok kalo lu punya banyak API Key gratisan dan males gonta-ganti pas kena limit.</p>
+        <p>Langkah-langkah untuk CLI lo:</p>
+        <pre><code>Mac/Linux: export OPENAI_BASE_URL="http://127.0.0.1:13337/v1"
+Windows  : $env:OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
+        <p>Panggil CLI lu pake format <code>provider/model</code> (misal: <code>opencode -m groq/llama3-70b-8192</code>). Bobby bakal ngeroute request lu dan otomatis pindah akun kalo kena limit (429)!</p>
+
+        <h3>2. Classic Launcher</h3>
+        <p>Kalo lu cuma mau pake 1 akun dan males setting environment variables, tinggal pake perintah <code>bobby</code> di terminal dan pilih <strong>🚀 Start Session</strong>. BobbyTools yang bakal nyuntik variabelnya ke memori buat lu.</p>
+        <p>Pro tip: Ketik <code>bobby go</code> di terminal buat langsung ngegas sesi terakhir!</p>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- MODALS -->
+  <div class="modal-overlay" id="addAccountModal">
+    <div class="modal">
+      <h2 style="margin-bottom: 1.5rem">Add New Account</h2>
+      <input type="hidden" id="providerIdInput">
+      <div class="form-group">
+        <label>Account Name (Alias)</label>
+        <input type="text" id="accNameInput" class="form-control" placeholder="e.g. Free Tier 1">
+      </div>
+      <div id="dynamicCreds"></div>
+      <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+        <button class="btn" style="background: rgba(255,255,255,0.1); color: white; flex: 1;" onclick="closeModal('addAccountModal')">Cancel</button>
+        <button class="btn btn-primary" style="flex: 1; justify-content: center;" onclick="saveNewAccount()">Save Account</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="addProviderModal">
+    <div class="modal">
+      <h2 style="margin-bottom: 1.5rem">Add New Provider</h2>
+      <div class="form-group">
+        <label>Select Template</label>
+        <select id="providerTemplateSelect" class="form-control">
+          <option value="">Loading templates...</option>
+        </select>
+      </div>
+      <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+        <button class="btn" style="background: rgba(255,255,255,0.1); color: white; flex: 1;" onclick="closeModal('addProviderModal')">Cancel</button>
+        <button class="btn btn-primary" style="flex: 1; justify-content: center;" onclick="saveNewProvider()">Add Provider</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPT -->
+  <script>
+    let bobbyConfig = null;
+    let configHash = '';
+
+    // -- Tab Navigation --
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+      
+      document.getElementById('tab-' + tabId).classList.add('active');
+      document.getElementById('nav-' + tabId).classList.add('active');
+      
+      if(tabId === 'settings') renderCliTools();
+      if(tabId === 'logs') loadLogs();
+    }
+
+    async function loadLogs() {
+      try {
+        const res = await fetch('/api/logs');
+        const logs = await res.json();
+        const tbody = document.getElementById('logs-tbody');
+        if(logs.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" class="empty-state" style="padding: 2rem">Belum ada request yang masuk bro.</td></tr>';
+          return;
+        }
+        let html = '';
+        logs.forEach(l => {
+          const d = new Date(l.timestamp);
+          const timeStr = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+          let badgeClass = 'pending';
+          let badgeText = 'Processing...';
+          if(l.status === 'success') { badgeClass = 'success'; badgeText = 'Success'; }
+          else if(l.status === 'limit') { badgeClass = 'limit'; badgeText = 'Limit (429)'; }
+          else if(l.status === 'error') { badgeClass = 'error'; badgeText = 'Error'; }
+
+          html += `
+            <tr>
+              <td style="color: var(--text-muted)">${timeStr}</td>
+              <td style="font-weight: 500">${l.provider}</td>
+              <td>${l.account}</td>
+              <td><span class="badge" style="margin-left:0; background:rgba(255,255,255,0.05)">${l.model}</span></td>
+              <td><span class="status-badge ${badgeClass}">${badgeText}</span></td>
+            </tr>
+          `;
+        });
+        tbody.innerHTML = html;
+      } catch(e) {}
+    }
+
+    async function loadConfig() {
+      try {
+        const res = await fetch('/api/config');
+        const text = await res.text();
+        configHash = text;
+        bobbyConfig = JSON.parse(text);
+        renderDashboard();
+        renderCliTools();
+        loadLogs();
+      } catch (err) {
+        document.getElementById('providers-container').innerHTML = `<div class="empty-state" style="color: var(--danger)">Error loading config: ${err.message}. Is the router running?</div>`;
+      }
+    }
+
+    async function syncConfig() {
+      if (document.querySelector('.modal-overlay.active')) return;
+      try {
+        const res = await fetch('/api/config');
+        const text = await res.text();
+        if (text !== configHash) {
+          configHash = text;
+          bobbyConfig = JSON.parse(text);
+          renderDashboard();
+          renderCliTools();
+        }
+      } catch(e) {}
+    }
+
+    function renderDashboard() {
+      const container = document.getElementById('providers-container');
+      
+      if (!bobbyConfig || !bobbyConfig.providers || bobbyConfig.providers.length === 0) {
+        container.innerHTML = `<div class="empty-state">No providers configured yet. Use the + Add Provider button to get started.</div>`;
+        return;
+      }
+
+      let html = '';
+      bobbyConfig.providers.forEach(p => {
+        let accountsHtml = '';
+        if (p.accounts.length === 0) {
+          accountsHtml = `<div style="color: var(--text-muted); font-size: 0.9rem;">No accounts yet.</div>`;
+        } else {
+          p.accounts.forEach(a => {
+            const isLimit = a.status !== 'active';
+            const dotClass = isLimit ? 'status-limited' : 'status-active';
+            accountsHtml += `
+              <div class="account-item">
+                <div>
+                  <span class="status-dot ${dotClass}" title="Click to toggle status" onclick="toggleAccountStatus('${p.id}', '${a.id}')"></span>
+                  <strong>${a.name}</strong>
+                  <span class="badge">Used: ${a.usageCount || 0}x</span>
+                  ${p.lastAccountId === a.id ? '<span class="badge" style="background: rgba(56,189,248,0.2); color: var(--primary)">Current Target</span>' : ''}
+                </div>
+                <div>
+                  ${p.lastAccountId !== a.id ? `<button class="btn" style="background: rgba(255,255,255,0.1); color: white; padding: 0.3rem 0.6rem; font-size: 0.8rem; margin-right: 0.5rem" onclick="setTargetAccount('${p.id}', '${a.id}')">Set Target</button>` : ''}
+                  <button class="btn" style="background: rgba(239,68,68,0.1); color: var(--danger); padding: 0.3rem 0.6rem; font-size: 0.8rem" onclick="deleteAccount('${p.id}', '${a.id}')">Delete</button>
+                </div>
+              </div>
+            `;
+          });
+        }
+
+        html += `
+          <div class="glass-card">
+            <div class="provider-header">
+              <div>
+                <div class="provider-name">${p.name}</div>
+                <div class="provider-url">${p.baseUrlTemplate}</div>
+              </div>
+              <div style="display:flex; gap: 0.75rem">
+                <button class="btn btn-primary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem" onclick="openAddAccountModal('${p.id}')">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                  Account
+                </button>
+                <button class="btn btn-danger" style="padding: 0.4rem 0.8rem; font-size: 0.85rem" onclick="deleteProvider('${p.id}')">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                </button>
+              </div>
+            </div>
+            <div class="account-list">
+              ${accountsHtml}
+            </div>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+    }
+
+    // -- Settings / CLI Tools --
+    function renderCliTools() {
+      if(!bobbyConfig) return;
+      let html = '';
+      bobbyConfig.cliTools.forEach(t => {
+        html += `
+          <div class="account-item" style="padding: 0.75rem 1.25rem">
+            <strong>${t}</strong>
+            <button class="btn btn-danger" style="padding: 0.3rem 0.6rem; font-size: 0.8rem" onclick="removeCliTool('${t}')">Remove</button>
+          </div>
+        `;
+      });
+      document.getElementById('cliToolsList').innerHTML = html;
+    }
+
+    async function addCliTool() {
+      const val = document.getElementById('newCliToolInput').value.trim();
+      if(!val) return;
+      if(!bobbyConfig.cliTools.includes(val)) {
+        bobbyConfig.cliTools.push(val);
+        await saveConfig();
+        document.getElementById('newCliToolInput').value = '';
+        renderCliTools();
+      }
+    }
+
+    async function removeCliTool(tool) {
+      if(bobbyConfig.cliTools.length <= 1) return alert("Minimal harus ada 1 CLI tool bro!");
+      bobbyConfig.cliTools = bobbyConfig.cliTools.filter(x => x !== tool);
+      await saveConfig();
+      renderCliTools();
+    }
+
+    // -- App Logic --
+    async function shutdownRouter() {
+      if(!confirm("Matiin router sekarang?")) return;
+      try {
+        await fetch('/api/shutdown', { method: 'POST' });
+        document.body.innerHTML = `
+          <div style="display:flex; justify-content:center; align-items:center; height:100vh; width:100vw; flex-direction:column; background: var(--bg-gradient)">
+            <h1 style="color: var(--text-muted); margin-bottom: 1rem">Router Offline</h1>
+            <p style="color: var(--text-muted)">Router udah sukses dimatiin. Tab ini boleh ditutup.</p>
+          </div>
+        `;
+      } catch(e) {}
+    }
+
+    function openAddAccountModal(providerId) {
+      const p = bobbyConfig.providers.find(x => x.id === providerId);
+      if(!p) return;
+      
+      document.getElementById('providerIdInput').value = providerId;
+      document.getElementById('accNameInput').value = '';
+      
+      let credsHtml = '';
+      p.credentials.forEach(c => {
+        credsHtml += `
+          <div class="form-group">
+            <label>${c.label}</label>
+            <input type="${c.secret ? 'password' : 'text'}" id="cred_${c.key}" class="form-control credential-input" data-key="${c.key}">
+          </div>
+        `;
+      });
+      document.getElementById('dynamicCreds').innerHTML = credsHtml;
+      document.getElementById('addAccountModal').classList.add('active');
+    }
+
+    let templatesCache = [];
+    async function openAddProviderModal() {
+      if(templatesCache.length === 0) {
+        try {
+          const res = await fetch('/api/templates');
+          templatesCache = await res.json();
+        } catch(e) { return alert("Gagal ngambil daftar provider"); }
+      }
+      
+      let opts = '<option value="">-- Pilih Provider --</option>';
+      opts += templatesCache.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+      opts += '<option value="custom">Custom Provider</option>';
+      
+      document.getElementById('providerTemplateSelect').innerHTML = opts;
+      document.getElementById('addProviderModal').classList.add('active');
+    }
+
+    function closeModal(modalId) {
+      if(modalId) {
+        document.getElementById(modalId).classList.remove('active');
+      }
+    }
+
+    async function saveNewAccount() {
+      const providerId = document.getElementById('providerIdInput').value;
+      const p = bobbyConfig.providers.find(x => x.id === providerId);
+      
+      const name = document.getElementById('accNameInput').value.trim();
+      if(!name) return alert("Isi nama akunnya bro");
+
+      const creds = {};
+      const inputs = document.querySelectorAll('.credential-input');
+      for(const inp of inputs) {
+        if(!inp.value.trim()) return alert("Semua credential wajib diisi");
+        creds[inp.dataset.key] = inp.value.trim();
+      }
+
+      const newAccount = {
+        id: 'acc_' + Date.now().toString(36),
+        name: name,
+        credentials: creds,
+        status: 'active',
+        usageCount: 0
+      };
+
+      p.accounts.push(newAccount);
+      await saveConfig();
+      closeModal('addAccountModal');
+    }
+
+    async function saveNewProvider() {
+      const sel = document.getElementById('providerTemplateSelect').value;
+      if(!sel) return alert("Pilih provider bro");
+      
+      let tpl;
+      if(sel === 'custom') {
+        const name = prompt("Nama custom provider?");
+        if(!name) return;
+        const baseUrl = prompt("Base URL (ex: https://api.openai.com/v1)?");
+        if(!baseUrl) return;
+        tpl = {
+          id: 'custom_' + Date.now().toString(36),
+          name: name,
+          baseUrlTemplate: baseUrl,
+          credentials: [{ key: 'apiKey', label: 'API Key', secret: true }],
+          fetchModels: true
+        };
+      } else {
+        tpl = templatesCache.find(x => x.id === sel);
+        if(!tpl) return;
+        tpl = JSON.parse(JSON.stringify(tpl));
+        tpl.id = tpl.id + '_' + Date.now().toString(36);
+      }
+      
+      const newProv = {
+        id: tpl.id,
+        name: tpl.name,
+        baseUrlTemplate: tpl.baseUrlTemplate,
+        credentials: tpl.credentials,
+        fetchModels: tpl.fetchModels !== undefined ? tpl.fetchModels : true,
+        accounts: [],
+        lastAccountId: null
+      };
+      
+      if(!bobbyConfig.providers) bobbyConfig.providers = [];
+      bobbyConfig.providers.push(newProv);
+      await saveConfig();
+      closeModal('addProviderModal');
+    }
+
+    async function deleteAccount(providerId, accountId) {
+      if(!confirm("Yakin mau hapus akun ini?")) return;
+      const p = bobbyConfig.providers.find(x => x.id === providerId);
+      if(p) {
+        p.accounts = p.accounts.filter(a => a.id !== accountId);
+        if(p.lastAccountId === accountId) p.lastAccountId = null;
+        await saveConfig();
+      }
+    }
+
+    async function toggleAccountStatus(providerId, accountId) {
+      const p = bobbyConfig.providers.find(x => x.id === providerId);
+      if(p) {
+        const a = p.accounts.find(x => x.id === accountId);
+        if(a) {
+          a.status = a.status === 'active' ? 'limit' : 'active';
+          await saveConfig();
+        }
+      }
+    }
+
+    async function setTargetAccount(providerId, accountId) {
+      const p = bobbyConfig.providers.find(x => x.id === providerId);
+      if(p) {
+        p.lastAccountId = accountId;
+        await saveConfig();
+      }
+    }
+
+    async function deleteProvider(providerId) {
+      if(!confirm("Yakin mau hapus provider ini beserta semua akunnya?")) return;
+      bobbyConfig.providers = bobbyConfig.providers.filter(x => x.id !== providerId);
+      await saveConfig();
+    }
+
+    async function saveConfig() {
+      try {
+        await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bobbyConfig)
+        });
+        await loadConfig();
+      } catch (err) {
+        alert("Gagal nyimpen config: " + err.message);
+      }
+    }
+
+    // Init
+    loadConfig();
+    setInterval(() => {
+      loadLogs();
+      syncConfig();
+    }, 3000); // auto-refresh logs & sync config
+  </script>
+</body>
+</html>
