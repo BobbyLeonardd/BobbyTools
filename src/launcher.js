@@ -282,24 +282,11 @@ async function selectAccountForLaunch(provider) {
   });
 }
 
-export async function selectCliTool(config, message = 'Launch with') {
-  const choices = [
-    { name: chalk.gray('↩️  Back'), value: null },
-    ...config.cliTools.map((t) => ({
-      name: t,
-      value: t,
-    })),
-    { name: chalk.cyan('✍️  Custom command'), value: '__custom__' }
-  ];
-
-  const selected = await select({ message, choices, pageSize: 15 });
-  if (selected === '__custom__') {
-    const cmd = await input({ message: 'Command to run (type "<" to go back):' });
-    if (cmd === '<') return selectCliTool(config, message);
-    if (!cmd) return selectCliTool(config, message);
-    return cmd;
-  }
-  return selected;
+export async function selectCliTool(config, message = 'Target CLI command to launch') {
+  const cmd = await input({ message: `${message} (e.g. opencode) (type "<" to go back):`, default: 'opencode' });
+  if (cmd === '<') return null;
+  if (!cmd.trim()) return selectCliTool(config, message);
+  return cmd.trim();
 }
 
 // ── Spawn child process ──

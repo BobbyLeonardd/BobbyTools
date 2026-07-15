@@ -10,10 +10,6 @@ const DEFAULT_CONFIG = {
   version: 3,
   lastSession: null,
   providers: [],
-  cliTools: ['opencode', 'aider', 'claude', 'cursor', 'agy'],
-  settings: {
-    defaultCli: 'opencode',
-  },
 };
 
 export function getConfigPath() {
@@ -28,7 +24,7 @@ export function getConfig() {
   try {
     let config = JSON.parse(readFileSync(CONFIG_FILE, 'utf-8'));
     config = migrateConfig(config);
-    return { ...DEFAULT_CONFIG, ...config, settings: { ...DEFAULT_CONFIG.settings, ...config.settings } };
+    return { ...DEFAULT_CONFIG, ...config };
   } catch {
     // Main config corrupted — try backup
     if (existsSync(CONFIG_BACKUP)) {
@@ -36,7 +32,7 @@ export function getConfig() {
         let config = JSON.parse(readFileSync(CONFIG_BACKUP, 'utf-8'));
         config = migrateConfig(config);
         writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
-        return { ...DEFAULT_CONFIG, ...config, settings: { ...DEFAULT_CONFIG.settings, ...config.settings } };
+        return { ...DEFAULT_CONFIG, ...config };
       } catch {
         // Backup also bad
       }
@@ -93,11 +89,15 @@ function migrateConfig(config) {
       }
     }
     
-    // v2 -> v3 (defaultCli)
+    // defaultCli fallback
     if (!provider.defaultCli) {
       provider.defaultCli = config.settings?.defaultCli || 'opencode';
     }
   }
+
+  // Cleanup old global keys
+  if (config.cliTools) delete config.cliTools;
+  if (config.settings) delete config.settings;
 
   config.version = 3;
   return config;

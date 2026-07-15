@@ -388,10 +388,18 @@ async function editProvider() {
         { name: `Base URL: ${provider.baseUrlTemplate}`, value: 'baseUrlTemplate' },
         { name: `Models Endpoint: ${provider.modelsEndpoint || '(none)'}`, value: 'modelsEndpoint' },
         { name: `Base URL Env: ${provider.baseUrlEnvVar}`, value: 'baseUrlEnvVar' },
+      ];
+
+      // Dynamically add all credentials for Env Var editing
+      provider.credentials.forEach((cred, i) => {
+        choices.push({ name: `${cred.label} Env: ${cred.envVar || '(none)'}`, value: `credEnv_${i}` });
+      });
+
+      choices.push(
         { name: `Opencode Plugin: ${provider.opencodeNpm || '@ai-sdk/openai-compatible'}`, value: 'opencodeNpm' },
         { name: `Default CLI: ${provider.defaultCli || '(none)'}`, value: 'defaultCli' },
-        { name: chalk.gray('↩️  Back'), value: 'back' },
-      ];
+        { name: chalk.gray('↩️  Back'), value: 'back' }
+      );
 
       const field = await select({ message: `Edit ${provider.name}`, choices, pageSize: 15 });
       if (field === 'back') break; // break inner loop, go back to select provider
@@ -411,6 +419,18 @@ async function editProvider() {
         const newVal = await input({ message: 'Opencode Plugin (e.g. @ai-sdk/anthropic) (type "<" to cancel):', default: provider.opencodeNpm || '@ai-sdk/openai-compatible' });
         if (newVal === '<') continue;
         provider.opencodeNpm = newVal || null;
+        saveConfig(config);
+        success('Provider updated!');
+        await pause();
+        continue;
+      }
+
+      if (field.startsWith('credEnv_')) {
+        const idx = parseInt(field.split('_')[1], 10);
+        const cred = provider.credentials[idx];
+        const newVal = await input({ message: `${cred.label} Env Var (type "<" to cancel):`, default: cred.envVar || '' });
+        if (newVal === '<') continue;
+        cred.envVar = newVal || null;
         saveConfig(config);
         success('Provider updated!');
         await pause();

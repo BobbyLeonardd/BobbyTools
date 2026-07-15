@@ -148,6 +148,8 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
       margin-bottom: 2.5rem;
     }
 
@@ -172,6 +174,7 @@
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 0.5rem;
     }
     .btn-primary { 
@@ -207,14 +210,16 @@
 
     .provider-header {
       display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 1rem;
       margin-bottom: 1.25rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--glass-border);
     }
     .provider-name { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.02em; }
     .provider-url { font-size: 0.85rem; color: var(--text-muted); margin-top: 6px; font-family: monospace; background: rgba(0,0,0,0.3); padding: 4px 8px; border-radius: 6px; display: inline-block; }
     
-    .account-list { display: grid; gap: 0.85rem; }
+    .account-list { display: grid; gap: 0.85rem; max-height: 320px; overflow-y: auto; padding-right: 6px; }
     .account-item {
       display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 1rem;
       padding: 1.1rem; background: rgba(0, 0, 0, 0.4); border-radius: 12px;
       border: 1px solid transparent; transition: all 0.2s;
     }
@@ -228,17 +233,19 @@
 
     .template-card { padding: 1rem; border: 1px solid var(--glass-border); border-radius: 12px; background: rgba(0,0,0,0.3); cursor: pointer; transition: all 0.2s; min-width: 0; overflow: hidden; }
     .template-card:hover { border-color: rgba(255,255,255,0.3); background: rgba(0,0,0,0.5); }
-    .template-card.selected { border-color: var(--primary); background: rgba(59, 130, 246, 0.15); }
+    .template-card.selected { border-color: var(--primary); background: rgba(59, 130, 246, 0.15); box-shadow: inset 0 0 0 1px var(--primary), 0 0 12px rgba(59, 130, 246, 0.2); }
 
     /* Modal Styles */
     .modal-overlay {
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px);
-      display: flex; align-items: center; justify-content: center;
+      display: flex; align-items: flex-start; justify-content: center;
+      padding: 2rem 1rem; overflow-y: auto;
       opacity: 0; pointer-events: none; transition: all 0.3s ease; z-index: 50;
     }
     .modal-overlay.active { opacity: 1; pointer-events: auto; }
     .modal {
+      margin: auto;
       background: #0f0f13; border: 1px solid rgba(255,255,255,0.1); border-radius: 24px;
       width: 100%; max-width: 480px; padding: 2.5rem; transform: scale(0.95) translateY(10px); transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
       box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
@@ -273,22 +280,59 @@
       to { opacity: 1; transform: translateY(0); }
     }
     
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
+    
     /* Tutorial Styling */
     .prose h3 { margin-top: 2rem; margin-bottom: 1rem; color: #a5b4fc; font-weight: 700; letter-spacing: -0.02em; }
     .prose p { margin-bottom: 1.25rem; line-height: 1.7; color: var(--text-muted); }
     .prose pre { background: rgba(0,0,0,0.5); padding: 1.25rem; border-radius: 12px; border: 1px solid var(--glass-border); overflow-x: auto; margin-bottom: 1.75rem; }
     .prose code { color: #c7d2fe; font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.9em; }
+    /* Responsive Design for Zoom & Small Screens */
+    @media (max-width: 900px) {
+      .layout { flex-direction: column; }
+      .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--glass-border); padding: 1.25rem 1.5rem; flex-direction: row; flex-wrap: wrap; justify-content: space-between; align-items: center; }
+      .brand { margin-bottom: 0; flex-direction: row; gap: 1rem; align-items: center; }
+      .brand-status { margin-top: 0; }
+      .nav-bottom { margin-top: 0; width: auto; }
+      .main-content { padding: 1.5rem; }
+      .modal { padding: 1.5rem; }
+      .glass-card { padding: 1.25rem; }
+      .page-title { font-size: 1.6rem; }
+      .provider-name { font-size: 1.2rem; }
+      .modal-overlay { padding: 1rem 0.5rem; }
+    }
+    
+    @media (max-width: 600px) {
+      .sidebar { flex-direction: column; align-items: flex-start; gap: 1rem; }
+      .nav-bottom { width: 100%; display: flex; }
+      .nav-item { width: 100%; justify-content: flex-start; }
+    }
   </style>
 </head>
 <body>
 
   <!-- SIDEBAR -->
   <aside class="sidebar">
-    <div class="brand">
-      BobbyTools
-      <div class="brand-status">
-        <div class="pulse-dot"></div>
-        Router Online
+    <div class="brand" style="flex-direction: row; align-items: center; gap: 0.8rem;">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="url(#logoGrad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 0 10px rgba(129, 140, 248, 0.5)); flex-shrink: 0;">
+        <defs>
+          <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#818cf8" />
+            <stop offset="100%" stop-color="#c084fc" />
+          </linearGradient>
+        </defs>
+        <path d="M7 4v16"></path>
+        <path d="M7 4h7a4 4 0 0 1 4 4v0a4 4 0 0 1-4 4H7"></path>
+        <path d="M7 12h8a4 4 0 0 1 4 4v0a4 4 0 0 1-4 4H7"></path>
+      </svg>
+      <div style="display: flex; flex-direction: column;">
+        BobbyTools
+        <div class="brand-status" style="margin-top: 2px;">
+          <div class="pulse-dot"></div>
+          Router Online
+        </div>
       </div>
     </div>
 
@@ -329,6 +373,29 @@
           Add Provider
         </button>
       </div>
+
+      <!-- Connection Info -->
+      <div class="glass-card" style="margin-bottom: 2.5rem; padding: 1.25rem 1.5rem; display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; align-items: center; border-left: 4px solid var(--primary); background: rgba(0,0,0,0.3);">
+        <div>
+          <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); margin-bottom: 8px; letter-spacing: 0.05em; text-transform: uppercase;">Local API Endpoint (Router)</div>
+          <div style="display: flex; gap: 2rem; align-items: center; flex-wrap: wrap;">
+            <div style="font-size: 0.9rem;"><strong>Base URL:</strong> <code style="background: rgba(0,0,0,0.5); padding: 4px 8px; border-radius: 6px; color: #a5b4fc; font-family: monospace; margin-left: 6px; user-select: all;">http://127.0.0.1:13337/v1</code></div>
+            <div style="font-size: 0.9rem;"><strong>API Key:</strong> <code style="background: rgba(0,0,0,0.5); padding: 4px 8px; border-radius: 6px; color: #a5b4fc; font-family: monospace; margin-left: 6px; user-select: all;">sk-bobby</code> <span style="font-size: 0.75rem; color: var(--text-muted); margin-left: 4px;">(or anything)</span></div>
+          </div>
+        </div>
+        <button class="btn" style="background: rgba(255,255,255,0.1); color: white; font-size: 0.8rem; padding: 0.4rem 0.8rem; flex-shrink: 0;" onclick="navigator.clipboard.writeText('http://127.0.0.1:13337/v1'); const t = this; t.innerText='Copied!'; setTimeout(()=>t.innerText='Copy URL', 2000);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+          Copy URL
+        </button>
+      </div>
+
+      <div style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center;">
+        <div class="form-group" style="margin-bottom: 0; flex: 1; position: relative;">
+          <input type="text" id="registeredProviderSearchInput" class="form-control" placeholder="Cari provider yang udah didaftarin (e.g. groq, openai)..." oninput="renderDashboard()" style="padding-left: 2.5rem; background: rgba(0,0,0,0.3);">
+          <svg style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        </div>
+      </div>
+
       <div id="providers-container">
         <div class="empty-state">Loading configuration...</div>
       </div>
@@ -338,7 +405,7 @@
     <div id="tab-logs" class="tab-pane">
       <div class="page-header">
         <h2 class="page-title">Activity Logs</h2>
-        <button class="btn" style="background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1);" onclick="loadLogs()">
+        <button id="refreshLogsBtn" class="btn" style="background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1);" onclick="loadLogs(true)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
           Refresh
         </button>
@@ -366,13 +433,15 @@
       <div class="page-header">
         <h2 class="page-title">Settings</h2>
       </div>
-      <div class="glass-card">
-        <h3 style="margin-bottom: 1rem">Target CLI Tools</h3>
-        <p style="color: var(--text-muted); margin-bottom: 1.5rem; font-size: 0.9rem">Daftar nama CLI yang bisa diluncurkan (via mode klasik / bobby go).</p>
-        <div id="cliToolsList" class="account-list" style="margin-bottom: 1.5rem;"></div>
-        <div class="form-group" style="display:flex; gap:0.5rem; max-width: 400px">
-          <input type="text" id="newCliToolInput" class="form-control" placeholder="Add new CLI tool (e.g. cursor)">
-          <button class="btn btn-primary" onclick="addCliTool()">Add</button>
+      
+      <div style="display: grid; grid-template-columns: 1fr; gap: 1.5rem; margin-bottom: 2rem;">
+        <div class="glass-card">
+          <h3 style="color: var(--danger); margin-bottom: 0.5rem;">Danger Zone</h3>
+          <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.85rem">Hapus semua data provider, akun, dan kembalikan pengaturan ke awal.</p>
+          <button class="btn btn-danger" onclick="factoryReset()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            Factory Reset Semua Data
+          </button>
         </div>
       </div>
     </div>
@@ -380,34 +449,53 @@
     <!-- VIEW: TUTORIAL -->
     <div id="tab-tutorial" class="tab-pane">
       <div class="page-header">
-        <h2 class="page-title">Panduan Cara Pakai</h2>
+        <h2 class="page-title">Panduan Lengkap (Biar Lo Ga Keder)</h2>
       </div>
       <div class="glass-card prose">
-        <h3>1. 9Router Mode + Web Dashboard (Auto-Rotate & Load Balancing)</h3>
-        <p>Mode ini bikin BobbyTools jadi Universal Gateway. Cocok kalo lu punya banyak API Key gratisan (ternak akun) dan males gonta-ganti manual pas kena limit (429).</p>
-        <p>Langkah-langkah untuk CLI lo:</p>
-        <pre><code>Mac/Linux/GitBash: export OPENAI_BASE_URL="http://127.0.0.1:13337/v1"
-Windows Powershell: $env:OPENAI_BASE_URL="http://127.0.0.1:13337/v1"
-Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
-        <p>Panggil CLI lu pake format <code>provider/model</code> (misal: <code>opencode -m groq/llama3-70b-8192</code>).</p>
-        <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); padding: 1rem; border-radius: 8px; margin-top: 1rem;">
-          <h4 style="color: var(--success); margin-bottom: 0.5rem;">✨ Magic v3.0.0 (God-Tier Features):</h4>
+        <p style="color: var(--text-muted); font-style: italic; margin-bottom: 1.5rem;">Baca bentar doang, janji. Gue nulis ini karena gue juga males jawabin pertanyaan berulang.</p>
+
+        <h3>1. Mode Web (Router) - Mode Setengah Dewa 🌟</h3>
+        <p>Mode ini alasan utama kenapa BobbyTools diciptain. Kalo lo capek dikit-dikit kena limit (429) gara-gara pake API gratisan, mode ini obatnya. BobbyTools bakal jalan di *background* komputer lo sebagai "Middleman" atau router.</p>
+        
+        <p><strong>Cara Setup:</strong></p>
+        <ul style="padding-left: 1.5rem; color: var(--text-muted);">
+          <li>Tambahin <strong>Provider</strong> di menu sebelah. (Misal: Groq, Anthropic, Gemini).</li>
+          <li>Di dalem Provider itu, tambahin <strong>Akun</strong> sebanyak yang lo punya. Masukin semua API Key lo dari akun A sampe Z.</li>
+        </ul>
+
+        <p><strong>Cara Nyambungin ke CLI Ngoding (Aider / Opencode / Cursor):</strong></p>
+        <p>Lo cuma perlu ngibulin CLI lo biar dia ngira BobbyTools itu adalah server aslinya. Buka terminal lo, copas ini:</p>
+        <pre><code>Mac/Linux: export OPENAI_BASE_URL="http://127.0.0.1:13337/v1"
+Windows PS : $env:OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
+        <p style="margin-top: 0.5rem"><em>(Note: Gak usah repot-repot ngeset <code>OPENAI_API_KEY</code>, mau diisi asdf doang juga bodo amat, karena yang nyuntikin API Key asli itu si BobbyTools!)</em></p>
+
+        <p><strong>Cara Ngejalaninnya:</strong></p>
+        <p>Panggil CLI lo pake format <code>provider/model</code> biar router tau lo mau nembak ke mana.</p>
+        <pre><code>opencode -m groq/llama3-70b-8192</code></pre>
+
+        <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); padding: 1rem; border-radius: 8px; margin-top: 1.5rem;">
+          <h4 style="color: var(--success); margin-bottom: 0.5rem;">✨ Keajaibannya (The Magic):</h4>
           <ul style="padding-left: 1.5rem; color: var(--text-muted);">
-            <li style="margin-bottom: 0.5rem"><strong>Smart Load Balancing:</strong> Kalau akun A limit (429), router otomatis muter nyoba pake akun B saat itu juga. CLI lu dapet response sukses tanpa pernah sadar ada error!</li>
-            <li><strong>Universal Fallback:</strong> Kalau SEMUA akun Groq lu limit, router bakal nyari provider lain (misal OpenRouter) yang punya model yang sama, lalu langsung diproses otomatis tanpa putus!</li>
+            <li style="margin-bottom: 0.5rem"><strong>Auto-Rotate & Smart Load Balancing:</strong> Kalau Akun 1 lo kena limit 429, Bobby diem-diem bakal nge-retry pake Akun 2 tanpa ngasih tau terminal lo. Terminal lo taunya cuma sukses mulus, padahal di belakang layar Bobby lagi kerja keras.</li>
+            <li><strong>Universal Fallback:</strong> Kalau sial banget SEMUA akun Groq lo abis, Bobby bakal nyari otomatis di provider lain yang punya model llama3-70b (kalo lo sempet masukin). Canggih kan?</li>
           </ul>
         </div>
 
-        <h3>2. Classic Launcher (Buat Single Account)</h3>
-        <p>Kalo lu cuma mau jalanin 1 akun dan males ribet set environment variables, tinggal pake perintah <code>bobby</code> di terminal dan pilih <strong>🚀 Start Session</strong>. BobbyTools yang bakal nyuntik variabelnya ke memori secara gaib buat lu, terus langsung ngebuka CLI lu.</p>
-        <p>Pro tip: Ketik <code>bobby go</code> di terminal buat langsung ngegas sesi terakhir tanpa lewat menu!</p>
+        <h3 style="margin-top: 2rem;">2. Mode Klasik (CLI Launcher) - Mode Magasan 💤</h3>
+        <p>Kalo lo cuma pake 1 akun doang dan males buka web atau ribet masukin environment variable, tutup web ini, buka terminal, ketik <code>bobby</code>.</p>
+        <ul style="padding-left: 1.5rem; color: var(--text-muted);">
+          <li>Pilih <strong>🚀 Start Session</strong>.</li>
+          <li>Tinggal klik-klik: Pilih Provider &rarr; Pilih Akun &rarr; Pilih Model.</li>
+          <li>BobbyTools bakal otomatis ngejalanin target CLI lo (misal opencode) dan API Key lo otomatis kesuntik di memori. Lo gak perlu ngapalin sintaks export macem-macem.</li>
+        </ul>
+        <p><strong>Pro tip:</strong> Besok-besoknya lo tinggal ketik <code>bobby go</code> di terminal. Bobby langsung ngebuka sesi terakhir lo. Bener-bener buat pemalas.</p>
       </div>
     </div>
 
   </main>
 
   <!-- MODALS -->
-  <div class="modal-overlay" id="addAccountModal">
+  <div class="modal-overlay" id="addAccountModal" onclick="if(event.target===this) closeModal('addAccountModal')">
     <div class="modal">
       <h2 style="margin-bottom: 1.5rem">Add New Account</h2>
       <input type="hidden" id="providerIdInput">
@@ -416,25 +504,29 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
         <input type="text" id="accNameInput" class="form-control" placeholder="e.g. Free Tier 1">
       </div>
       <div id="dynamicCreds"></div>
-      <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+      <div style="display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 2rem;">
         <button class="btn" style="background: rgba(255,255,255,0.1); color: white; flex: 1;" onclick="closeModal('addAccountModal')">Cancel</button>
-        <button class="btn btn-primary" style="flex: 1; justify-content: center;" onclick="saveNewAccount()">Save Account</button>
+        <button class="btn btn-primary" style="flex: 1;" onclick="saveNewAccount()">Save Account</button>
       </div>
     </div>
   </div>
 
-  <div class="modal-overlay" id="addProviderModal">
+  <div class="modal-overlay" id="addProviderModal" onclick="if(event.target===this) closeModal('addProviderModal')">
     <div class="modal" style="max-width: 550px">
       <h2 style="margin-bottom: 1.5rem">Add New Provider</h2>
       
-      <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; background: rgba(0,0,0,0.5); padding: 6px; border-radius: 12px; border: 1px solid var(--glass-border);">
-        <button id="btnTabTemplate" class="btn btn-primary" style="flex: 1; justify-content: center; border-radius: 8px; font-weight: 600;" onclick="switchProviderTab('template')">From Template</button>
-        <button id="btnTabCustom" class="btn" style="flex: 1; justify-content: center; border-radius: 8px; font-weight: 600; background: transparent; color: var(--text-muted);" onclick="switchProviderTab('custom')">Custom Provider</button>
+      <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.5rem; background: rgba(0,0,0,0.5); padding: 6px; border-radius: 12px; border: 1px solid var(--glass-border);">
+        <button id="btnTabTemplate" class="btn btn-primary" style="flex: 1; border-radius: 8px; font-weight: 600;" onclick="switchProviderTab('template')">From Template</button>
+        <button id="btnTabCustom" class="btn" style="background: transparent; color: var(--text-muted); border: none; flex: 1; border-radius: 8px; font-weight: 600;" onclick="switchProviderTab('custom')">Custom Setup</button>
       </div>
 
       <!-- Tab: Template -->
       <div id="provTabTemplate">
-        <div id="templateListGrid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; max-height: 280px; overflow-y: auto; padding-right: 5px;">
+        <div style="position: relative; margin-bottom: 1rem;">
+          <input type="text" id="templateSearchInput" class="form-control" placeholder="Search templates..." oninput="filterTemplates()" style="padding-left: 2.5rem; background: rgba(0,0,0,0.4);">
+          <svg style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        </div>
+        <div id="templateListGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; max-height: 280px; overflow-y: auto; padding: 4px; padding-right: 8px;">
           <!-- Templates injected here -->
         </div>
       </div>
@@ -446,16 +538,27 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
           <input type="text" id="customProvName" class="form-control" placeholder="e.g. MyLocalAI">
         </div>
         <div class="form-group">
-          <label>Base URL</label>
-          <input type="text" id="customProvUrl" class="form-control" placeholder="e.g. http://localhost:11434/v1">
+          <label>Base URL Template</label>
+          <input type="text" id="customProvUrl" class="form-control" placeholder="e.g. https://api.example.com/{accountId}/v1">
+        </div>
+        <div class="form-group" style="margin-top: 1rem;">
+          <label>Dynamic Fields (Optional)</label>
+          <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">Use <code>{keyName}</code> in Base URL Template above. User will input these values per account.</div>
+          <div id="customProvFields" style="display:flex; flex-direction: column; gap: 8px; margin-bottom: 8px;"></div>
+          <button type="button" class="btn" style="background: rgba(255,255,255,0.1); color: white; padding: 0.3rem 0.8rem; font-size: 0.8rem;" onclick="addCustomProvField()">+ Add Field</button>
         </div>
       </div>
 
-      <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+      <!-- Shared Fields -->
+      <div class="form-group" style="margin-top: 1.5rem; border-top: 1px solid var(--glass-border); padding-top: 1.5rem;">
+        <label>Target CLI Command (Mode Klasik)</label>
+        <input type="text" id="providerCliInput" class="form-control" placeholder="e.g. opencode">
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px;">Aplikasi yang diluncurkan otomatis saat lo pake perintah <code>bobby go</code>.</div>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1.5rem;">
         <button class="btn" style="background: rgba(255,255,255,0.1); color: white; flex: 1;" onclick="closeModal('addProviderModal')">Cancel</button>
-      <div style="display: flex; gap: 1rem; margin-top: 2rem;">
-        <button class="btn" style="background: rgba(255,255,255,0.1); color: white; flex: 1;" onclick="closeModal('addProviderModal')">Cancel</button>
-        <button class="btn btn-primary" style="flex: 1; justify-content: center;" onclick="saveNewProvider()">Add Provider</button>
+        <button class="btn btn-primary" style="flex: 1;" onclick="saveNewProvider()">Add Provider</button>
       </div>
     </div>
   </div>
@@ -464,13 +567,13 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
   <div id="toastContainer" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px;"></div>
 
   <!-- Confirm Modal -->
-  <div class="modal-overlay" id="confirmModal">
+  <div class="modal-overlay" id="confirmModal" onclick="if(event.target===this) resolveConfirm(false)">
     <div class="modal" style="max-width: 400px; text-align: center;">
       <h3 style="margin-bottom: 1rem" id="confirmTitle">Confirm</h3>
       <p style="margin-bottom: 2rem; color: var(--text-muted);" id="confirmMessage">Are you sure?</p>
-      <div style="display: flex; gap: 1rem;">
+      <div style="display: flex; flex-wrap: wrap; gap: 1rem;">
         <button class="btn" style="background: rgba(255,255,255,0.1); color: white; flex: 1;" onclick="resolveConfirm(false)">Cancel</button>
-        <button class="btn btn-danger" style="flex: 1; justify-content: center;" onclick="resolveConfirm(true)">OK</button>
+        <button class="btn btn-danger" style="flex: 1;" onclick="resolveConfirm(true)">OK</button>
       </div>
     </div>
   </div>
@@ -480,6 +583,7 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
     let bobbyConfig = null;
     let configHash = '';
     let logsHash = '';
+    let isSaving = false;
 
     // -- Custom UI Utilities --
     function bobbyAlert(message, type = 'danger') {
@@ -549,11 +653,19 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
       if(tabId === 'logs') loadLogs();
     }
 
-    async function loadLogs() {
+    async function loadLogs(manual = false) {
+      if (manual) {
+        const btn = document.getElementById('refreshLogsBtn');
+        if(btn) {
+          const oldHtml = btn.innerHTML;
+          btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation: spin 1s linear infinite;"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="4.93" x2="19.07" y2="7.76"></line></svg> Refreshing...`;
+          setTimeout(() => btn.innerHTML = oldHtml, 500);
+        }
+      }
       try {
         const res = await fetch('/api/logs');
         const logsText = await res.text();
-        if (logsText === logsHash) return;
+        if (!manual && logsText === logsHash) return;
         logsHash = logsText;
 
         const logs = JSON.parse(logsText);
@@ -593,7 +705,6 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
         configHash = text;
         bobbyConfig = JSON.parse(text);
         renderDashboard();
-        renderCliTools();
         loadLogs();
       } catch (err) {
         document.getElementById('providers-container').innerHTML = `<div class="empty-state" style="color: var(--danger)">Error loading config: ${err.message}. Is the router running?</div>`;
@@ -601,7 +712,7 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
     }
 
     async function syncConfig() {
-      if (document.querySelector('.modal-overlay.active')) return;
+      if (isSaving || document.querySelector('.modal-overlay.active')) return;
       try {
         const res = await fetch('/api/config');
         const text = await res.text();
@@ -622,8 +733,16 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
         return;
       }
 
+      const term = (document.getElementById('registeredProviderSearchInput')?.value || '').toLowerCase();
+      const filteredProviders = bobbyConfig.providers.filter(p => p.name.toLowerCase().includes(term) || p.baseUrlTemplate.toLowerCase().includes(term));
+
+      if (filteredProviders.length === 0) {
+        container.innerHTML = `<div class="empty-state">Nggak nemu provider "${term}". Coba cari yang lain bro.</div>`;
+        return;
+      }
+
       let html = '';
-      bobbyConfig.providers.forEach(p => {
+      filteredProviders.forEach(p => {
         let accountsHtml = '';
         if (p.accounts.length === 0) {
           accountsHtml = `<div style="color: var(--text-muted); font-size: 0.9rem;">No accounts yet.</div>`;
@@ -637,10 +756,8 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
                   <span class="status-dot ${dotClass}" title="Click to toggle status" onclick="toggleAccountStatus('${p.id}', '${a.id}')"></span>
                   <strong>${a.name}</strong>
                   <span class="badge">Used: ${a.usageCount || 0}x</span>
-                  ${p.lastAccountId === a.id ? '<span class="badge" style="background: rgba(56,189,248,0.2); color: var(--primary)">Current Target</span>' : ''}
                 </div>
                 <div>
-                  ${p.lastAccountId !== a.id ? `<button class="btn" style="background: rgba(255,255,255,0.1); color: white; padding: 0.3rem 0.6rem; font-size: 0.8rem; margin-right: 0.5rem" onclick="setTargetAccount('${p.id}', '${a.id}')">Set Target</button>` : ''}
                   <button class="btn" style="background: rgba(239,68,68,0.1); color: var(--danger); padding: 0.3rem 0.6rem; font-size: 0.8rem" onclick="deleteAccount('${p.id}', '${a.id}')">Delete</button>
                 </div>
               </div>
@@ -655,7 +772,7 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
                 <div class="provider-name">${p.name}</div>
                 <div class="provider-url">${p.baseUrlTemplate}</div>
               </div>
-              <div style="display:flex; gap: 0.75rem">
+              <div style="display:flex; flex-wrap: wrap; gap: 0.75rem">
                 <button class="btn btn-primary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem" onclick="openAddAccountModal('${p.id}')">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                   Account
@@ -674,37 +791,14 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
       container.innerHTML = html;
     }
 
-    // -- Settings / CLI Tools --
-    function renderCliTools() {
-      if(!bobbyConfig) return;
-      let html = '';
-      bobbyConfig.cliTools.forEach(t => {
-        html += `
-          <div class="account-item" style="padding: 0.75rem 1.25rem">
-            <strong>${t}</strong>
-            <button class="btn btn-danger" style="padding: 0.3rem 0.6rem; font-size: 0.8rem" onclick="removeCliTool('${t}')">Remove</button>
-          </div>
-        `;
-      });
-      document.getElementById('cliToolsList').innerHTML = html;
-    }
-
-    async function addCliTool() {
-      const val = document.getElementById('newCliToolInput').value.trim();
-      if(!val) return;
-      if(!bobbyConfig.cliTools.includes(val)) {
-        bobbyConfig.cliTools.push(val);
+    async function factoryReset() {
+      if(await bobbyConfirm("⚠️ BAHAYA: Ini bakal ngehapus SEMUA data API Key, Akun, dan Provider lu secara permanen. Yakin 100% mau ngereset?")) {
+        bobbyConfig.providers = [];
+        delete bobbyConfig.cliTools;
+        delete bobbyConfig.settings;
         await saveConfig();
-        document.getElementById('newCliToolInput').value = '';
-        renderCliTools();
+        renderDashboard();
       }
-    }
-
-    async function removeCliTool(tool) {
-      if(bobbyConfig.cliTools.length <= 1) return bobbyAlert("Minimal harus ada 1 CLI tool bro!");
-      bobbyConfig.cliTools = bobbyConfig.cliTools.filter(x => x !== tool);
-      await saveConfig();
-      renderCliTools();
     }
 
     // -- App Logic --
@@ -800,16 +894,47 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
       
       switchProviderTab('template');
       selectedProviderTemplate = '';
+      document.getElementById('templateSearchInput').value = '';
+      filterTemplates(); // reset filter
       document.getElementById('customProvName').value = '';
       document.getElementById('customProvUrl').value = '';
+      document.getElementById('customProvFields').innerHTML = '';
       
+      document.getElementById('providerCliInput').value = 'opencode';
+
       document.getElementById('addProviderModal').classList.add('active');
+    }
+
+    function filterTemplates() {
+      const term = document.getElementById('templateSearchInput').value.toLowerCase();
+      const cards = document.querySelectorAll('.template-card');
+      cards.forEach(card => {
+        const text = card.innerText.toLowerCase();
+        if (text.includes(term)) {
+          card.style.display = 'block';
+        } else {
+          card.style.display = 'none';
+        }
+      });
     }
 
     function closeModal(modalId) {
       if(modalId) {
         document.getElementById(modalId).classList.remove('active');
       }
+    }
+
+    function addCustomProvField() {
+      const container = document.getElementById('customProvFields');
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.gap = '8px';
+      row.innerHTML = `
+        <input type="text" class="form-control" placeholder="Key (e.g. accountId)" style="flex:1;">
+        <input type="text" class="form-control" placeholder="Label (e.g. Account ID)" style="flex:1;">
+        <button type="button" class="btn" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; padding: 0 0.8rem;" onclick="this.parentElement.remove()">X</button>
+      `;
+      container.appendChild(row);
     }
 
     async function saveNewAccount() {
@@ -852,21 +977,33 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
         const baseUrl = document.getElementById('customProvUrl').value.trim();
         if(!baseUrl) return bobbyAlert("Isi Base URL bro!");
         
+        let creds = [{ key: 'apiKey', label: 'API Key', secret: true }];
+        const rows = document.querySelectorAll('#customProvFields > div');
+        rows.forEach(r => {
+          const inputs = r.querySelectorAll('input');
+          const k = inputs[0].value.trim();
+          const l = inputs[1].value.trim();
+          if(k && l) creds.push({ key: k, label: l, secret: false });
+        });
+        
         tpl = {
           id: 'custom_' + crypto.randomUUID(),
           name: name,
           baseUrlTemplate: baseUrl,
-          credentials: [{ key: 'apiKey', label: 'API Key', secret: true }],
+          credentials: creds,
           fetchModels: true
         };
       }
       
+      const selectedCli = document.getElementById('providerCliInput').value.trim() || 'opencode';
+
       const newProv = {
         id: tpl.id,
         name: tpl.name,
         baseUrlTemplate: tpl.baseUrlTemplate,
         credentials: tpl.credentials,
         fetchModels: tpl.fetchModels !== undefined ? tpl.fetchModels : true,
+        defaultCli: selectedCli,
         accounts: [],
         models: [],
         lastAccountId: null
@@ -899,14 +1036,6 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
       }
     }
 
-    async function setTargetAccount(providerId, accountId) {
-      const p = bobbyConfig.providers.find(x => x.id === providerId);
-      if(p) {
-        p.lastAccountId = accountId;
-        await saveConfig();
-      }
-    }
-
     async function deleteProvider(providerId) {
       if(!(await bobbyConfirm("Yakin mau hapus provider ini beserta semua akunnya?"))) return;
       bobbyConfig.providers = bobbyConfig.providers.filter(x => x.id !== providerId);
@@ -914,6 +1043,7 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
     }
 
     async function saveConfig() {
+      isSaving = true;
       try {
         await fetch('/api/config', {
           method: 'POST',
@@ -923,6 +1053,8 @@ Windows CMD       : set OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
         await loadConfig();
       } catch (err) {
         bobbyAlert("Gagal nyimpen config: " + err.message);
+      } finally {
+        isSaving = false;
       }
     }
 
