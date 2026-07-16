@@ -313,6 +313,15 @@ export async function startRouterServer(port = 13337, background = false) {
   });
 
   return new Promise((resolve) => {
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.log(chalk.red(`\n  ✖ Port ${port} udah kepake.`));
+        console.log(chalk.gray(`    Kemungkinan router lain udah jalan di situ. Cek dengan `) + chalk.yellow('bobby list') + chalk.gray(`, atau pakai port lain: `) + chalk.yellow(`bobby serve -p 13338`));
+      } else {
+        console.log(chalk.red(`\n  ✖ Router gagal jalan: ${err.message}`));
+      }
+      process.exit(1);
+    });
     server.listen(port, '127.0.0.1', () => {
       console.log(chalk.green.bold(`\n  🚀 BobbyTools Local Router Berjalan di Port ${port}`));
       console.log(chalk.gray('  ' + '─'.repeat(50)));
@@ -351,18 +360,20 @@ export async function startRouterServer(port = 13337, background = false) {
       console.log(chalk.white(`  - Semua provider yang kamu daftarkan (termasuk custom) sudah tergabung di sini!`));
 
       console.log(chalk.gray('\n  ' + '─'.repeat(50)));
-      console.log(chalk.yellow.bold(`  Tekan 'b' atau 'q' lalu Enter untuk kembali ke Menu Utama...\n`));
+      console.log(chalk.yellow.bold(`  Tekan 'q' (atau 'b') lalu Enter untuk mematikan router & keluar...\n`));
     });
 
     const onData = (data) => {
       const key = data.toString().trim().toLowerCase();
       if (key === 'b' || key === 'q') {
-        console.log(chalk.yellow('\nMematikan router dan kembali ke menu...'));
+        console.log(chalk.yellow('\nMematikan router. Sampai jumpa!'));
         process.stdin.off('data', onData);
         process.stdin.pause();
-        server.close(() => {
-          resolve();
-        });
+        // Foreground `serve` is a direct command, not launched from the menu —
+        // so quitting means exiting to the shell. server.close() alone can hang
+        // waiting on keep-alive connections, so stop accepting then exit hard.
+        server.close();
+        process.exit(0);
       }
     };
     

@@ -457,6 +457,13 @@
         <h3>Dua mode, pilih salah satu (atau dua-duanya)</h3>
         <p>BobbyTools punya dua cara pakai. <strong>Mode Web/Router</strong> (halaman ini) buat yang mau anti-limit 429 otomatis. <strong>Mode Klasik/CLI</strong> buat yang cuma mau launch cepat satu akun tanpa ribet. Isi provider & akun sekali, dua mode langsung kepake dua-duanya — datanya sama (<code>~/.bobbytools/config.json</code>).</p>
 
+        <h3 style="margin-top: 2rem;">0. Install dulu (kalo belum) 📦</h3>
+        <p>BobbyTools jalan di atas Node.js — minimal <strong>versi 18</strong>. Cek dulu punya lo: <code>node -v</code>. Kalo belum ada atau ketuaan, ambil di <a href="https://nodejs.org" target="_blank" style="color: #a5b4fc;">nodejs.org</a> (pilih yang LTS).</p>
+        <p>Abis itu install global lewat npm — sekali doang, langsung bisa dipanggil <code>bobby</code> dari terminal mana aja:</p>
+        <pre><code>npm install -g bobbytools</code></pre>
+        <p style="margin-top: 0.5rem"><em>Cek berhasil: ketik <code>bobby -v</code>, harusnya keluar nomor versinya. Kalo shell-nya bilang "command not found", biasanya folder global npm belum masuk PATH — restart terminal dulu, atau cek <code>npm bin -g</code>.</em></p>
+        <p style="margin-top: 0.5rem;">Mau update ke versi terbaru nanti? Gampang, tinggal <code>bobby update</code> — dia ngecek npm dan nawarin update sendiri.</p>
+
         <h3 style="margin-top: 2rem;">1. Mode Web (Router) — yang bikin alat ini worth it 🌟</h3>
         <p>Bobby jalan di background jadi "calo" (middleman) di <code>127.0.0.1:13337</code>. CLI ngoding lo nembak ke Bobby, Bobby yang nyuntikin API key asli dan muterin akun kalo kena limit. Terminal lo gak pernah tau ada drama di belakang.</p>
 
@@ -516,7 +523,7 @@ aider --model openrouter/anthropic/claude-3-haiku</code></pre>
           <li style="margin-bottom: 0.5rem"><strong><code>bobby serve</code></strong><br/>Nyalain router + Web Dashboard di depan layar (foreground). Terminal ditutup, server ikut mati.</li>
           <li style="margin-bottom: 0.5rem"><strong><code>bobby serve-bg</code></strong><br/>Nyalain di background (daemon). Terminal bebas ditutup, server tetep idup, browser dibukain otomatis.</li>
           <li style="margin-bottom: 0.5rem"><strong><code>bobby list</code></strong><br/>Nampilin semua provider & akun yang tersimpan, tanpa masuk menu.</li>
-          <li style="margin-bottom: 0.5rem"><strong><code>bobby update</code></strong><br/>Instruksi cara update ke versi terbaru dari npm.</li>
+          <li style="margin-bottom: 0.5rem"><strong><code>bobby update</code></strong><br/>Ngecek versi terbaru di npm. Kalo ada yang baru, langsung ditawarin update otomatis (tinggal Enter). Kalo udah paling baru, dia bilang.</li>
           <li style="margin-bottom: 0.5rem"><strong><code>bobby -v</code></strong> / <strong><code>--version</code></strong><br/>Cek versi yang lagi kepasang.</li>
           <li style="margin-bottom: 0.5rem"><strong><code>bobby -h</code></strong> / <strong><code>--help</code></strong><br/>Nampilin contekan bantuan.</li>
         </ul>
@@ -528,6 +535,14 @@ aider --model openrouter/anthropic/claude-3-haiku</code></pre>
           <li style="margin-bottom: 0.5rem"><strong>Model lokal gak muncul?</strong> Emang gak diserep otomatis (baca kotak kuning di atas). Tambah manual di Edit Models.</li>
           <li style="margin-bottom: 0.5rem"><strong>Semua kacau, mau mulai bersih?</strong> Menu Settings → Factory Reset (mode CLI). Config lama ada backup-nya di <code>~/.bobbytools/config.backup.json</code>.</li>
         </ul>
+
+        <h3 style="margin-top: 2rem;">🗑️ Cara Uninstall (Kalo Udah Bosen)</h3>
+        <p>Matiin dulu router yang lagi jalan (tombol Shutdown di pojok, atau <code>bobby</code> → Stop Web Dashboard). Terus:</p>
+        <pre><code>npm uninstall -g bobbytools</code></pre>
+        <p style="margin-top: 0.5rem;">Itu ngehapus program-nya doang. Config lo (semua API key & provider) masih nyangkut di <code>~/.bobbytools/</code>. Kalo mau hapus tuntas sekalian datanya:</p>
+        <pre><code>Mac/Linux         : rm -rf ~/.bobbytools
+Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
+        <p style="margin-top: 0.5rem;"><em>Hati-hati — langkah kedua ngehapus semua API key yang lo simpen, gak ada undo. Kalo cuma mau install ulang, skip langkah ini biar config lo kejaga.</em></p>
       </div>
     </div>
 

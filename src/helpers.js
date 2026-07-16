@@ -106,6 +106,25 @@ export function isLocalUrl(url) {
 }
 
 /**
+ * Compare two semver-ish version strings ("3.9.0" vs "3.10.0").
+ * Returns 1 if a > b, -1 if a < b, 0 if equal. Compares numerically per
+ * segment (so 3.10 > 3.9, which a plain string compare gets wrong). Missing
+ * segments count as 0; non-numeric junk in a segment counts as 0.
+ */
+export function compareVersions(a, b) {
+  const pa = String(a || '').split('.');
+  const pb = String(b || '').split('.');
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const na = parseInt(pa[i], 10) || 0;
+    const nb = parseInt(pb[i], 10) || 0;
+    if (na > nb) return 1;
+    if (na < nb) return -1;
+  }
+  return 0;
+}
+
+/**
  * Slug used as the routable prefix for a provider (e.g. "My Router" -> "my-router").
  * Must match the resolver in server.js so emitted model ids stay routable.
  */

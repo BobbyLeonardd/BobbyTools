@@ -5,10 +5,11 @@ import { getConfig, saveConfig, getConfigPath } from './config.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { spawn, spawnSync } from 'child_process';
+import { spawn, spawnSync, exec } from 'child_process';
 import { manageProviders } from './providers.js';
 import { launchSession, quickLaunch } from './launcher.js';
 import { PROVIDER_TEMPLATES } from './templates.js';
+import { compareVersions } from './helpers.js';
 
 export async function main() {
   // Handle CLI args
@@ -57,8 +58,17 @@ export async function main() {
     }
     
     if (args[0] === 'serve-bg') {
-      const { startRouterServer } = await import('./server.js');
-      await startRouterServer(13337, true);
+      // Two roles for one arg: the detached child (flagged) becomes the real
+      // router; a user typing `bobby serve-bg` spawns that child, opens the
+      // browser, prints a message, and exits.
+      if (process.env.BOBBY_DAEMON === '1') {
+        const { startRouterServer } = await import('./server.js');
+        await startRouterServer(13337, true);
+        return;
+      }
+      clearScreen();
+      showBanner();
+      startDashboardDaemon();
       return;
     }
 
@@ -84,6 +94,31 @@ export async function main() {
     console.error(chalk.red(`\n  Fatal: ${err.message}`));
     process.exit(1);
   }
+}
+
+// ── Spawn the dashboard as a detached background daemon ──
+// Spawns THIS script again with `serve-bg` + BOBBY_DAEMON=1 so the child becomes
+// the real router, opens the browser, prints a note, and returns. Used by both
+// the `bobby serve-bg` command and the menu so behavior stays identical.
+function startDashboardDaemon() {
+  const url = 'http://127.0.0.1:13337';
+  const child = spawn(process.argv[0], [process.argv[1], 'serve-bg'], {
+    detached: true,
+    stdio: 'ignore',
+    env: { ...process.env, BOBBY_DAEMON: '1' },
+  });
+  child.unref();
+
+  // Auto-open the browser (best-effort — never block on it).
+  const startCmd = process.platform === 'darwin' ? 'open'
+    : process.platform === 'win32' ? 'start'
+    : 'xdg-open';
+  try { exec(`${startCmd} ${url}`); } catch {}
+
+  console.log(chalk.green('\n  ✅ Web Dashboard jalan di background!'));
+  console.log(chalk.white('  Browser kebuka otomatis ke: ') + chalk.yellow.bold(url));
+  console.log(chalk.gray('  Router tetep idup walau terminal ini ditutup.'));
+  console.log(chalk.gray('  Matiin nanti lewat menu (Stop Web Dashboard) atau ') + chalk.yellow('bobby') + chalk.gray('.\n'));
 }
 
 // ── Main menu loop ──
@@ -137,23 +172,8 @@ async function mainMenu() {
       case 'serve_bg':
         clearScreen();
         showBanner();
-        console.log(chalk.cyan('🚀 Memulai Web Dashboard di background...'));
-        const scriptPath = process.argv[1];
-        const child = spawn(process.argv[0], [scriptPath, 'serve-bg'], {
-          detached: true,
-          stdio: 'ignore'
-        });
-        child.unref();
-        
-        // Auto-launch browser
-        const url = 'http://127.0.0.1:13337';
-        const { exec } = await import('child_process');
-        const startCmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
-        exec(`${startCmd} ${url}`);
-
-        console.log(chalk.green('✅ Web Dashboard berhasil jalan di background!'));
-        console.log(chalk.white('Browser otomatis dibuka ke: ') + chalk.yellow.bold(url));
-        console.log(chalk.gray('Terminal ini bebas ditutup.\n'));
+        console.log(chalk.cyan('  🚀 Memulai Web Dashboard di background...'));
+        startDashboardDaemon();
         await pause();
         break;
       case 'stop_serve':
@@ -322,6 +342,17 @@ async function showTutorial() {
   console.log(chalk.white('    2. Mode Klasik      ') + chalk.gray('- launcher interaktif, sekali jalan satu sesi.\n'));
 
   divider();
+  console.log(chalk.white.bold('\n  📦 INSTALL / UPDATE / UNINSTALL\n'));
+  console.log(chalk.gray('  Butuh Node.js v18+ (cek: ') + chalk.yellow('node -v') + chalk.gray('). Sisanya npm yang urus.\n'));
+  console.log(chalk.white('  Install   ') + chalk.gray(': ') + chalk.yellow('npm install -g bobbytools') + chalk.gray('   (sekali doang, langsung bisa dipanggil "bobby" di mana aja)'));
+  console.log(chalk.white('  Update    ') + chalk.gray(': ') + chalk.yellow('bobby update') + chalk.gray('   (dia ngecek versi npm & nawarin update otomatis)'));
+  console.log(chalk.white('  Uninstall ') + chalk.gray(': ') + chalk.yellow('npm uninstall -g bobbytools'));
+  console.log(chalk.gray('              Config lo (') + chalk.cyan('~/.bobbytools/') + chalk.gray(') gak ikut kehapus. Mau bersih total, hapus manual:'));
+  console.log(chalk.gray('              Mac/Linux : ') + chalk.yellow('rm -rf ~/.bobbytools'));
+  console.log(chalk.gray('              Windows   : ') + chalk.yellow('rmdir /s /q %USERPROFILE%\\.bobbytools') + chalk.gray('  (atau hapus folder-nya lewat Explorer)'));
+  console.log(chalk.gray('              PowerShell: ') + chalk.yellow('Remove-Item -Recurse -Force $env:USERPROFILE\\.bobbytools\n'));
+
+  divider();
   console.log(chalk.white.bold('\n  🔥 MODE 1: WEB / ROUTER\n'));
   console.log(chalk.gray('  Bobby jalan jadi server lokal (port 13337). CLI lo nembak ke situ, Bobby'));
   console.log(chalk.gray('  yang nyuntikin key asli + muterin akun kalo ada yang limit.\n'));
@@ -396,7 +427,7 @@ function showHelp() {
   console.log(chalk.white('     Nampilin daftar lengkap semua Provider dan API Key (Akun) yang udah lu simpen, tanpa masuk ke menu.\n'));
   
   console.log(chalk.yellow('  6. 🔄 bobby update'));
-  console.log(chalk.white('     Ngasih tau instruksi cara update BobbyTools ke versi paling baru dari NPM.\n'));
+  console.log(chalk.white('     Ngecek versi terbaru di NPM. Kalo ada yang baru, langsung ditawarin update otomatis (tinggal Enter). Kalo udah paling baru, dia bilang.\n'));
   
   console.log(chalk.yellow('  7. ℹ️  bobby -v (atau --version)'));
   console.log(chalk.white('     Ngecek versi BobbyTools yang lagi lu pake sekarang.\n'));
@@ -410,6 +441,12 @@ function showHelp() {
   console.log(chalk.white.bold('  🔥 Flow Mode Router:'));
   console.log(chalk.gray('    1. bobby serve-bg -> 2. export OPENAI_BASE_URL="http://127.0.0.1:13337/v1" -> 3. Gas Ngoding (Anti-Limit 429)'));
   console.log();
+
+  console.log(chalk.white.bold('  📦 Install / Uninstall:'));
+  console.log(chalk.gray('    Install   : ') + chalk.yellow('npm install -g bobbytools') + chalk.gray('   (butuh Node.js >= 18)'));
+  console.log(chalk.gray('    Uninstall : ') + chalk.yellow('npm uninstall -g bobbytools'));
+  console.log(chalk.gray('    Hapus data: ') + chalk.yellow('~/.bobbytools') + chalk.gray(' (config + backup — hapus manual kalo mau bersih total).'));
+  console.log();
 }
 
 // ── Update ──
@@ -417,12 +454,74 @@ function showHelp() {
 async function updateBobbyTools() {
   console.log();
   divider();
-  info(chalk.bold('Cara Update BobbyTools:'));
+  info(chalk.bold('Cek update BobbyTools...'));
   console.log();
-  console.log(chalk.white('  Karena lu instal via NPM, jalanin command ini di terminal:\n'));
-  console.log(chalk.yellow.bold('  npm update -g bobbytools\n'));
+
+  // Ask npm's registry for the latest published version. Best-effort: if we're
+  // offline or the request fails, fall back to the manual instruction.
+  let latest = null;
+  try {
+    const res = await fetch('https://registry.npmjs.org/bobbytools/latest', {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      latest = data.version || null;
+    }
+  } catch {
+    // network error — latest stays null
+  }
+
+  if (!latest) {
+    warn('Gagal ngecek versi terbaru (offline?). Update manual aja:');
+    console.log(chalk.yellow.bold('\n  npm update -g bobbytools\n'));
+    divider();
+    await pause();
+    return;
+  }
+
+  const cmp = compareVersions(latest, VERSION);
+  dim(`Versi kamu : v${VERSION}`);
+  dim(`Versi npm  : v${latest}`);
+  console.log();
+
+  if (cmp <= 0) {
+    success('Udah versi paling baru. Santai. 😎');
+    divider();
+    await pause();
+    return;
+  }
+
+  warn(`Ada versi baru: v${latest}`);
+  const go = await select({
+    message: 'Update sekarang?',
+    choices: [
+      { name: `Ya, jalanin "npm install -g bobbytools@latest"`, value: true },
+      { name: 'Nanti aja', value: false },
+    ],
+  });
+
+  if (!go) {
+    dim('Oke. Update sendiri kapan-kapan: npm install -g bobbytools@latest');
+    divider();
+    await pause();
+    return;
+  }
+
+  info('Menjalankan npm... (ini bisa makan waktu sebentar)');
+  console.log();
+  // Inherit stdio so the user sees npm's own progress/errors directly.
+  const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const result = spawnSync(npmCmd, ['install', '-g', 'bobbytools@latest'], { stdio: 'inherit' });
+
+  console.log();
+  if (result.status === 0) {
+    success(`Beres! Update ke v${latest}. Restart bobby buat kepake.`);
+  } else {
+    error('Update gagal. Coba manual (mungkin butuh sudo/admin):');
+    console.log(chalk.yellow.bold('\n  npm install -g bobbytools@latest\n'));
+  }
   divider();
-  console.log();
   await pause();
 }
 

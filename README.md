@@ -31,7 +31,9 @@ Butuh Node.js v18 ke atas. Cek dulu: `node -v`. Kalo di bawah 18, update dulu, j
 npm install -g bobbytools
 ```
 
-Udah. Ketik `bobby`, kalo banner-nya muncul berarti beres.
+Udah. Ketik `bobby`, kalo banner-nya muncul berarti beres. Mau mastiin? `bobby -v` buat liat versinya.
+
+**Update.** Gampang, tinggal ketik `bobby update` — dia ngecek versi terbaru di npm, kalo ada yang baru langsung ditawarin update (tinggal Enter). Males masuk menu? `npm install -g bobbytools@latest` juga sama aja.
 
 ---
 
@@ -116,9 +118,33 @@ Kalo provider lo gak punya endpoint model, ya gampang, tinggal Add manual.
 | `bobby serve` | Router di foreground. Tutup terminal = mati. Enak buat ngintip log. |
 | `bobby serve-bg` | Router di background (daemon) + auto buka browser. Terminal bebas ditutup. |
 | `bobby list` | Liat semua provider & akun tanpa masuk menu. |
-| `bobby update` | Instruksi cara update dari NPM. |
+| `bobby update` | Cek versi terbaru di npm, langsung tawarin update otomatis kalo ada yang baru. |
 | `bobby -v` | Cek versi. |
 | `bobby -h` | Contekan bantuan. |
+
+---
+
+## 🗑️ Copot (Uninstall)
+
+Bosen, atau mau install ulang bersih? Dua langkah:
+
+```bash
+# 1. Cabut paketnya
+npm uninstall -g bobbytools
+```
+
+Itu udah ngilangin command `bobby`. Tapi config lo (provider, semua API key) masih nyangkut di `~/.bobbytools/`. Kalo mau bener-bener bersih sampe ke akar:
+
+```bash
+# 2. Hapus config + semua key yang tersimpan
+#    Mac/Linux/GitBash
+rm -rf ~/.bobbytools
+
+#    Windows PowerShell
+Remove-Item -Recurse -Force "$env:USERPROFILE\.bobbytools"
+```
+
+Langkah 2 itu **permanen** — semua key yang lo simpen ilang. Kalo cuma mau install ulang tapi tetep pengen data lama, skip langkah 2 aja, folder itu kepake lagi otomatis pas lo install balik.
 
 ---
 
