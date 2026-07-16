@@ -4,12 +4,15 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
 import { getConfig, saveConfig } from './config.js';
-import { resolveBaseUrl, reviveLimitedAccounts, slugify, isLocalUrl } from './helpers.js';
+import { resolveBaseUrl, reviveLimitedAccounts, slugify, isLocalUrl, fetchWithConnectTimeout } from './helpers.js';
 import { PROVIDER_TEMPLATES } from './templates.js';
 import chalk from 'chalk';
 
 const requestLogs = [];
 const MAX_LOGS = 100;
+// How long to wait for a provider to START responding (send headers). Once the
+// stream is flowing this timer is cleared, so long LLM answers are never cut off.
+const CONNECT_TIMEOUT_MS = 30_000;
 
 export async function startRouterServer(port = 13337, background = false) {
   const server = http.createServer(async (req, res) => {
@@ -178,6 +181,13 @@ export async function startRouterServer(port = 13337, background = false) {
         let attempt = 0;
         let maxAttempts = activeAccounts.length;
 
+        // One close listener for the whole request (not per-iteration, or rotating
+        // across N accounts would stack N listeners). It aborts whichever fetch is
+        // currently in flight if the client (CLI) disconnects mid-request.
+        let activeController = null;
+        const onClientClose = () => activeController?.abort();
+        req.on('close', onClientClose);
+
         while (attempt < maxAttempts) {
           const baseUrl = resolveBaseUrl(provider, currentAccount).replace(/\/+$/, '');
           // CLI usually sends /v1/chat/completions. We want to extract /chat/completions
@@ -222,11 +232,16 @@ export async function startRouterServer(port = 13337, background = false) {
           requestLogs.unshift(logEntry);
           if (requestLogs.length > MAX_LOGS) requestLogs.pop();
 
-          const response = await fetch(targetUrl, {
-            method: 'POST',
-            headers,
-            body: newPayloadStr,
-          });
+          // Connect-timeout only (see fetchWithConnectTimeout): a dead provider
+          // can't hang forever, but a long stream is never cut off. The shared
+          // controller also lets onClientClose abort this fetch mid-stream.
+          activeController = new AbortController();
+          const response = await fetchWithConnectTimeout(
+            targetUrl,
+            { method: 'POST', headers, body: newPayloadStr },
+            activeController,
+            CONNECT_TIMEOUT_MS,
+          );
 
           if (response.status === 429 || response.status === 401 || response.status === 402) {
             logEntry.status = 'limit';
@@ -294,20 +309,31 @@ export async function startRouterServer(port = 13337, background = false) {
         res.end(JSON.stringify({ error: 'All accounts for this provider hit limits' }));
 
       } catch (err) {
-        requestLogs.unshift({
-          id: randomUUID(),
-          timestamp: new Date().toISOString(),
-          provider: 'Unknown',
-          account: 'Unknown',
-          model: 'Unknown',
-          status: 'error',
-          error: err.message
-        });
-        if (requestLogs.length > MAX_LOGS) requestLogs.pop();
-        
-        process.stdout.write('\x1b[2K\r' + chalk.red('[ROUTER] Error: ') + (err.message || err));
-        res.writeHead(500);
-        res.end('Router Internal Error');
+        // AbortError = we cancelled the fetch on purpose (client hung up, or the
+        // connect timer fired). Not a real error — don't spam it as one.
+        const aborted = err?.name === 'AbortError';
+        if (!aborted) {
+          requestLogs.unshift({
+            id: randomUUID(),
+            timestamp: new Date().toISOString(),
+            provider: 'Unknown',
+            account: 'Unknown',
+            model: 'Unknown',
+            status: 'error',
+            error: err.message
+          });
+          if (requestLogs.length > MAX_LOGS) requestLogs.pop();
+          process.stdout.write('\x1b[2K\r' + chalk.red('[ROUTER] Error: ') + (err.message || err));
+        }
+
+        // If we already started streaming, headers are sent — writeHead would throw
+        // ("headers already sent"). Just end the (broken) response quietly.
+        if (res.headersSent) {
+          res.end();
+        } else {
+          res.writeHead(aborted ? 504 : 500);
+          res.end(aborted ? 'Upstream timed out or client disconnected' : 'Router Internal Error');
+        }
       }
     });
   });

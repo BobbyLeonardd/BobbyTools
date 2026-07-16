@@ -1,6 +1,29 @@
 // Shared helper functions used across modules.
 
 /**
+ * fetch() with a CONNECT timeout only — not a total timeout.
+ *
+ * The timer aborts the request if headers don't arrive within `connectMs`, so a
+ * dead/hung provider can't stall forever. But it's cleared the moment fetch
+ * resolves (headers received), so a long streaming body is never cut off — an
+ * LLM can stream for minutes and we won't touch it.
+ *
+ * The caller owns `controller`, so the same signal also lets them abort mid-
+ * stream (e.g. when the client disconnects). `fetchImpl` is injectable for tests.
+ *
+ * ponytail: connect-only bound. A provider that sends headers then stalls
+ * mid-stream isn't caught here (upgrade path: an idle-between-chunks timer).
+ */
+export async function fetchWithConnectTimeout(url, opts, controller, connectMs, fetchImpl = fetch) {
+  const timer = setTimeout(() => controller.abort(), connectMs);
+  try {
+    return await fetchImpl(url, { ...opts, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * Replace {key} placeholders in baseUrlTemplate with account credential values.
  */
 export function resolveBaseUrl(provider, account) {
