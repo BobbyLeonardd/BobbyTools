@@ -78,6 +78,8 @@ opencode -m groq/llama3-70b-8192
 
 Key yang kena limit gak dicap mati selamanya, ngomong-ngomong. Ada cooldown — abis beberapa saat dia dicoba lagi otomatis, soalnya limit 429 itu biasanya cuma numpang lewat.
 
+Dua hal kecil biar lo gak kebakar kuota sia-sia: kalo provider-nya ngadat gak nyambung-nyambung, router gak bakal gantung selamanya — ada batas waktu nyambung, lewat itu dilepas. Dan kalo lo pencet Ctrl+C di tengah jawaban, router ikut mutus request ke provider-nya — token yang lagi jalan gak diterusin percuma. Stream yang lagi ngalir normal? Aman, gak diganggu, mau semenit dua menit juga bebas.
+
 ---
 
 ## 💻 Cara 2: Mode Klasik (buat yang lagi males mikir)
