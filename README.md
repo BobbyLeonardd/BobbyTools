@@ -2,7 +2,7 @@
 
   <img src="assets/logo.jpg" alt="BobbyTools Logo" width="500" />
   <br/>
-  
+
   **Babu Terminal & Universal AI Router.** <br>
   *Karena ngedit `.env` berulang kali itu kerjaan orang kurang kerjaan.*
 
@@ -15,89 +15,118 @@
 
 > "Gue nulis kode ini karena capek ngurusin rate limit 429."
 
-Intinya gini. Kalo lo pake banyak akun AI gratisan (Groq, Anthropic, Gemini) atau gonta-ganti API key klien, lo pasti ngerasain betapa muaknya harus *stop* terminal, ganti `.env`, dan nge-run ulang aplikasi tiap kali API limit.
+Ceritanya gini. Kalo lo pake banyak akun AI gratisan (Groq, Gemini, OpenRouter) atau gonta-ganti API key klien, lo pasti tau rasanya: lagi asik ngoding, kena limit, `stop` terminal, buka `.env`, ganti key, run ulang. Tiap. Lima. Menit. Bikin pengen banting laptop.
 
-Gue bikin **BobbyTools** buat nyelesain masalah itu sekali seumur hidup. Setup sekali, biarin dia jalan di background jadi router. Dia yang bakal mikir akun mana yang lagi limit, dia yang bakal ngerotasi API key otomatis, dan dia yang bakal nyari provider cadangan kalo semuanya mati. Lo tinggal ngoding.
+Gue bikin **BobbyTools** biar itu gak kejadian lagi. Setup sekali, biarin jalan di background jadi router. Dia yang mikir akun mana yang lagi limit, dia yang muter API key otomatis, dia yang nyari provider cadangan kalo semua mati. Lo tinggal ngoding kayak gak ada yang salah.
+
+Dua cara pake, tinggal pilih sesuai tingkat kemalasan lo hari ini.
 
 ---
 
-## ⚡ Instalasi
+## ⚡ Pasang
 
-Minimal Node.js v18. Kalo belum ada, update dulu.
+Butuh Node.js v18 ke atas. Cek dulu: `node -v`. Kalo di bawah 18, update dulu, jangan ngeyel.
 
 ```bash
 npm install -g bobbytools
 ```
 
-Beres. 
+Udah. Ketik `bobby`, kalo banner-nya muncul berarti beres.
 
 ---
 
-## 🚀 Cara Pake (Mode Dewa / Web Router)
+## 🌐 Cara 1: Mode Router (yang bikin alat ini worth it)
 
-Ini mode yang bikin alat ini *worth it*. BobbyTools jalan sebagai server lokal di background.
+BobbyTools jalan sebagai server lokal. CLI ngoding lo (aider, opencode, cursor, dsb) nembak ke server ini, bukan langsung ke provider. Di sinilah semua sihir anti-limit terjadi.
 
-1. Buka terminal, ketik:
+**Nyalain:**
+
 ```bash
-bobby serve
+bobby serve-bg
 ```
-2. Buka **http://127.0.0.1:13337** di browser lu.
-3. Di situ ada UI *glassmorphism* kece. Tambahin provider (misal: Groq). Tambahin akun sebanyak yang lu punya. Masukin API Key-nya. Kalo provider lu aneh dan butuh `accountId`, tenang, bisa di-set dinamis.
-4. **Penting:** Buka terminal tempat lu biasa ngoding (pake `aider`, `opencode`, `cursor`, dsb), arahin URL-nya ke server lokal kita:
+
+Ini jalanin router di background (daemon) dan langsung bukain browser ke `http://127.0.0.1:13337`. Terminalnya boleh lo tutup, dia tetep idup. Kalo lo mau liat lognya jalan real-time di depan mata, pake `bobby serve` (foreground, tutup terminal = mati).
+
+**Di web dashboard:**
+
+1. Klik **Add Provider**. Pilih dari template (Groq, OpenAI, Gemini, dll udah ada) atau bikin custom.
+2. Masuk ke provider itu, tambahin **Akun** sebanyak API key yang lo punya. Punya 5 key Groq gratisan? Masukin semua lima.
+
+**Sambungin CLI ngoding lo.** Buka terminal tempat lo biasa kerja, kibulin CLI-nya biar ngira router kita ini server aslinya:
 
 ```bash
+# Mac/Linux/GitBash
 export OPENAI_BASE_URL="http://127.0.0.1:13337/v1"
-export OPENAI_API_KEY="bebas-isi-apa-aja"
-```
-*(User Windows pake PowerShell? Ketik `$env:OPENAI_BASE_URL="..."`)*
+export OPENAI_API_KEY="sk-bobby"
 
-5. Panggil model lu dengan awalan nama provider:
+# Windows PowerShell
+$env:OPENAI_BASE_URL="http://127.0.0.1:13337/v1"
+$env:OPENAI_API_KEY="sk-bobby"
+```
+
+`OPENAI_API_KEY` diisi apa aja bebas — `sk-bobby`, `asdf`, terserah. Yang nyuntikin key asli itu si router, bukan lo.
+
+**Jalanin**, panggil model pake format `provider/model` biar router tau mau nembak ke mana:
+
 ```bash
 opencode -m groq/llama3-70b-8192
 ```
 
-**Kenapa ini jenius?** 
-CLI lu ngirim API key bodong. BobbyTools nangkep request lu, nyari akun Groq yang lagi aktif di memori, nyuntikin API Key asli lu, dan nerusin ke server Groq. Kalo akun pertama kena limit (429), Bobby otomatis nge-retry pake akun kedua tanpa ngasih tau CLI lu. CLI lu taunya request sukses mulus. *Black magic*.
+**Yang kejadian di belakang layar:** CLI lo ngirim request bawa key bodong. Router nangkep, nyari akun Groq lo yang lagi aktif, nyuntikin key asli, nerusin ke Groq. Kena 429? Router diem-diem pindah ke key kedua, retry, CLI lo gak tau apa-apa — taunya sukses. Kalo semua key Groq abis, dia nyari provider lain yang punya model sama. Lo cuma liat jawaban keluar mulus.
+
+Key yang kena limit gak dicap mati selamanya, ngomong-ngomong. Ada cooldown — abis beberapa saat dia dicoba lagi otomatis, soalnya limit 429 itu biasanya cuma numpang lewat.
 
 ---
 
-## 💻 Cara Pake (Mode Klasik / Terminal)
+## 💻 Cara 2: Mode Klasik (buat yang lagi males mikir)
 
-Kalo lu males buka browser dan cuma mau jalanin satu tool dengan gampang tanpa pusing mikirin `export` env var.
+Gak mau ribet `export` env var, cuma mau jalanin satu tool cepet? Ketik `bobby`, pake menunya.
 
-1. Ketik `bobby` di terminal.
-2. Ke menu **Manage Providers & Accounts**, tambahin akun lu. Di sini lu juga bisa ngisi *Target CLI Command* (misal lu biasa pake `opencode`).
-3. Pilih **Start Session**.
-4. Pilih Provider -> Pilih Akun -> Pilih Model.
-5. BobbyTools bakal langsung jalanin `opencode` (atau apapun target lu) dengan API Key yang disuntikin otomatis ke memori prosesnya. Lu tinggal pake.
+1. **Manage Providers** → tambah provider, isi juga *target CLI* lo (misal `opencode`).
+2. **Manage Accounts** → masukin API key.
+3. Balik ke menu, pilih **Start Session**.
+4. Klik-klik: Provider → Akun → Model. Udah.
 
----
+BobbyTools nutup dirinya sendiri, ngebuka `opencode` (atau apa pun target lo) dengan key udah kesuntik di memori proses. Gak ada acara ngapalin sintaks `export`.
 
-## 📚 Daftar Perintah (Commands)
-
-- **`bobby`**
-  Ngebuka menu utama interaktif (buat nambah akun, pilih model, dll).
-- **`bobby go`**
-  Jalan pintas orang malas. Langsung ngebuka sesi terakhir lu tanpa lewat menu klik-klik lagi.
-- **`bobby serve`**
-  Nyalain Web Dashboard di depan layar (foreground). Kalo terminalnya lu tutup, servernya ikut mati.
-- **`bobby serve-bg`**
-  Nyalain Web Dashboard di belakang layar (background/daemon). Terminal bebas lu tutup, server tetep idup dan otomatis ngebukain browser.
-- **`bobby list`**
-  Nampilin daftar lengkap semua Provider dan API Key (Akun) yang udah lu simpen, tanpa masuk ke menu.
-- **`bobby update`**
-  Ngasih tau instruksi cara update BobbyTools ke versi paling baru dari NPM.
-- **`bobby -v`** (atau `--version`)
-  Ngecek versi BobbyTools yang lagi lu pake sekarang.
-- **`bobby -h`** (atau `--help`)
-  Nampilin contekan/bantuan.
+Besok-besok tinggal `bobby go` — langsung lanjut sesi terakhir lo, tanpa klik-klik lagi.
 
 ---
 
-## 🚫 Disclaimer
+## 🧠 Ngatur Model per Provider
 
-1. **Bukan Translator:** BobbyTools gak nerjemahin format JSON Anthropic jadi format OpenAI. Kalo CLI lu cuma support Anthropic, pastiin lu nembak model Anthropic (kecuali CLI lu emang pinter).
-2. **Kagak Ada Enkripsi:** Konfig lu disimpen polos di `~/.bobbytools/config.json`. Jangan pernah commit file ini ke Git publik. Kalo API AWS lu bocor, salahin diri lo sendiri.
+Masuk **Manage Providers → Edit Provider → (pilih) → Edit Models**. Di sini lo bisa CRUD daftar model:
+
+- **Add** — ketik nama model manual.
+- **List / Rename / Delete** — rapiin daftarnya.
+- **Fetch/Refresh** — tarik otomatis dari endpoint provider (buat yang support `/models`), hasilnya di-merge, bukan nimpa.
+
+Kalo provider lo gak punya endpoint model, ya gampang, tinggal Add manual.
+
+**Soal provider lokal:** kalo lo bikin provider yang base URL-nya nunjuk ke `localhost` / `127.0.0.1` (termasuk router BobbyTools lo sendiri), endpoint model-nya **sengaja gak bisa di-fetch** — isi manual aja. Ini biar router gak muter nyerep daftar model dari dirinya sendiri dan bikin nama model numpuk aneh. Sengaja gitu, bukan bug.
 
 ---
-*Dibuat karena males.*
+
+## 📚 Daftar Perintah
+
+| Perintah | Fungsi |
+|---|---|
+| `bobby` | Buka menu utama interaktif. |
+| `bobby go` | Langsung buka sesi terakhir. Jalan pintas orang malas. |
+| `bobby serve` | Router di foreground. Tutup terminal = mati. Enak buat ngintip log. |
+| `bobby serve-bg` | Router di background (daemon) + auto buka browser. Terminal bebas ditutup. |
+| `bobby list` | Liat semua provider & akun tanpa masuk menu. |
+| `bobby update` | Instruksi cara update dari NPM. |
+| `bobby -v` | Cek versi. |
+| `bobby -h` | Contekan bantuan. |
+
+---
+
+## 🚫 Yang Perlu Lo Tau (Disclaimer)
+
+1. **Bukan penerjemah format.** BobbyTools gak nerjemahin format Anthropic ke OpenAI. Kalo CLI lo cuma ngerti Anthropic, nembaknya ke model Anthropic. Router cuma nerusin request, bukan ngubah bentuknya.
+2. **Config disimpen polos.** Semua ada di `~/.bobbytools/config.json`, gak dienkripsi. Jangan sekali-kali commit file ini ke repo publik. API key bocor gara-gara lo sendiri ceroboh, ya salahin cermin.
+3. **Router cuma dengerin localhost.** Server bind ke `127.0.0.1`, jadi gak keekspos ke jaringan. Aman buat mesin sendiri.
+
+---
+*Dibuat karena males. Dirawat karena kepalang.*

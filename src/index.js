@@ -315,40 +315,62 @@ async function showTutorial() {
   showBanner();
   console.log(chalk.cyan.bold('  📖 PANDUAN LENGKAP BOBBYTOOLS (Biar Lo Ga Keder)\n'));
   
-  console.log(chalk.gray('  Duduk manis. Baca bentar. Ini *tools* dibikin buat lo yang males ribet.'));
-  console.log(chalk.gray('  Intinya BobbyTools itu punya dua mode:'));
-  console.log(chalk.white('  1. Mode Web (Router)\n  2. Mode Klasik (CLI Launcher)\n'));
-  
-  console.log(chalk.white.bold('  🔥 MODE 1: MODE WEB / ROUTER (SANGAT DIREKOMENDASIKAN)'));
-  console.log(chalk.gray('  Kenapa? Karena di mode ini fitur Auto-Rotate (Penangkal Limit 429) aktif otomatis!'));
-  console.log(chalk.white('  Langkah 1: ') + chalk.gray('Dari menu utama CLI ini, pilih ') + chalk.yellow('🌐 Start Web Dashboard (Background)'));
-  console.log(chalk.white('  Langkah 2: ') + chalk.gray('Terminal lo bakal ngasih link. Buka ') + chalk.cyan('http://127.0.0.1:13337') + chalk.gray(' di browser.'));
-  console.log(chalk.gray('             Terminalnya abis itu boleh lo tutup, dia udah idup jadi setan (daemon) di background.'));
-  console.log(chalk.white('  Langkah 3: ') + chalk.gray('Di web, klik ') + chalk.yellow('Add Provider') + chalk.gray(' (misal Groq). Tambahin semua akun API key yang lu punya.'));
-  console.log(chalk.white('  Langkah 4: ') + chalk.gray('Buka terminal tempat lo biasa ngoding (buat ngerun aider/opencode/cursor).'));
-  console.log(chalk.gray('             Arahin config-nya ke server lokal kita (Trik Nipu CLI):'));
-  console.log(chalk.gray('             Mac/Linux: ') + chalk.yellow('export OPENAI_BASE_URL="http://127.0.0.1:13337/v1"'));
-  console.log(chalk.gray('             Mac/Linux: ') + chalk.yellow('export OPENAI_API_KEY="bebas-isi-apa-aja"'));
-  console.log(chalk.gray('             Windows  : ') + chalk.yellow('$env:OPENAI_BASE_URL="http://127.0.0.1:13337/v1"'));
-  console.log(chalk.gray('             Windows  : ') + chalk.yellow('$env:OPENAI_API_KEY="bebas-isi-apa-aja"'));
-  console.log(chalk.white('  Langkah 5: ') + chalk.gray('Jalanin CLI lo dengan format model ') + chalk.yellow('<nama-provider>/<nama-model>'));
-  console.log(chalk.gray('             Contoh: ') + chalk.cyan('opencode -m groq/llama3-70b-8192'));
-  console.log(chalk.green('  -> Hasilnya: CLI lu ngirim request ke Bobby. Bobby yang nyuntikin API Key asli lo.'));
-  console.log(chalk.green('     Kalo akun 1 limit (429), Bobby diem-diem nge-retry pake akun 2. CLI lu taunya cuma sukses.\n'));
+  console.log(chalk.gray('  Duduk manis. Baca bentar, gue tulis ini sekali biar gak ditanyain mulu.'));
+  console.log(chalk.gray('  Konsep intinya cuma satu: lo simpen semua API key di sini, Bobby yang ngatur'));
+  console.log(chalk.gray('  giliran + rotasi pas kena limit. Ada dua cara makenya:\n'));
+  console.log(chalk.white('    1. Mode Web/Router  ') + chalk.gray('- satu server buat semua CLI, auto-rotate nyala. (rekomendasi)'));
+  console.log(chalk.white('    2. Mode Klasik      ') + chalk.gray('- launcher interaktif, sekali jalan satu sesi.\n'));
 
-  console.log(chalk.white.bold('  💻 MODE 2: MODE KLASIK (CLI LAUNCHER)'));
-  console.log(chalk.gray('  Cocok kalo lu males buka browser dan cuma mau jalanin 1 akun API secara interaktif.'));
-  console.log(chalk.white('  Langkah 1: ') + chalk.gray('Ketik ') + chalk.yellow('bobby') + chalk.gray(' di terminal manapun.'));
-  console.log(chalk.white('  Langkah 2: ') + chalk.gray('Pilih ') + chalk.yellow('📦 Manage Providers') + chalk.gray(' -> Tambah Provider & masukin Target CLI (misal: opencode).'));
-  console.log(chalk.white('  Langkah 3: ') + chalk.gray('Pilih ') + chalk.yellow('👤 Manage Accounts') + chalk.gray(' -> Masukin API Key lu.'));
-  console.log(chalk.white('  Langkah 4: ') + chalk.gray('Balik ke menu awal, pilih ') + chalk.yellow('🚀 Start Session') + chalk.gray('.'));
-  console.log(chalk.white('  Langkah 5: ') + chalk.gray('Tinggal klik-klik: Pilih Provider -> Pilih Akun -> Pilih Model.'));
-  console.log(chalk.green('  -> Hasilnya: Bobby bakal nutup dirinya sendiri dan ngebuka "opencode" dengan API key yang'));
-  console.log(chalk.green('     udah disuntikin ke memory tanpa lo perlu ngetik export manual.\n'));
-  
-  console.log(chalk.cyan.bold('  TIPS MALAS:'));
-  console.log(chalk.gray('  - Ketik ') + chalk.yellow('bobby go') + chalk.gray(' di terminal buat langsung buka sesi yang persis kayak sesi lu terakhir kali.'));
-  console.log(chalk.gray('  - Kalo menu Web nyebelin, reset aja dari menu Settings.\n'));
+  divider();
+  console.log(chalk.white.bold('\n  🔥 MODE 1: WEB / ROUTER\n'));
+  console.log(chalk.gray('  Bobby jalan jadi server lokal (port 13337). CLI lo nembak ke situ, Bobby'));
+  console.log(chalk.gray('  yang nyuntikin key asli + muterin akun kalo ada yang limit.\n'));
+
+  console.log(chalk.white('  Langkah 1. ') + chalk.gray('Dari menu utama, pilih ') + chalk.yellow('🌐 Start Web Dashboard (Background)') + chalk.gray('.'));
+  console.log(chalk.gray('             Browser kebuka otomatis ke ') + chalk.cyan('http://127.0.0.1:13337') + chalk.gray('. Terminal ini boleh ditutup,'));
+  console.log(chalk.gray('             server-nya udah jadi daemon di background.'));
+  console.log(chalk.white('  Langkah 2. ') + chalk.gray('Di web: ') + chalk.yellow('Add Provider') + chalk.gray(' (misal Groq) -> tambahin SEMUA akun/key yang lo punya.'));
+  console.log(chalk.gray('             Makin banyak akun, makin lama lo kebal limit.'));
+  console.log(chalk.white('  Langkah 3. ') + chalk.gray('Buka terminal ngoding lo (aider/opencode/cursor/claude), arahin ke Bobby:'));
+  console.log(chalk.gray('             Mac/Linux/GitBash : ') + chalk.yellow('export OPENAI_BASE_URL="http://127.0.0.1:13337/v1"'));
+  console.log(chalk.gray('             Windows PowerShell: ') + chalk.yellow('$env:OPENAI_BASE_URL="http://127.0.0.1:13337/v1"'));
+  console.log(chalk.gray('             Windows CMD       : ') + chalk.yellow('set OPENAI_BASE_URL=http://127.0.0.1:13337/v1'));
+  console.log(chalk.gray('             API key-nya isi apa aja (') + chalk.yellow('sk-bobby') + chalk.gray('), Bobby gak peduli — yang asli dia yang pegang.'));
+  console.log(chalk.white('  Langkah 4. ') + chalk.gray('Panggil model pake format ') + chalk.yellow('<provider>/<model>') + chalk.gray(':'));
+  console.log(chalk.gray('             ') + chalk.cyan('opencode -m groq/llama3-70b-8192'));
+  console.log(chalk.gray('             ') + chalk.cyan('aider --model openrouter/anthropic/claude-3-haiku'));
+  console.log(chalk.gray('             Nama depan (') + chalk.cyan('groq') + chalk.gray(') = nama provider lo, huruf kecil, spasi jadi "-".\n'));
+
+  console.log(chalk.green('  Yang kejadian di belakang layar:'));
+  console.log(chalk.gray('  • ') + chalk.white('Auto-rotate: ') + chalk.gray('akun kena 429/401/402 -> Bobby lompat ke akun aktif berikutnya, retry, CLI lo gak tau apa-apa.'));
+  console.log(chalk.gray('  • ') + chalk.white('Cooldown:    ') + chalk.gray('akun yang kena limit auto-balik "aktif" setelah nunggu sebentar. Gak perlu reset manual.'));
+  console.log(chalk.gray('  • ') + chalk.white('Fallback:    ') + chalk.gray('kalo semua akun 1 provider abis, Bobby cari provider LAIN yang punya model sama.\n'));
+
+  divider();
+  console.log(chalk.white.bold('\n  💻 MODE 2: KLASIK (LAUNCHER)\n'));
+  console.log(chalk.gray('  Buat yang males buka browser & males ngetik export. Sekali jalan, satu sesi.\n'));
+  console.log(chalk.white('  Langkah 1. ') + chalk.gray('Ketik ') + chalk.yellow('bobby') + chalk.gray('.'));
+  console.log(chalk.white('  Langkah 2. ') + chalk.yellow('📦 Manage Providers') + chalk.gray(' -> Add Provider (sekalian isi Target CLI, misal opencode).'));
+  console.log(chalk.white('  Langkah 3. ') + chalk.yellow('👤 Manage Accounts') + chalk.gray(' -> masukin API key lo.'));
+  console.log(chalk.white('  Langkah 4. ') + chalk.gray('Balik ke menu, ') + chalk.yellow('🚀 Start Session') + chalk.gray(' -> pilih Provider, Akun, Model.'));
+  console.log(chalk.gray('             Bobby nutup dirinya sendiri, ngebuka CLI target dengan key udah kesuntik di memori.\n'));
+
+  divider();
+  console.log(chalk.white.bold('\n  🧠 NGATUR MODEL (Manage Providers -> Edit Provider -> Edit Models)\n'));
+  console.log(chalk.gray('  Tiap provider punya daftar model sendiri. Di menu Edit Models lo bisa:'));
+  console.log(chalk.gray('  • ') + chalk.white('Add/Rename/Delete') + chalk.gray(' model manual.'));
+  console.log(chalk.gray('  • ') + chalk.white('Fetch/Refresh') + chalk.gray(' — narik daftar model langsung dari API provider (kalo dia punya endpoint /models).'));
+  console.log(chalk.gray('  • ') + chalk.white('Set Models Endpoint') + chalk.gray(' — path buat nge-fetch tadi. Kosongin = provider jadi manual-only.\n'));
+  console.log(chalk.yellow('  ⚠  Provider dengan Base URL lokal (localhost/127.0.0.1) = manual-only.'));
+  console.log(chalk.gray('     Fetch-nya sengaja dimatiin biar gak nyerep model dari router sendiri (bikin loop & nama aneh).'));
+  console.log(chalk.gray('     Jadi buat provider lokal, tambahin model-nya pake tangan aja.\n'));
+
+  divider();
+  console.log(chalk.cyan.bold('\n  💤 TIPS MALAS:'));
+  console.log(chalk.gray('  • ') + chalk.yellow('bobby go') + chalk.gray('   — langsung buka sesi terakhir, tanpa klik-klik.'));
+  console.log(chalk.gray('  • ') + chalk.yellow('bobby list') + chalk.gray(' — intip semua provider + akun tanpa masuk menu.'));
+  console.log(chalk.gray('  • ') + chalk.yellow('bobby -h') + chalk.gray('   — daftar semua perintah.'));
+  console.log(chalk.gray('  • Config lo polos di ') + chalk.cyan('~/.bobbytools/config.json') + chalk.gray('. Jangan commit ke git publik.\n'));
   await pause();
 }
 

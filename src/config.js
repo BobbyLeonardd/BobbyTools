@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, copyFileSync, mkdirSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, copyFileSync, renameSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 
@@ -41,13 +41,18 @@ export function getConfig() {
   }
 }
 
+const CONFIG_TMP = join(CONFIG_DIR, 'config.tmp.json');
+
 export function saveConfig(config) {
   mkdirSync(CONFIG_DIR, { recursive: true });
   // Auto-backup before overwrite
   if (existsSync(CONFIG_FILE)) {
     try { copyFileSync(CONFIG_FILE, CONFIG_BACKUP); } catch {}
   }
-  writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
+  // Write-then-rename: a crash mid-write leaves the stale (valid) config.json
+  // instead of a half-written one. rename is atomic on the same filesystem.
+  writeFileSync(CONFIG_TMP, JSON.stringify(config, null, 2), 'utf-8');
+  renameSync(CONFIG_TMP, CONFIG_FILE);
 }
 
 // ── Migrations ──

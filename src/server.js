@@ -4,7 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
 import { getConfig, saveConfig } from './config.js';
-import { resolveBaseUrl } from './helpers.js';
+import { resolveBaseUrl, reviveLimitedAccounts, slugify, isLocalUrl } from './helpers.js';
 import { PROVIDER_TEMPLATES } from './templates.js';
 import chalk from 'chalk';
 
@@ -55,6 +55,13 @@ export async function startRouterServer(port = 13337, background = false) {
       req.on('end', () => {
         try {
           const conf = JSON.parse(body);
+          // Reject anything that isn't a real config so a single malformed POST
+          // (e.g. a CSRF hit against localhost) can't nuke the whole file.
+          if (!conf || typeof conf !== 'object' || !Array.isArray(conf.providers)) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Invalid config: "providers" array is required' }));
+            return;
+          }
           saveConfig(conf);
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: true }));
@@ -80,16 +87,20 @@ export async function startRouterServer(port = 13337, background = false) {
       let aggregatedModels = [];
 
       for (const provider of config.providers) {
-        // Cegah "Inception" / Infinite Fractal Loop kalo user masukin LocalRouter ke dalem config
-        const url = provider.baseUrl || provider.url || '';
-        if (url.includes('127.0.0.1') || url.includes('localhost')) {
+        // Cegah "Inception" / Infinite Fractal Loop kalo user masukin LocalRouter ke dalem config.
+        // Skip any provider pointing back at a local address (localhost, 127.x, 0.0.0.0, ::1).
+        if (isLocalUrl(provider.baseUrlTemplate)) {
           continue;
         }
 
+        // Prefix with the name-slug, not the raw UUID id, so model names read
+        // like "groq/llama3-70b-8192". The chat resolver already matches on
+        // name-slug (see below), so this stays routable.
+        const slug = slugify(provider.name);
         if (provider.models && provider.models.length > 0) {
           for (const model of provider.models) {
             aggregatedModels.push({
-              id: `${provider.id}/${model}`,
+              id: `${slug}/${model}`,
               object: 'model',
               owned_by: provider.name
             });
@@ -127,8 +138,11 @@ export async function startRouterServer(port = 13337, background = false) {
         const actualModel = modelParts.slice(1).join('/');
 
         const config = getConfig();
-        let provider = config.providers.find(p => 
-          p.id.toLowerCase() === providerQuery || p.name.toLowerCase().replace(/\s+/g, '-') === providerQuery
+        // Revive accounts whose limit cooldown has expired before picking one.
+        if (reviveLimitedAccounts(config)) saveConfig(config);
+
+        let provider = config.providers.find(p =>
+          p.id.toLowerCase() === providerQuery || slugify(p.name) === providerQuery
         );
 
         if (!provider) {
@@ -220,7 +234,7 @@ export async function startRouterServer(port = 13337, background = false) {
             
             const p = config.providers.find(x => x.id === provider.id);
             const a = p?.accounts.find(x => x.id === currentAccount.id);
-            if (a) a.status = 'limited';
+            if (a) { a.status = 'limited'; a.limitedAt = Date.now(); }
             
             const nextAccount = p?.accounts.find(x => x.status === 'active' && x.id !== currentAccount.id);
             if (nextAccount) {
@@ -260,8 +274,12 @@ export async function startRouterServer(port = 13337, background = false) {
           }
 
           const responseHeaders = Object.fromEntries(response.headers.entries());
+          // undici fetch already decompressed the body, so the upstream content-encoding
+          // and content-length no longer match what we stream out. Drop both and let
+          // the response go out chunked, otherwise the client truncates/hangs.
           delete responseHeaders['content-encoding'];
-          
+          delete responseHeaders['content-length'];
+
           res.writeHead(response.status, responseHeaders);
           if (response.body) {
             for await (const chunk of response.body) {

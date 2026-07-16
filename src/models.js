@@ -1,11 +1,20 @@
 import { search, input } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { getConfig, saveConfig } from './config.js';
-import { resolveBaseUrl, getApiKey } from './helpers.js';
+import { resolveBaseUrl, getApiKey, isLocalUrl } from './helpers.js';
 import { success, warn, info, dim } from './ui.js';
 
 export async function fetchModels(provider, account) {
   if (!provider.modelsEndpoint) return null;
+
+  // Never scrape models from a local address. A local provider usually points at
+  // BobbyTools' own router, and fetching from it just re-imports the aggregated
+  // list (prefixed again each time) — junk, not a real model list. Local providers
+  // are manual-only: add models by hand in Edit Models.
+  if (isLocalUrl(resolveBaseUrl(provider, account))) {
+    warn('Local base URL — models endpoint is disabled to avoid loops. Add models manually.');
+    return null;
+  }
 
   try {
     const baseUrl = resolveBaseUrl(provider, account);

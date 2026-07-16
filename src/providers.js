@@ -1,8 +1,9 @@
 import { select, input, confirm, Separator } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { getConfig, saveConfig } from './config.js';
+import { slugTaken, isLocalUrl } from './helpers.js';
 import { PROVIDER_TEMPLATES } from './templates.js';
-import { success, error, info, dim, divider, clearScreen, pause, showBanner } from './ui.js';
+import { success, error, warn, info, dim, divider, clearScreen, pause, showBanner } from './ui.js';
 import { manageAccounts } from './accounts.js';
 import { randomUUID } from 'crypto';
 
@@ -130,6 +131,18 @@ async function addFromTemplate() {
   });
   if (confirmAdd === 'back' || !confirmAdd) return 'back';
 
+  // Two providers whose names slugify the same would collide in the router
+  // (model prefix "groq/..." resolves to whichever is first). Ask for a
+  // distinct name instead of silently shadowing the existing one.
+  let name = template.name;
+  while (slugTaken(getConfig(), name)) {
+    warn(`A provider named "${name}" already exists.`);
+    const alt = await input({ message: 'Enter a distinct name (e.g. "Groq 2") (type "<" to cancel):', default: `${name} 2` });
+    if (alt === '<') return 'back';
+    name = alt.trim();
+    if (!name) name = template.name;
+  }
+
   let cli = template.defaultCli;
   if (!cli) {
     const { selectCliTool } = await import('./launcher.js');
@@ -140,7 +153,7 @@ async function addFromTemplate() {
 
   return {
     id: randomUUID(),
-    name: template.name,
+    name,
     baseUrlTemplate: template.baseUrlTemplate,
     modelsEndpoint: template.modelsEndpoint,
     baseUrlEnvVar: template.baseUrlEnvVar,
@@ -172,6 +185,12 @@ async function addCustom() {
       name = await input({ message: 'Provider name (type "<" to cancel):', default: name || '' });
       if (name === '<') return 'back';
       if (!name) continue;
+      if (slugTaken(getConfig(), name)) {
+        error(`A provider named "${name}" already exists (names must be unique). Pick another.`);
+        await pause();
+        name = '';
+        continue;
+      }
       step = 1;
     } 
     else if (step === 1) {
@@ -386,7 +405,7 @@ async function editProvider() {
       const choices = [
         { name: `Name: ${provider.name}`, value: 'name' },
         { name: `Base URL: ${provider.baseUrlTemplate}`, value: 'baseUrlTemplate' },
-        { name: `Models Endpoint: ${provider.modelsEndpoint || '(none)'}`, value: 'modelsEndpoint' },
+        { name: `Edit Models: ${provider.models?.length || 0} cached${provider.modelsEndpoint ? ', endpoint: ' + provider.modelsEndpoint : ', manual'}`, value: 'models' },
         { name: `Base URL Env: ${provider.baseUrlEnvVar}`, value: 'baseUrlEnvVar' },
       ];
 
@@ -403,6 +422,11 @@ async function editProvider() {
 
       const field = await select({ message: `Edit ${provider.name}`, choices, pageSize: 15 });
       if (field === 'back') break; // break inner loop, go back to select provider
+
+      if (field === 'models') {
+        await editModels(config, provider);
+        continue;
+      }
 
       if (field === 'defaultCli') {
         const { selectCliTool } = await import('./launcher.js');
@@ -440,12 +464,204 @@ async function editProvider() {
       const current = provider[field] || '';
       const newValue = await input({ message: 'New value (type "<" to cancel):', default: current });
       if (newValue === '<') continue;
+
+      // Renaming to a name another provider already owns (by slug) would make
+      // the router ambiguous. Reject it — excludeId lets us keep our own name.
+      if (field === 'name') {
+        const trimmed = (newValue || '').trim();
+        if (!trimmed) { error('Name cannot be empty.'); await pause(); continue; }
+        if (slugTaken(config, trimmed, provider.id)) {
+          error(`Another provider already uses the name "${trimmed}". Names must be unique.`);
+          await pause();
+          continue;
+        }
+        provider.name = trimmed;
+        saveConfig(config);
+        success('Provider updated!');
+        await pause();
+        continue;
+      }
+
       provider[field] = newValue || null;
       saveConfig(config);
       success('Provider updated!');
       await pause();
     }
   }
+}
+
+// ── Edit Models (CRUD + endpoint) ──
+// Manages provider.models for a single provider. Handles both endpoint-backed
+// providers (fetch/refresh from the API) and manual-only ones (just add/remove).
+
+async function editModels(config, provider) {
+  while (true) {
+    clearScreen();
+    showBanner();
+    console.log(chalk.bold(`  🧠  Edit Models: ${provider.name}\n`));
+
+    const count = provider.models?.length || 0;
+    const local = isLocalUrl(provider.baseUrlTemplate);
+    info(`${count} model(s) cached`);
+    dim(local
+      ? 'Local base URL — manual entry only (endpoint fetch disabled to avoid loops)'
+      : provider.modelsEndpoint
+        ? `Endpoint: ${provider.baseUrlTemplate}${provider.modelsEndpoint}`
+        : 'No models endpoint — manual entry only');
+    console.log();
+
+    const choices = [{ name: '➕  Add Model (manual)', value: 'add' }];
+
+    if (count > 0) {
+      choices.push(
+        { name: '📋  List Models', value: 'list' },
+        { name: '✏️   Rename Model', value: 'rename' },
+        { name: '🗑️   Delete Model(s)', value: 'delete' },
+      );
+    }
+
+    // Fetch only makes sense for a remote endpoint. Local URLs are manual-only.
+    if (provider.modelsEndpoint && !local) {
+      choices.push({ name: '🔄  Fetch/Refresh from Endpoint', value: 'fetch' });
+    }
+
+    choices.push(
+      { name: `🔗  Models Endpoint: ${provider.modelsEndpoint || '(none)'}`, value: 'endpoint' },
+      { name: chalk.gray('↩️   Back'), value: 'back' },
+    );
+
+    const action = await select({ message: 'Model Management', choices, pageSize: 15 });
+    if (action === 'back') return;
+
+    switch (action) {
+      case 'add': await addModel(config, provider); break;
+      case 'list':
+        clearScreen();
+        showBanner();
+        console.log(chalk.bold(`  📋 Models — ${provider.name}\n`));
+        provider.models.forEach((m, i) => console.log(`  ${chalk.gray(`${i + 1}.`)} ${m}`));
+        await pause();
+        break;
+      case 'rename': await renameModel(config, provider); break;
+      case 'delete': await deleteModels(config, provider); break;
+      case 'fetch': await fetchModelsInto(config, provider); break;
+      case 'endpoint': await editModelsEndpoint(config, provider); break;
+    }
+  }
+}
+
+async function addModel(config, provider) {
+  if (!provider.models) provider.models = [];
+  while (true) {
+    const name = await input({ message: 'Model name/ID (type "<" to cancel):' });
+    if (name === '<' || !name.trim()) return;
+    const model = name.trim();
+    if (provider.models.includes(model)) {
+      warn(`"${model}" already exists.`);
+      await pause();
+      return;
+    }
+    provider.models.push(model);
+    saveConfig(config);
+    success(`Added "${model}".`);
+    await pause();
+    return;
+  }
+}
+
+async function renameModel(config, provider) {
+  const target = await pickModel(provider, 'Select model to rename');
+  if (!target) return;
+  const newName = await input({ message: 'New name (type "<" to cancel):', default: target });
+  if (newName === '<' || !newName.trim()) return;
+  const renamed = newName.trim();
+  if (renamed !== target && provider.models.includes(renamed)) {
+    warn(`"${renamed}" already exists.`);
+    await pause();
+    return;
+  }
+  provider.models[provider.models.indexOf(target)] = renamed;
+  saveConfig(config);
+  success(`Renamed to "${renamed}".`);
+  await pause();
+}
+
+async function deleteModels(config, provider) {
+  const { checkbox } = await import('@inquirer/prompts');
+  const choices = provider.models.map((m) => ({ name: m, value: m }));
+
+  dim('Press <Space> to select, <Enter> to confirm, or <Enter> with 0 selected to cancel.');
+  console.log();
+
+  const selected = await checkbox({ message: 'Select model(s) to delete:', choices, pageSize: 15 });
+  if (selected.length === 0) return;
+
+  const confirmed = await confirm({ message: `Delete ${selected.length} model(s)?`, default: false });
+  if (!confirmed) return;
+
+  provider.models = provider.models.filter((m) => !selected.includes(m));
+  saveConfig(config);
+  success(`Deleted ${selected.length} model(s).`);
+  await pause();
+}
+
+async function fetchModelsInto(config, provider) {
+  if (provider.accounts.length === 0) {
+    error('Need at least one account to fetch models (uses its API key).');
+    await pause();
+    return;
+  }
+  // Fetch uses an account's credentials — prefer an active one.
+  const account = provider.accounts.find((a) => a.status === 'active') || provider.accounts[0];
+
+  const { fetchModels } = await import('./models.js');
+  const fetched = await fetchModels(provider, account);
+  if (!fetched || fetched.length === 0) {
+    warn('No models returned. Endpoint or key may be wrong.');
+    await pause();
+    return;
+  }
+
+  const before = new Set(provider.models || []);
+  const merged = [...new Set([...(provider.models || []), ...fetched])].sort();
+  const added = merged.filter((m) => !before.has(m)).length;
+  provider.models = merged;
+  saveConfig(config);
+  success(`Fetched ${fetched.length} model(s) — ${added} new, ${merged.length} total.`);
+  await pause();
+}
+
+async function editModelsEndpoint(config, provider) {
+  info('Path appended to Base URL for listing models (e.g. /models).');
+  dim('Leave empty for manual-only providers.');
+  const newVal = await input({
+    message: 'Models endpoint (type "<" to cancel):',
+    default: provider.modelsEndpoint || '',
+  });
+  if (newVal === '<') return;
+  provider.modelsEndpoint = newVal.trim() || null;
+  saveConfig(config);
+  success('Models endpoint updated!');
+  await pause();
+}
+
+async function pickModel(provider, message) {
+  const { search } = await import('@inquirer/prompts');
+  return search({
+    message,
+    source: async (term) => {
+      term = (term || '').toLowerCase();
+      const results = [];
+      if (term === '' || '[0] back'.includes(term) || '0' === term) {
+        results.push({ name: chalk.gray('[0] ↩️  Back'), value: null });
+      }
+      for (const m of provider.models) {
+        if (m.toLowerCase().includes(term)) results.push({ name: m, value: m });
+      }
+      return results;
+    },
+    pageSize: 15,
+  });
 }
 
 // ── Delete ──

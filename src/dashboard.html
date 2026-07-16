@@ -452,54 +452,81 @@
         <h2 class="page-title">Panduan Lengkap (Biar Lo Ga Keder)</h2>
       </div>
       <div class="glass-card prose">
-        <p style="color: var(--text-muted); font-style: italic; margin-bottom: 1.5rem;">Baca bentar doang, janji. Gue nulis ini karena gue juga males jawabin pertanyaan berulang.</p>
+        <p style="color: var(--text-muted); font-style: italic; margin-bottom: 1.5rem;">Baca bentar doang, janji. Gue nulis ini karena gue juga males jawabin pertanyaan yang sama berulang-ulang. Abis baca ini lo bakal ngerti semua isi BobbyTools.</p>
 
-        <h3>1. Mode Web (Router) - Mode Setengah Dewa 🌟</h3>
-        <p>Mode ini alasan utama kenapa BobbyTools diciptain. Kalo lo capek dikit-dikit kena limit (429) gara-gara pake API gratisan, mode ini obatnya. BobbyTools bakal jalan di *background* komputer lo sebagai "Middleman" atau router.</p>
-        
-        <p><strong>Cara Setup:</strong></p>
+        <h3>Dua mode, pilih salah satu (atau dua-duanya)</h3>
+        <p>BobbyTools punya dua cara pakai. <strong>Mode Web/Router</strong> (halaman ini) buat yang mau anti-limit 429 otomatis. <strong>Mode Klasik/CLI</strong> buat yang cuma mau launch cepat satu akun tanpa ribet. Isi provider & akun sekali, dua mode langsung kepake dua-duanya — datanya sama (<code>~/.bobbytools/config.json</code>).</p>
+
+        <h3 style="margin-top: 2rem;">1. Mode Web (Router) — yang bikin alat ini worth it 🌟</h3>
+        <p>Bobby jalan di background jadi "calo" (middleman) di <code>127.0.0.1:13337</code>. CLI ngoding lo nembak ke Bobby, Bobby yang nyuntikin API key asli dan muterin akun kalo kena limit. Terminal lo gak pernah tau ada drama di belakang.</p>
+
+        <p><strong>Langkah 1 — Daftarin Provider & Akun:</strong></p>
         <ul style="padding-left: 1.5rem; color: var(--text-muted);">
-          <li>Tambahin <strong>Provider</strong> di menu sebelah. (Misal: Groq, Anthropic, Gemini).</li>
-          <li>Di dalem Provider itu, tambahin <strong>Akun</strong> sebanyak yang lo punya. Masukin semua API Key lo dari akun A sampe Z.</li>
+          <li>Klik <strong>Add Provider</strong> (menu Providers). Ada dua cara: pilih <strong>From Template</strong> (Groq, OpenAI, Gemini, dll udah jadi) atau <strong>Custom Setup</strong> kalo provider lo aneh.</li>
+          <li>Buka provider itu, klik <strong>Add Account</strong>. Masukin semua API key yang lo punya — akun A sampe Z. Makin banyak akun, makin lama lo baru kena limit.</li>
         </ul>
 
-        <p><strong>Cara Nyambungin ke CLI Ngoding (Aider / Opencode / Cursor):</strong></p>
-        <p>Lo cuma perlu ngibulin CLI lo biar dia ngira BobbyTools itu adalah server aslinya. Buka terminal lo, copas ini:</p>
-        <pre><code>Mac/Linux: export OPENAI_BASE_URL="http://127.0.0.1:13337/v1"
-Windows PS : $env:OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code></pre>
-        <p style="margin-top: 0.5rem"><em>(Note: Gak usah repot-repot ngeset <code>OPENAI_API_KEY</code>, mau diisi asdf doang juga bodo amat, karena yang nyuntikin API Key asli itu si BobbyTools!)</em></p>
+        <p><strong>Langkah 2 — Sambungin CLI ngoding lo (Aider / Opencode / Cursor):</strong></p>
+        <p>Lo cuma perlu ngibulin CLI biar dia ngira Bobby itu server aslinya. Buka terminal, copas sesuai OS lo:</p>
+        <pre><code>Mac/Linux/GitBash : export OPENAI_BASE_URL="http://127.0.0.1:13337/v1"
+Windows PowerShell: $env:OPENAI_BASE_URL="http://127.0.0.1:13337/v1"
+Windows CMD       : set OPENAI_BASE_URL=http://127.0.0.1:13337/v1</code></pre>
+        <p style="margin-top: 0.5rem"><em>(Gak usah repot ngeset <code>OPENAI_API_KEY</code> — isi <code>sk-bobby</code> atau <code>asdf</code> juga bodo amat. Yang nyuntikin key asli itu Bobby, bukan lo.)</em></p>
+        <p style="margin-top: 0.75rem;">Pake CLI yang maunya standar Anthropic (kayak claude-code)? Ganti prefix env var-nya, URL-nya sama: <code>ANTHROPIC_BASE_URL</code> + <code>ANTHROPIC_API_KEY</code>.</p>
 
-        <p><strong>Cara Ngejalaninnya:</strong></p>
-        <p>Panggil CLI lo pake format <code>provider/model</code> biar router tau lo mau nembak ke mana.</p>
-        <pre><code>opencode -m groq/llama3-70b-8192</code></pre>
+        <p><strong>Langkah 3 — Jalanin, pake format <code>provider/model</code>:</strong></p>
+        <p>Nama depan itu yang bikin router tau mau nembak ke provider mana.</p>
+        <pre><code>opencode -m groq/llama3-70b-8192
+aider --model openrouter/anthropic/claude-3-haiku</code></pre>
+        <p style="margin-top: 0.5rem"><em>Bingung nama provider-nya apa? Liat aja di list Providers sebelah — nama yang lo kasih itu yang dipake (spasi jadi strip, misal "My Router" → <code>my-router</code>).</em></p>
 
         <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); padding: 1rem; border-radius: 8px; margin-top: 1.5rem;">
-          <h4 style="color: var(--success); margin-bottom: 0.5rem;">✨ Keajaibannya (The Magic):</h4>
+          <h4 style="color: var(--success); margin-bottom: 0.5rem;">✨ Yang terjadi di belakang layar:</h4>
           <ul style="padding-left: 1.5rem; color: var(--text-muted);">
-            <li style="margin-bottom: 0.5rem"><strong>Auto-Rotate & Smart Load Balancing:</strong> Kalau Akun 1 lo kena limit 429, Bobby diem-diem bakal nge-retry pake Akun 2 tanpa ngasih tau terminal lo. Terminal lo taunya cuma sukses mulus, padahal di belakang layar Bobby lagi kerja keras.</li>
-            <li><strong>Universal Fallback:</strong> Kalau sial banget SEMUA akun Groq lo abis, Bobby bakal nyari otomatis di provider lain yang punya model llama3-70b (kalo lo sempet masukin). Canggih kan?</li>
+            <li style="margin-bottom: 0.5rem"><strong>Auto-Rotate + Round-Robin:</strong> Punya 5 akun Groq? Traffic dibagi rata ke lima-limanya. Begitu satu kena 429 (atau 401/402), Bobby diem-diem pindah ke akun berikutnya dan nge-retry. Terminal lo taunya cuma sukses.</li>
+            <li style="margin-bottom: 0.5rem"><strong>Cooldown otomatis:</strong> Akun yang kena limit ditandai "limited", tapi balik "active" sendiri setelah cooldown lewat (default ~60 detik). Jadi lo gak perlu ngungkit-ungkit akun manual tiap limit ilang.</li>
+            <li><strong>Universal Fallback lintas-provider:</strong> Kalo SEMUA akun Groq abis, Bobby nyari provider lain yang punya model persis sama (misal OpenRouter yang juga punya llama3-70b) dan pindah ke situ mid-request. Syaratnya: model itu kedaftar di provider cadangannya.</li>
           </ul>
         </div>
 
-        <h3 style="margin-top: 2rem;">2. Mode Klasik (CLI Launcher) - Mode Magasan 💤</h3>
-        <p>Kalo lo cuma pake 1 akun doang dan males buka web atau ribet masukin environment variable, tutup web ini, buka terminal, ketik <code>bobby</code>.</p>
+        <h3 style="margin-top: 2rem;">2. Mode Klasik (CLI Launcher) — buat yang paling males 💤</h3>
+        <p>Males buka browser, males ngeset env var, cuma mau jalanin satu akun? Tutup web ini, buka terminal, ketik <code>bobby</code>.</p>
         <ul style="padding-left: 1.5rem; color: var(--text-muted);">
-          <li>Pilih <strong>🚀 Start Session</strong>.</li>
-          <li>Tinggal klik-klik: Pilih Provider &rarr; Pilih Akun &rarr; Pilih Model.</li>
-          <li>BobbyTools bakal otomatis ngejalanin target CLI lo (misal opencode) dan API Key lo otomatis kesuntik di memori. Lo gak perlu ngapalin sintaks export macem-macem.</li>
+          <li>Pilih <strong>Start Session</strong> → klik-klik: Provider → Akun → Model.</li>
+          <li>Bobby launch target CLI lo (misal opencode) dengan API key udah kesuntik di memori proses. Gak ada acara ngetik <code>export</code> manual.</li>
+          <li><strong>Pro tip:</strong> besoknya tinggal <code>bobby go</code> — langsung buka sesi terakhir lo, tanpa klik-klik lagi.</li>
         </ul>
-        <p><strong>Pro tip:</strong> Besok-besoknya lo tinggal ketik <code>bobby go</code> di terminal. Bobby langsung ngebuka sesi terakhir lo. Bener-bener buat pemalas.</p>
+
+        <h3 style="margin-top: 2rem;">3. Ngatur Model tiap Provider 🧠</h3>
+        <p>Buka provider → <strong>Edit Provider</strong> → <strong>Edit Models</strong>. Di situ lo bisa CRUD daftar model: tambah manual, list, rename, hapus.</p>
+        <ul style="padding-left: 1.5rem; color: var(--text-muted);">
+          <li><strong>Punya endpoint /models?</strong> Ada tombol <strong>Fetch/Refresh</strong> buat narik daftar model otomatis dari API-nya. Hasilnya digabung, gak nimpa yang udah ada.</li>
+          <li><strong>Gak punya endpoint?</strong> Santai — tinggal ketik nama model manual. Sama aja.</li>
+        </ul>
+
+        <div style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.25); padding: 1rem; border-radius: 8px; margin-top: 1rem;">
+          <h4 style="color: #eab308; margin-bottom: 0.5rem;">⚠️ Soal provider yang base URL-nya lokal</h4>
+          <p style="margin-bottom: 0;">Kalo lo bikin provider yang nunjuk ke alamat lokal (<code>localhost</code>, <code>127.0.0.1</code>, <code>0.0.0.0</code>, <code>::1</code>) — misal nunjuk balik ke router Bobby sendiri, atau ke Ollama/LM Studio — endpoint model-nya <strong>sengaja dimatiin</strong>. Bobby gak bakal narik model dari situ, biar gak ada acara serap-menyerap muter-muter yang bikin daftar model jadi sampah. Buat provider lokal: <strong>isi model manual</strong> lewat Edit Models. Itu wajar, bukan bug.</p>
+        </div>
 
         <h3 style="margin-top: 2rem;">📚 Daftar Perintah (Commands) BobbyTools</h3>
         <ul style="padding-left: 1.5rem; color: var(--text-muted);">
-          <li style="margin-bottom: 0.5rem"><strong><code>bobby</code></strong><br/>Ngebuka menu utama interaktif (buat nambah akun, pilih model, dll).</li>
-          <li style="margin-bottom: 0.5rem"><strong><code>bobby go</code></strong><br/>Jalan pintas orang malas. Langsung ngebuka sesi terakhir lu tanpa lewat menu klik-klik lagi.</li>
-          <li style="margin-bottom: 0.5rem"><strong><code>bobby serve</code></strong><br/>Nyalain Web Dashboard di depan layar (foreground). Kalo terminalnya lu tutup, servernya ikut mati.</li>
-          <li style="margin-bottom: 0.5rem"><strong><code>bobby serve-bg</code></strong><br/>Nyalain Web Dashboard di belakang layar (background/daemon). Terminal bebas lu tutup, server tetep idup dan otomatis ngebukain browser.</li>
-          <li style="margin-bottom: 0.5rem"><strong><code>bobby list</code></strong><br/>Nampilin daftar lengkap semua Provider dan API Key (Akun) yang udah lu simpen, tanpa masuk ke menu.</li>
-          <li style="margin-bottom: 0.5rem"><strong><code>bobby update</code></strong><br/>Ngasih tau instruksi cara update BobbyTools ke versi paling baru dari NPM.</li>
-          <li style="margin-bottom: 0.5rem"><strong><code>bobby -v</code></strong><br/>Ngecek versi BobbyTools yang lagi lu pake sekarang.</li>
-          <li style="margin-bottom: 0.5rem"><strong><code>bobby -h</code></strong><br/>Nampilin contekan/bantuan.</li>
+          <li style="margin-bottom: 0.5rem"><strong><code>bobby</code></strong><br/>Buka menu utama interaktif (nambah akun, pilih model, atur provider, dll).</li>
+          <li style="margin-bottom: 0.5rem"><strong><code>bobby go</code></strong><br/>Jalan pintas orang malas. Langsung buka sesi terakhir lo tanpa klik-klik menu.</li>
+          <li style="margin-bottom: 0.5rem"><strong><code>bobby serve</code></strong><br/>Nyalain router + Web Dashboard di depan layar (foreground). Terminal ditutup, server ikut mati.</li>
+          <li style="margin-bottom: 0.5rem"><strong><code>bobby serve-bg</code></strong><br/>Nyalain di background (daemon). Terminal bebas ditutup, server tetep idup, browser dibukain otomatis.</li>
+          <li style="margin-bottom: 0.5rem"><strong><code>bobby list</code></strong><br/>Nampilin semua provider & akun yang tersimpan, tanpa masuk menu.</li>
+          <li style="margin-bottom: 0.5rem"><strong><code>bobby update</code></strong><br/>Instruksi cara update ke versi terbaru dari npm.</li>
+          <li style="margin-bottom: 0.5rem"><strong><code>bobby -v</code></strong> / <strong><code>--version</code></strong><br/>Cek versi yang lagi kepasang.</li>
+          <li style="margin-bottom: 0.5rem"><strong><code>bobby -h</code></strong> / <strong><code>--help</code></strong><br/>Nampilin contekan bantuan.</li>
+        </ul>
+
+        <h3 style="margin-top: 2rem;">🔧 Kalo Mampet (Troubleshooting)</h3>
+        <ul style="padding-left: 1.5rem; color: var(--text-muted);">
+          <li style="margin-bottom: 0.5rem"><strong>401 Unauthorized terus?</strong> API key di akunnya salah/expired, atau format model-nya kebalik. Cek pake tombol Test di menu akun (mode CLI).</li>
+          <li style="margin-bottom: 0.5rem"><strong>"Provider not found"?</strong> Prefix model lo gak cocok sama nama provider. Samain dengan nama di list (spasi → strip).</li>
+          <li style="margin-bottom: 0.5rem"><strong>Model lokal gak muncul?</strong> Emang gak diserep otomatis (baca kotak kuning di atas). Tambah manual di Edit Models.</li>
+          <li style="margin-bottom: 0.5rem"><strong>Semua kacau, mau mulai bersih?</strong> Menu Settings → Factory Reset (mode CLI). Config lama ada backup-nya di <code>~/.bobbytools/config.backup.json</code>.</li>
         </ul>
       </div>
     </div>

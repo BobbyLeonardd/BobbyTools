@@ -59,6 +59,72 @@ export function maskValue(value, isSecret) {
 }
 
 /**
+ * Auto-revive accounts that were limited by the router once their cooldown expires.
+ * Only revives accounts limited BY the router (they carry `limitedAt`); accounts
+ * toggled to "limited" manually have no `limitedAt` and stay limited until the user
+ * flips them back. Mutates config in place; returns true if anything changed.
+ *
+ * ponytail: fixed cooldown window — doesn't distinguish per-minute vs per-day (RPM/RPD)
+ * limits, so a daily-limited key gets retried early and just re-limits itself.
+ * Upgrade path: honor the upstream `Retry-After` header (store it as the revive time).
+ */
+export const LIMIT_COOLDOWN_MS = 60_000;
+
+export function reviveLimitedAccounts(config, cooldownMs = LIMIT_COOLDOWN_MS, now = Date.now()) {
+  let changed = false;
+  for (const provider of config.providers || []) {
+    for (const account of provider.accounts || []) {
+      if (account.status === 'limited' && account.limitedAt && now - account.limitedAt >= cooldownMs) {
+        account.status = 'active';
+        delete account.limitedAt;
+        changed = true;
+      }
+    }
+  }
+  return changed;
+}
+
+/**
+ * True if a base URL points back at this machine (a local router), so the
+ * /v1/models aggregator can skip it and avoid an inception/fractal loop.
+ * Covers the common loopback spellings; a LAN IP like 192.168.x pointing at
+ * your own box can't be detected without probing network interfaces.
+ *
+ * ponytail: substring match, not a real host parse — a remote provider whose
+ * path happened to contain "localhost" would be skipped too. Fine here since
+ * these tokens don't appear in real cloud hostnames. Upgrade path: new URL(u).hostname.
+ */
+export function isLocalUrl(url) {
+  const u = (url || '').toLowerCase();
+  return (
+    u.includes('127.0.0.1') ||
+    u.includes('localhost') ||
+    u.includes('0.0.0.0') ||
+    u.includes('[::1]') ||
+    u.includes('::1')
+  );
+}
+
+/**
+ * Slug used as the routable prefix for a provider (e.g. "My Router" -> "my-router").
+ * Must match the resolver in server.js so emitted model ids stay routable.
+ */
+export function slugify(name) {
+  return (name || '').toLowerCase().trim().replace(/\s+/g, '-');
+}
+
+/**
+ * True if another provider already owns this name's slug. Pass excludeId to skip
+ * the provider being renamed (so renaming to the same name isn't a "collision").
+ */
+export function slugTaken(config, name, excludeId = null) {
+  const slug = slugify(name);
+  return (config.providers || []).some(
+    (p) => p.id !== excludeId && slugify(p.name) === slug,
+  );
+}
+
+/**
  * Human-readable relative time.
  */
 export function timeAgo(dateStr) {
