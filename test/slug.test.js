@@ -1,7 +1,7 @@
 // Self-check for provider slug uniqueness logic.
 // Run: node test/slug.test.js
 import assert from 'node:assert';
-import { slugify, slugTaken, isLocalUrl } from '../src/helpers.js';
+import { slugify, slugTaken, isLocalUrl, compareVersions } from '../src/helpers.js';
 
 // slugify: lowercases, trims, collapses spaces to dashes.
 assert.strictEqual(slugify('Groq'), 'groq');
@@ -41,4 +41,13 @@ assert.strictEqual(isLocalUrl('https://api.kagiro.net/v1'), false, 'real cloud h
 assert.strictEqual(isLocalUrl(''), false, 'empty is not local');
 assert.strictEqual(isLocalUrl(undefined), false, 'undefined is not local');
 
-console.log('✔ slug uniqueness + isLocalUrl self-check passed');
+// compareVersions: numeric per-segment, so 3.10 > 3.9 (string compare gets this wrong).
+assert.strictEqual(compareVersions('3.2.0', '3.1.0'), 1, 'newer minor');
+assert.strictEqual(compareVersions('3.1.0', '3.2.0'), -1, 'older minor');
+assert.strictEqual(compareVersions('3.1.0', '3.1.0'), 0, 'equal');
+assert.strictEqual(compareVersions('3.10.0', '3.9.0'), 1, '3.10 > 3.9 (not string compare)');
+assert.strictEqual(compareVersions('3.2', '3.2.0'), 0, 'missing segment counts as 0');
+assert.strictEqual(compareVersions('4.0.0', '3.99.99'), 1, 'major wins');
+assert.strictEqual(compareVersions('', '0.0.0'), 0, 'empty equals zero');
+
+console.log('✔ slug + isLocalUrl + compareVersions self-check passed');
