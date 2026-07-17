@@ -163,13 +163,13 @@ BobbyTools nutup jurang itu. Router deteksi format dari path yang ditembak CLI-m
 - **Anthropic → OpenAI** (claude-code ke Groq/OpenRouter/dll)
 - **OpenAI → Anthropic** (CLI OpenAI ke endpoint Anthropic asli)
 
-Yang diterjemahin: teks, **streaming** (SSE di-reframe on the fly, jawaban ngalir normal), dan **tool/function calling** penuh (`tool_use`/`tool_result` ↔ `tool_calls`, skema tool, tool_choice — dua arah). Ini yang bikin claude-code beneran kepake, bukan cuma "nyambung tapi tumpul".
+Yang diterjemahin: teks, **streaming** (SSE di-reframe on the fly, jawaban ngalir normal), **tool/function calling** penuh (`tool_use`/`tool_result` ↔ `tool_calls`, skema tool, tool_choice — dua arah), dan **gambar/vision** (blok `image` base64/URL ↔ `image_url`). Ini yang bikin claude-code beneran kepake, bukan cuma "nyambung tapi tumpul".
 
 **Kapan aktif?** Cuma pas format beda. Kalo CLI dan provider udah sama format (kasus paling umum sekarang), router lewat jalur cepat — diterusin apa adanya, nol overhead, nol risiko. Penerjemah nyala cuma pas dibutuhin.
 
 **Setelannya di mana?** Provider default dianggap format OpenAI (jadi semua provider lama jalan tanpa diubah). Kalo provider-mu ngomong Anthropic asli, set lewat **Edit Provider → API Format → anthropic**. Buat kasus utama (claude-code → provider OpenAI), lo gak usah setel apa-apa — jalan langsung.
 
-*Catatan jujur:* blok gambar/vision belum diterjemahin (di-drop). Teks + streaming + tool calls udah, dan udah diuji langsung ke provider dual-format asli.
+*Catatan jujur:* teks, streaming, tool calls, dan gambar semua udah diterjemahin — dan udah diuji langsung ke provider asli (termasuk kirim gambar ke model vision lewat jalur terjemahan). Yang belum ketutup: format-format langka di luar text/tool/image (misal audio input).
 
 ---
 
@@ -190,7 +190,7 @@ Bukan berarti alat lain jelek — buat kebutuhan enterprise/tim, mereka mungkin 
 
 1. **Config disimpen polos.** Semua ada di `~/.bobbytools/config.json`, gak dienkripsi. Jangan sekali-kali commit file ini ke repo publik. API key bocor gara-gara lo sendiri ceroboh, ya salahin cermin.
 2. **Router cuma dengerin localhost.** Server bind ke `127.0.0.1`, jadi gak keekspos ke jaringan. Aman buat mesin sendiri.
-3. **Terjemahan format nutup teks + tool calls, belum gambar.** Blok gambar/vision di-drop pas nerjemah (lihat bagian penerjemah di atas). Sisanya — teks, streaming, tool/function calling — jalan dua arah.
+3. **Terjemahan format nutup teks, streaming, tool calls, dan gambar** — dua arah, udah diuji ke provider asli. Format di luar itu (misal audio input) belum ditangani; kalo CLI-mu ngirimnya, bagian itu di-drop, bukan bikin error.
 
 ---
 *Dibuat karena males. Dirawat karena kepalang.*
