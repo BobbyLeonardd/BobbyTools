@@ -39,7 +39,7 @@ Udah. Ketik `bobby`, kalo banner-nya muncul berarti beres. Mau mastiin? `bobby -
 
 ## 🌐 Cara 1: Mode Router (yang bikin alat ini worth it)
 
-BobbyTools jalan sebagai server lokal. CLI ngoding lo (aider, opencode, cursor, dsb) nembak ke server ini, bukan langsung ke provider. Di sinilah semua sihir anti-limit terjadi.
+BobbyTools jalan sebagai server lokal. CLI ngoding lo (aider, opencode, cursor, claude-code, dsb) nembak ke server ini, bukan langsung ke provider. Di sinilah semua sihir terjadi: anti-limit (muter key otomatis), fallback lintas provider, dan **penerjemah format** biar claude-code bisa nembak provider OpenAI-style (Groq, OpenRouter, dll) — detailnya di bagian [Penerjemah Format](#-penerjemah-format-claude-code-ke-provider-apa-pun) di bawah.
 
 **Nyalain:**
 
@@ -53,6 +53,8 @@ Ini jalanin router di background (daemon) dan langsung bukain browser ke `http:/
 
 1. Klik **Add Provider**. Pilih dari template (Groq, OpenAI, Gemini, dll udah ada) atau bikin custom.
 2. Masuk ke provider itu, tambahin **Akun** sebanyak API key yang lo punya. Punya 5 key Groq gratisan? Masukin semua lima.
+
+**Pantau dari tab Overview.** Begitu router nyala, buka tab **Overview** (langsung kebuka pas masuk dashboard). Di situ keliatan sekilas: berapa key yang masih idup, berapa yang lagi kebakar kena 429, dan — ini yang penting — key yang limit itu **balik dalam berapa detik** (ada hitung mundurnya). Ada juga request per menit biar lo yakin router-nya beneran kerja. Auto-refresh tiap 3 detik, gak usah pencet-pencet.
 
 **Sambungin CLI ngoding lo.** Buka terminal tempat lo biasa kerja, kibulin CLI-nya biar ngira router kita ini server aslinya:
 
@@ -150,11 +152,45 @@ Langkah 2 itu **permanen** — semua key yang lo simpen ilang. Kalo cuma mau ins
 
 ---
 
+## 🔀 Penerjemah Format (claude-code ke provider apa pun)
+
+Ini yang bikin BobbyTools beda dari sekadar proxy: **router nerjemahin format API otomatis.**
+
+Masalahnya gini. claude-code (dan tool sejenis) ngomong format **Anthropic Messages** (`/v1/messages`). Tapi mayoritas provider murah/gratis — Groq, OpenRouter, DeepSeek, dll — cuma ngerti format **OpenAI Chat Completions** (`/v1/chat/completions`). Dua bahasa beda. Tanpa penerjemah, claude-code nembak Groq ya langsung error.
+
+BobbyTools nutup jurang itu. Router deteksi format dari path yang ditembak CLI-mu, bandingin sama format provider tujuan, dan nerjemahin kalo beda — dua arah:
+
+- **Anthropic → OpenAI** (claude-code ke Groq/OpenRouter/dll)
+- **OpenAI → Anthropic** (CLI OpenAI ke endpoint Anthropic asli)
+
+Yang diterjemahin: teks, **streaming** (SSE di-reframe on the fly, jawaban ngalir normal), dan **tool/function calling** penuh (`tool_use`/`tool_result` ↔ `tool_calls`, skema tool, tool_choice — dua arah). Ini yang bikin claude-code beneran kepake, bukan cuma "nyambung tapi tumpul".
+
+**Kapan aktif?** Cuma pas format beda. Kalo CLI dan provider udah sama format (kasus paling umum sekarang), router lewat jalur cepat — diterusin apa adanya, nol overhead, nol risiko. Penerjemah nyala cuma pas dibutuhin.
+
+**Setelannya di mana?** Provider default dianggap format OpenAI (jadi semua provider lama jalan tanpa diubah). Kalo provider-mu ngomong Anthropic asli, set lewat **Edit Provider → API Format → anthropic**. Buat kasus utama (claude-code → provider OpenAI), lo gak usah setel apa-apa — jalan langsung.
+
+*Catatan jujur:* blok gambar/vision belum diterjemahin (di-drop). Teks + streaming + tool calls udah, dan udah diuji langsung ke provider dual-format asli.
+
+---
+
+## 🎯 Kenapa BobbyTools (dan bukan yang lain)
+
+Ada router AI lain yang lebih gede, lebih banyak fitur. BobbyTools sengaja jalan arah beda, dan buat pemakaian pribadi itu justru kelebihan:
+
+- **Zero-trust ke mesin lo.** Gak masang root certificate (gak ada MITM), gak ada cloud sync, gak ada telemetry. API key lo gak ke mana-mana selain ke provider yang lo daftarin. Router cuma dengerin `127.0.0.1`.
+- **Zero build, zero berat.** Cuma butuh Node 18+ dan `npm install -g`. Gak ada langkah build, gak ada framework raksasa. Dua dependency doang (`@inquirer/prompts` + `chalk`).
+- **Bisa lo baca sendiri.** Seluruh proyek muat dibaca dalam sejam. Lo naruh API key di sesuatu yang lo ngerti sepenuhnya, bukan puluhan ribu baris yang gak ada satu orang pun paham.
+- **Dua mode dalam satu.** Router (anti-limit, penerjemah) **dan** launcher klasik (inject env, spawn CLI, tanpa proxy). Pilih sesuai kemalasan hari ini.
+
+Bukan berarti alat lain jelek — buat kebutuhan enterprise/tim, mereka mungkin lebih pas. Tapi kalo lo cuma pengen kelola beberapa key, anti kena limit, dan colok claude-code ke provider murah **tanpa masang cert atau naruh data di cloud** — di situ BobbyTools menang.
+
+---
+
 ## 🚫 Yang Perlu Lo Tau (Disclaimer)
 
-1. **Bukan penerjemah format.** BobbyTools gak nerjemahin format Anthropic ke OpenAI. Kalo CLI lo cuma ngerti Anthropic, nembaknya ke model Anthropic. Router cuma nerusin request, bukan ngubah bentuknya.
-2. **Config disimpen polos.** Semua ada di `~/.bobbytools/config.json`, gak dienkripsi. Jangan sekali-kali commit file ini ke repo publik. API key bocor gara-gara lo sendiri ceroboh, ya salahin cermin.
-3. **Router cuma dengerin localhost.** Server bind ke `127.0.0.1`, jadi gak keekspos ke jaringan. Aman buat mesin sendiri.
+1. **Config disimpen polos.** Semua ada di `~/.bobbytools/config.json`, gak dienkripsi. Jangan sekali-kali commit file ini ke repo publik. API key bocor gara-gara lo sendiri ceroboh, ya salahin cermin.
+2. **Router cuma dengerin localhost.** Server bind ke `127.0.0.1`, jadi gak keekspos ke jaringan. Aman buat mesin sendiri.
+3. **Terjemahan format nutup teks + tool calls, belum gambar.** Blok gambar/vision di-drop pas nerjemah (lihat bagian penerjemah di atas). Sisanya — teks, streaming, tool/function calling — jalan dua arah.
 
 ---
 *Dibuat karena males. Dirawat karena kepalang.*
