@@ -416,7 +416,7 @@ async function editProvider() {
 
       choices.push(
         { name: `Opencode Plugin: ${provider.opencodeNpm || '@ai-sdk/openai-compatible'}`, value: 'opencodeNpm' },
-        { name: `API Format: ${provider.apiFormat === 'anthropic' ? 'anthropic (Messages API)' : 'openai (Chat Completions)'}`, value: 'apiFormat' },
+        { name: `API Format: ${{ anthropic: 'anthropic (Messages API)', gemini: 'gemini (generateContent)', responses: 'responses (Responses API)' }[provider.apiFormat] || 'openai (Chat Completions)'}`, value: 'apiFormat' },
         { name: `Default CLI: ${provider.defaultCli || '(none)'}`, value: 'defaultCli' },
         { name: chalk.gray('↩️  Back'), value: 'back' }
       );
@@ -450,8 +450,10 @@ async function editProvider() {
           choices: [
             { name: 'openai — Chat Completions (Groq, OpenRouter, most)', value: 'openai' },
             { name: 'anthropic — Messages API (api.anthropic.com)', value: 'anthropic' },
+            { name: 'gemini — Google Generative Language (generateContent)', value: 'gemini' },
+            { name: 'responses — OpenAI Responses API (/v1/responses)', value: 'responses' },
           ],
-          default: provider.apiFormat === 'anthropic' ? 'anthropic' : 'openai',
+          default: provider.apiFormat || 'openai',
         });
         provider.apiFormat = newFmt;
         saveConfig(config);

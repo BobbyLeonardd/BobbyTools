@@ -8,6 +8,11 @@ import {
   openaiRespToAnthropic,
   openaiStreamToAnthropic,
   anthropicStreamToOpenai,
+  translateRequest,
+  translateResponse,
+  translateStream,
+  normalizeFormat,
+  FORMATS,
 } from '../src/translate.js';
 
 // ── REQUEST: OpenAI -> Anthropic ──
@@ -421,4 +426,384 @@ function dataPayloads(frames) {
   assert.strictEqual(o.messages[0].content, 'just text', 'text-only block array still collapses to a string');
 }
 
-console.log('✔ translate self-check passed (stage 5: + images, both ways)');
+// ══════════════════════════════════════════════════════════════════════════
+// HUB-AND-SPOKE DISPATCHERS
+// ══════════════════════════════════════════════════════════════════════════
+
+// normalizeFormat: known keys pass through, everything else -> openai.
+{
+  assert.strictEqual(normalizeFormat('openai'), 'openai');
+  assert.strictEqual(normalizeFormat('anthropic'), 'anthropic');
+  assert.strictEqual(normalizeFormat(undefined), 'openai', 'missing apiFormat -> openai (back-compat)');
+  assert.strictEqual(normalizeFormat('bogus'), 'openai', 'unknown apiFormat -> openai');
+}
+
+// Same-format dispatch is a no-op (returns the input untouched, identity).
+{
+  const p = { model: 'm', messages: [{ role: 'user', content: 'hi' }] };
+  assert.strictEqual(translateRequest(p, 'openai', 'openai'), p, 'req same-format is identity');
+  assert.strictEqual(translateResponse(p, 'anthropic', 'anthropic'), p, 'resp same-format is identity');
+}
+
+// translateRequest through the hub must equal calling the spoke fn directly
+// (anthropic is a hub spoke, so openai->anthropic == openaiReqToAnthropic).
+{
+  const oai = { model: 'm', messages: [{ role: 'system', content: 'sys' }, { role: 'user', content: 'hi' }], temperature: 0.3 };
+  assert.deepStrictEqual(
+    translateRequest(oai, 'openai', 'anthropic'),
+    openaiReqToAnthropic(oai),
+    'dispatch openai->anthropic == direct openaiReqToAnthropic',
+  );
+  const anth = { model: 'm', max_tokens: 50, system: 'sys', messages: [{ role: 'user', content: 'hi' }] };
+  assert.deepStrictEqual(
+    translateRequest(anth, 'anthropic', 'openai'),
+    anthropicReqToOpenai(anth),
+    'dispatch anthropic->openai == direct anthropicReqToOpenai',
+  );
+}
+
+// translateResponse both ways matches the direct spoke fns.
+{
+  const oaiResp = { id: 'x', model: 'm', choices: [{ index: 0, message: { role: 'assistant', content: 'yo' }, finish_reason: 'stop' }], usage: { prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 } };
+  assert.deepStrictEqual(translateResponse(oaiResp, 'openai', 'anthropic'), openaiRespToAnthropic(oaiResp), 'resp dispatch openai->anthropic');
+  const anthResp = { id: 'y', model: 'm', content: [{ type: 'text', text: 'yo' }], stop_reason: 'end_turn', usage: { input_tokens: 1, output_tokens: 2 } };
+  assert.deepStrictEqual(translateResponse(anthResp, 'anthropic', 'openai'), anthropicRespToOpenai(anthResp), 'resp dispatch anthropic->openai');
+}
+
+// Registry integrity: every spoke implements the full 6-function contract.
+{
+  const keys = ['reqToHub', 'reqFromHub', 'respToHub', 'respFromHub', 'streamToHub', 'streamFromHub'];
+  for (const [name, spoke] of Object.entries(FORMATS)) {
+    for (const k of keys) {
+      assert.strictEqual(typeof spoke[k], 'function', `FORMATS.${name}.${k} must be a function`);
+    }
+  }
+}
+
+// translateStream through the hub equals the direct streaming generator.
+// (Async, so this lives in a promise the module awaits before the final log.)
+async function streamDispatchCheck() {
+  // Provider streamed OpenAI, client wants Anthropic: dispatch == openaiStreamToAnthropic.
+  const oaiFrames = [
+    'data: {"id":"c1","model":"m","choices":[{"delta":{"role":"assistant"},"finish_reason":null}]}\n\n',
+    'data: {"choices":[{"delta":{"content":"Hi"},"finish_reason":null}]}\n\n',
+    'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n',
+    'data: [DONE]\n\n',
+  ];
+  async function* src() { for (const f of oaiFrames) yield f; }
+  async function collect(gen) { let out = ''; for await (const f of gen) out += f; return out; }
+  const viaDispatch = await collect(translateStream(src(), 'openai', 'anthropic', { model: 'm' }));
+  const viaDirect = await collect(openaiStreamToAnthropic(src(), { model: 'm' }));
+  assert.strictEqual(viaDispatch, viaDirect, 'stream dispatch openai->anthropic == direct generator');
+
+  // Same-format stream is a straight passthrough of the source.
+  const passthrough = await collect(translateStream(src(), 'openai', 'openai', {}));
+  assert.strictEqual(passthrough, oaiFrames.join(''), 'stream same-format is byte passthrough');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// GEMINI spoke — via the dispatchers (which is how server.js calls it).
+// ══════════════════════════════════════════════════════════════════════════
+
+// gemini registered with the full 6-fn contract.
+{
+  assert.ok(FORMATS.gemini, 'gemini spoke registered');
+  assert.strictEqual(normalizeFormat('gemini'), 'gemini');
+}
+
+// REQUEST openai -> gemini: system lifts to systemInstruction, assistant->model,
+// generationConfig carries limits, content becomes parts[].
+{
+  const oai = {
+    model: 'gemini-x',
+    messages: [
+      { role: 'system', content: 'be terse' },
+      { role: 'user', content: 'hi' },
+      { role: 'assistant', content: 'hello' },
+    ],
+    max_tokens: 128, temperature: 0.4, stop: 'END',
+  };
+  const g = translateRequest(oai, 'openai', 'gemini');
+  assert.deepStrictEqual(g.systemInstruction, { parts: [{ text: 'be terse' }] }, 'system -> systemInstruction');
+  assert.strictEqual(g.contents.length, 2, 'system removed from contents');
+  assert.deepStrictEqual(g.contents[0], { role: 'user', parts: [{ text: 'hi' }] }, 'user turn');
+  assert.strictEqual(g.contents[1].role, 'model', 'assistant role -> model');
+  assert.strictEqual(g.generationConfig.maxOutputTokens, 128, 'max_tokens -> maxOutputTokens');
+  assert.strictEqual(g.generationConfig.temperature, 0.4, 'temperature passed');
+  assert.deepStrictEqual(g.generationConfig.stopSequences, ['END'], 'stop -> stopSequences');
+}
+
+// REQUEST gemini -> openai: the inverse pulls systemInstruction back into a
+// system message and model->assistant.
+{
+  const g = {
+    model: 'gemini-x',
+    systemInstruction: { parts: [{ text: 'be terse' }] },
+    contents: [
+      { role: 'user', parts: [{ text: 'hi' }] },
+      { role: 'model', parts: [{ text: 'hello' }] },
+    ],
+    generationConfig: { maxOutputTokens: 64, temperature: 0.2 },
+  };
+  const oai = translateRequest(g, 'gemini', 'openai');
+  assert.strictEqual(oai.messages[0].role, 'system', 'systemInstruction -> system message');
+  assert.strictEqual(oai.messages[0].content, 'be terse');
+  assert.strictEqual(oai.messages[2].role, 'assistant', 'model -> assistant');
+  assert.strictEqual(oai.max_tokens, 64, 'maxOutputTokens -> max_tokens');
+}
+
+// RESPONSE gemini -> openai: candidates/parts/finishReason/usageMetadata mapped.
+{
+  const g = {
+    candidates: [{ content: { role: 'model', parts: [{ text: 'the answer' }] }, finishReason: 'STOP', index: 0 }],
+    usageMetadata: { promptTokenCount: 5, candidatesTokenCount: 3, totalTokenCount: 8 },
+    modelVersion: 'gemini-x',
+  };
+  const oai = translateResponse(g, 'gemini', 'openai');
+  assert.strictEqual(oai.object, 'chat.completion');
+  assert.strictEqual(oai.choices[0].message.content, 'the answer', 'text mapped');
+  assert.strictEqual(oai.choices[0].finish_reason, 'stop', 'STOP -> stop');
+  assert.deepStrictEqual(oai.usage, { prompt_tokens: 5, completion_tokens: 3, total_tokens: 8 }, 'usage mapped');
+}
+
+// RESPONSE openai -> gemini: MAX_TOKENS mapping + parts shape.
+{
+  const oai = { model: 'm', choices: [{ index: 0, message: { role: 'assistant', content: 'hi' }, finish_reason: 'length' }], usage: { prompt_tokens: 2, completion_tokens: 1, total_tokens: 3 } };
+  const g = translateResponse(oai, 'openai', 'gemini');
+  assert.deepStrictEqual(g.candidates[0].content.parts, [{ text: 'hi' }], 'content -> text part');
+  assert.strictEqual(g.candidates[0].finishReason, 'MAX_TOKENS', 'length -> MAX_TOKENS');
+  assert.strictEqual(g.usageMetadata.promptTokenCount, 2, 'usage mapped');
+}
+
+// TOOL calls survive gemini <-> openai (functionCall <-> tool_calls).
+{
+  // openai assistant tool_call -> gemini functionCall part
+  const oai = { model: 'm', messages: [
+    { role: 'user', content: 'weather?' },
+    { role: 'assistant', content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'get_weather', arguments: '{"city":"Paris"}' } }] },
+    { role: 'tool', name: 'get_weather', tool_call_id: 'c1', content: '{"temp":20}' },
+  ] };
+  const g = translateRequest(oai, 'openai', 'gemini');
+  const modelTurn = g.contents.find((c) => c.role === 'model');
+  assert.ok(modelTurn.parts.some((p) => p.functionCall?.name === 'get_weather'), 'tool_call -> functionCall');
+  assert.deepStrictEqual(modelTurn.parts.find((p) => p.functionCall).functionCall.args, { city: 'Paris' }, 'args parsed to object');
+  const respTurn = g.contents.find((c) => c.parts.some((p) => p.functionResponse));
+  assert.strictEqual(respTurn.parts[0].functionResponse.name, 'get_weather', 'tool result -> functionResponse');
+  assert.deepStrictEqual(respTurn.parts[0].functionResponse.response, { temp: 20 }, 'tool result object preserved');
+}
+
+// IMAGES: base64 data URL <-> Gemini inlineData both ways.
+{
+  const oai = { model: 'm', messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } }] }] };
+  const g = translateRequest(oai, 'openai', 'gemini');
+  assert.deepStrictEqual(g.contents[0].parts, [{ inlineData: { mimeType: 'image/png', data: 'AAAA' } }], 'data URL -> inlineData');
+  const back = translateRequest(g, 'gemini', 'openai');
+  assert.deepStrictEqual(back.messages.at(-1).content, [{ type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } }], 'inlineData -> data URL');
+}
+
+// CROSS-SPOKE PIVOT: anthropic client <-> gemini provider, through the hub, with
+// zero direct anthropic<->gemini code. This is the whole point of the design.
+{
+  const anthReq = { model: 'm', max_tokens: 50, system: 'be brief', messages: [{ role: 'user', content: 'ping' }] };
+  const g = translateRequest(anthReq, 'anthropic', 'gemini');
+  assert.deepStrictEqual(g.systemInstruction, { parts: [{ text: 'be brief' }] }, 'anthropic system -> gemini systemInstruction (via hub)');
+  assert.deepStrictEqual(g.contents[0], { role: 'user', parts: [{ text: 'ping' }] }, 'anthropic message -> gemini content (via hub)');
+  assert.strictEqual(g.generationConfig.maxOutputTokens, 50, 'anthropic max_tokens -> gemini maxOutputTokens (via hub)');
+
+  // gemini response -> anthropic response, through the hub.
+  const gResp = { candidates: [{ content: { role: 'model', parts: [{ text: 'pong' }] }, finishReason: 'STOP', index: 0 }], usageMetadata: { promptTokenCount: 4, candidatesTokenCount: 2, totalTokenCount: 6 } };
+  const anthResp = translateResponse(gResp, 'gemini', 'anthropic');
+  assert.strictEqual(anthResp.type, 'message', 'gemini resp -> anthropic message (via hub)');
+  assert.strictEqual(anthResp.content?.[0]?.text, 'pong', 'text preserved across pivot');
+  assert.strictEqual(anthResp.stop_reason, 'end_turn', 'STOP -> stop -> end_turn across pivot');
+  assert.strictEqual(anthResp.usage?.input_tokens, 4, 'usage preserved across pivot');
+}
+
+// STREAM PIVOT: gemini provider stream -> anthropic client, through the hub.
+async function geminiStreamPivotCheck() {
+  const gFrames = [
+    'data: {"candidates":[{"content":{"role":"model","parts":[{"text":"Hel"}]},"finishReason":"","index":0}],"usageMetadata":{"promptTokenCount":3,"candidatesTokenCount":1,"totalTokenCount":4}}\n\n',
+    'data: {"candidates":[{"content":{"role":"model","parts":[{"text":"lo"}]},"finishReason":"","index":0}],"usageMetadata":{"promptTokenCount":3,"candidatesTokenCount":2,"totalTokenCount":5}}\n\n',
+    'data: {"candidates":[{"content":{"role":"model","parts":[{"text":""}]},"finishReason":"STOP","index":0}],"usageMetadata":{"promptTokenCount":3,"candidatesTokenCount":2,"totalTokenCount":5}}\n\n',
+  ];
+  async function* src() { for (const f of gFrames) yield f; }
+  const events = [];
+  for await (const frame of translateStream(src(), 'gemini', 'anthropic', { model: 'm' })) {
+    for (const line of frame.split('\n')) {
+      const t = line.trimStart();
+      if (t.startsWith('data:')) { const d = t.slice(5).trim(); if (d) { try { events.push(JSON.parse(d)); } catch {} } }
+    }
+  }
+  const types = events.map((e) => e.type);
+  assert.strictEqual(types[0], 'message_start', 'gemini->anthropic stream opens with message_start');
+  assert.strictEqual(types.at(-1), 'message_stop', 'closes with message_stop');
+  const text = events.filter((e) => e.type === 'content_block_delta' && e.delta?.type === 'text_delta').map((e) => e.delta.text).join('');
+  assert.strictEqual(text, 'Hello', 'streamed text reassembled across gemini->hub->anthropic pivot');
+}
+await geminiStreamPivotCheck();
+
+// ══════════════════════════════════════════════════════════════════════════
+// RESPONSES spoke — OpenAI /v1/responses format.
+// ══════════════════════════════════════════════════════════════════════════
+
+{
+  assert.ok(FORMATS.responses, 'responses spoke registered');
+  assert.strictEqual(normalizeFormat('responses'), 'responses');
+}
+
+// REQUEST openai -> responses: system -> instructions, messages -> input[],
+// max_tokens -> max_output_tokens, tools flattened (no nested function wrapper).
+{
+  const oai = {
+    model: 'gpt-x',
+    messages: [
+      { role: 'system', content: 'be terse' },
+      { role: 'user', content: 'hi' },
+    ],
+    max_tokens: 200, temperature: 0.5,
+    tools: [{ type: 'function', function: { name: 'f', description: 'd', parameters: { type: 'object' } } }],
+  };
+  const r = translateRequest(oai, 'openai', 'responses');
+  assert.strictEqual(r.instructions, 'be terse', 'system -> instructions');
+  assert.deepStrictEqual(r.input, [{ role: 'user', content: 'hi' }], 'messages -> input[]');
+  assert.strictEqual(r.max_output_tokens, 200, 'max_tokens -> max_output_tokens');
+  assert.deepStrictEqual(r.tools, [{ type: 'function', name: 'f', description: 'd', parameters: { type: 'object' } }], 'tools flattened');
+  assert.strictEqual(r.tools[0].function, undefined, 'no nested function wrapper');
+}
+
+// REQUEST responses -> openai: instructions -> system, string input -> user msg.
+{
+  const r = { model: 'gpt-x', instructions: 'be terse', input: 'hello', max_output_tokens: 50 };
+  const oai = translateRequest(r, 'responses', 'openai');
+  assert.strictEqual(oai.messages[0].role, 'system');
+  assert.strictEqual(oai.messages[0].content, 'be terse', 'instructions -> system');
+  assert.deepStrictEqual(oai.messages[1], { role: 'user', content: 'hello' }, 'string input -> user message');
+  assert.strictEqual(oai.max_tokens, 50, 'max_output_tokens -> max_tokens');
+}
+
+// REQUEST responses array input with input_text/input_image parts -> openai.
+{
+  const r = { model: 'gpt-x', input: [
+    { role: 'user', content: [{ type: 'input_text', text: 'look' }, { type: 'input_image', image_url: 'data:image/png;base64,ZZ' }] },
+  ] };
+  const oai = translateRequest(r, 'responses', 'openai');
+  assert.deepStrictEqual(oai.messages[0].content, [
+    { type: 'text', text: 'look' },
+    { type: 'image_url', image_url: { url: 'data:image/png;base64,ZZ' } },
+  ], 'input_text/input_image -> text/image_url');
+  // round-trip back
+  const back = translateRequest(oai, 'openai', 'responses');
+  assert.deepStrictEqual(back.input[0].content, [
+    { type: 'input_text', text: 'look' },
+    { type: 'input_image', image_url: 'data:image/png;base64,ZZ' },
+  ], 'openai content -> responses input parts');
+}
+
+// RESPONSE responses -> openai: output[] message/output_text -> content, usage.
+{
+  const r = {
+    id: 'resp_1', model: 'gpt-x',
+    output: [{ type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: 'the answer', annotations: [] }] }],
+    usage: { input_tokens: 7, output_tokens: 4, total_tokens: 11 },
+  };
+  const oai = translateResponse(r, 'responses', 'openai');
+  assert.strictEqual(oai.choices[0].message.content, 'the answer', 'output_text -> content');
+  assert.strictEqual(oai.choices[0].finish_reason, 'stop');
+  assert.deepStrictEqual(oai.usage, { prompt_tokens: 7, completion_tokens: 4, total_tokens: 11 }, 'usage mapped');
+}
+
+// RESPONSE openai -> responses: content -> output message; usage renamed.
+{
+  const oai = { id: 'x', model: 'm', choices: [{ index: 0, message: { role: 'assistant', content: 'hi' }, finish_reason: 'stop' }], usage: { prompt_tokens: 2, completion_tokens: 1, total_tokens: 3 } };
+  const r = translateResponse(oai, 'openai', 'responses');
+  assert.strictEqual(r.object, 'response');
+  assert.strictEqual(r.output[0].type, 'message');
+  assert.strictEqual(r.output[0].content[0].text, 'hi', 'content -> output_text');
+  assert.deepStrictEqual(r.usage, { input_tokens: 2, output_tokens: 1, total_tokens: 3 }, 'usage renamed');
+}
+
+// TOOL calls survive responses <-> openai (function_call <-> tool_calls).
+{
+  // responses request: assistant function_call + function_call_output items.
+  const r = { model: 'm', input: [
+    { role: 'user', content: 'weather?' },
+    { type: 'function_call', call_id: 'c1', name: 'get_weather', arguments: '{"city":"Paris"}' },
+    { type: 'function_call_output', call_id: 'c1', output: '{"temp":20}' },
+  ] };
+  const oai = translateRequest(r, 'responses', 'openai');
+  const asst = oai.messages.find((m) => m.role === 'assistant');
+  assert.strictEqual(asst.tool_calls[0].function.name, 'get_weather', 'function_call -> tool_call');
+  assert.strictEqual(asst.tool_calls[0].id, 'c1', 'call_id -> tool_call id');
+  const tool = oai.messages.find((m) => m.role === 'tool');
+  assert.strictEqual(tool.tool_call_id, 'c1', 'function_call_output -> tool message');
+  assert.strictEqual(tool.content, '{"temp":20}', 'output preserved');
+  // response with a function_call output item -> openai tool_calls
+  const rResp = { model: 'm', output: [{ type: 'function_call', call_id: 'c9', name: 'f', arguments: '{"a":1}', status: 'completed' }], usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 } };
+  const oaiResp = translateResponse(rResp, 'responses', 'openai');
+  assert.strictEqual(oaiResp.choices[0].message.tool_calls[0].function.name, 'f', 'function_call output -> tool_call');
+  assert.strictEqual(oaiResp.choices[0].finish_reason, 'tool_calls', 'finish_reason tool_calls');
+}
+
+// CROSS-SPOKE PIVOT: anthropic client <-> responses provider, through the hub.
+{
+  const anthReq = { model: 'm', max_tokens: 30, system: 'brief', messages: [{ role: 'user', content: 'ping' }] };
+  const r = translateRequest(anthReq, 'anthropic', 'responses');
+  assert.strictEqual(r.instructions, 'brief', 'anthropic system -> responses instructions (via hub)');
+  assert.deepStrictEqual(r.input, [{ role: 'user', content: 'ping' }], 'anthropic msg -> responses input (via hub)');
+  assert.strictEqual(r.max_output_tokens, 30, 'max_tokens mapped across pivot');
+  const rResp = { id: 'x', model: 'm', output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'pong' }] }], usage: { input_tokens: 3, output_tokens: 2, total_tokens: 5 } };
+  const anthResp = translateResponse(rResp, 'responses', 'anthropic');
+  assert.strictEqual(anthResp.content?.[0]?.text, 'pong', 'responses -> anthropic text across pivot');
+  assert.strictEqual(anthResp.usage?.input_tokens, 3, 'usage across pivot');
+}
+
+// STREAM: responses provider stream -> openai client, through the hub.
+async function responsesStreamPivotCheck() {
+  const rFrames = [
+    'event: response.created\ndata: {"type":"response.created","response":{"id":"r1","object":"response","status":"in_progress","output":[]}}\n\n',
+    'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","output_index":0,"delta":"Hel"}\n\n',
+    'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","output_index":0,"delta":"lo"}\n\n',
+    'event: response.completed\ndata: {"type":"response.completed","response":{"id":"r1","object":"response","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Hello"}]}],"usage":{"input_tokens":3,"output_tokens":2,"total_tokens":5}}}\n\n',
+  ];
+  async function* src() { for (const f of rFrames) yield f; }
+  const chunks = [];
+  for await (const frame of translateStream(src(), 'responses', 'openai', { model: 'm' })) {
+    for (const line of frame.split('\n')) {
+      const t = line.trimStart();
+      if (t.startsWith('data:')) { const d = t.slice(5).trim(); if (d && d !== '[DONE]') { try { chunks.push(JSON.parse(d)); } catch {} } }
+    }
+  }
+  const text = chunks.map((c) => c.choices?.[0]?.delta?.content || '').join('');
+  assert.strictEqual(text, 'Hello', 'responses->openai stream text reassembled');
+  assert.ok(chunks.some((c) => c.choices?.[0]?.finish_reason === 'stop'), 'stream closes with finish_reason stop');
+}
+await responsesStreamPivotCheck();
+
+// STREAM: openai client stream -> responses provider (semantic events emitted).
+async function openaiToResponsesStreamCheck() {
+  const oaiFrames = [
+    'data: {"choices":[{"index":0,"delta":{"role":"assistant"}}]}\n\n',
+    'data: {"choices":[{"index":0,"delta":{"content":"Hi"}}]}\n\n',
+    'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":1,"total_tokens":3}}\n\n',
+    'data: [DONE]\n\n',
+  ];
+  async function* src() { for (const f of oaiFrames) yield f; }
+  const events = [];
+  for await (const frame of translateStream(src(), 'openai', 'responses', { model: 'm' })) {
+    // Responses frames carry a `type` inside data; collect them.
+    for (const line of frame.split('\n')) {
+      const t = line.trimStart();
+      if (t.startsWith('data:')) { const d = t.slice(5).trim(); if (d) { try { events.push(JSON.parse(d)); } catch {} } }
+    }
+  }
+  const types = events.map((e) => e.type);
+  assert.ok(types.includes('response.created'), 'emits response.created');
+  assert.ok(types.includes('response.output_text.delta'), 'emits output_text.delta');
+  assert.strictEqual(types.at(-1), 'response.completed', 'closes with response.completed');
+  const completed = events.at(-1);
+  assert.strictEqual(completed.response.output_text, 'Hi', 'completed carries assembled text');
+  assert.strictEqual(completed.response.usage.input_tokens, 2, 'completed carries usage');
+}
+await openaiToResponsesStreamCheck();
+
+console.log('✔ translate self-check passed (stage 8: + responses spoke & cross-pivot)');

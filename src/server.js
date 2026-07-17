@@ -5,13 +5,12 @@ import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
 import { store } from './store.js';
 import { logStore } from './logstore.js';
-import { resolveBaseUrl, reviveLimitedAccounts, slugify, isLocalUrl, fetchWithConnectTimeout, computeStats, parseRetryAfter, rollupMetrics, resolveModelId, findFallbackProvider } from './helpers.js';
+import { resolveBaseUrl, reviveLimitedAccounts, slugify, isLocalUrl, fetchWithConnectTimeout, computeStats, parseRetryAfter, rollupMetrics, resolveModelId, findFallbackProvider, isTrustedControlRequest, resolveComboSpecs } from './helpers.js';
 import {
-  anthropicReqToOpenai, openaiReqToAnthropic,
-  anthropicRespToOpenai, openaiRespToAnthropic,
-  anthropicStreamToOpenai, openaiStreamToAnthropic,
+  translateRequest, translateResponse, translateStream, normalizeFormat,
 } from './translate.js';
 import { PROVIDER_TEMPLATES } from './templates.js';
+import { VERSION } from './ui.js';
 import chalk from 'chalk';
 
 // Request logs live in logStore (a persistent, bounded ring hydrated from disk).
@@ -28,7 +27,18 @@ export async function startRouterServer(port = 13337, background = false) {
   process.on('SIGTERM', () => process.exit(0));
 
   const server = http.createServer(async (req, res) => {
-    
+
+    // Control plane (dashboard + /api/*) reads/writes the config, which holds
+    // API keys. Gate it to loopback Host + same-origin so a site you visit can't
+    // CSRF-wipe your providers or read your keys via DNS-rebinding. The proxy
+    // path (/v1/*, /models) is exempt — it's hit by local CLIs with no Origin.
+    const isControlPlane = req.url === '/' || req.url.startsWith('/api/');
+    if (isControlPlane && !isTrustedControlRequest(req.headers)) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Forbidden: control plane is loopback-only (cross-origin/rebinding blocked)' }));
+      return;
+    }
+
     // --- 0. WEB DASHBOARD ENDPOINTS ---
     if (req.method === 'GET' && req.url === '/') {
       const __filename = fileURLToPath(import.meta.url);
@@ -45,7 +55,7 @@ export async function startRouterServer(port = 13337, background = false) {
     }
     if (req.method === 'GET' && req.url === '/api/ping') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: 'ok' }));
+      res.end(JSON.stringify({ status: 'ok', version: VERSION }));
       return;
     }
     if (req.method === 'GET' && req.url === '/api/config') {
@@ -167,16 +177,6 @@ export async function startRouterServer(port = 13337, background = false) {
         const payloadStr = Buffer.concat(body).toString('utf8');
         const payload = JSON.parse(payloadStr);
 
-        const modelParts = (payload.model || '').split('/');
-        if (modelParts.length < 2) {
-          res.writeHead(400);
-          res.end(JSON.stringify({ error: 'Model format must be providerId/modelName' }));
-          return;
-        }
-
-        const providerQuery = modelParts[0].toLowerCase();
-        const actualModel = modelParts.slice(1).join('/');
-
         // Pick up any external edit (CLI/hand edit) before we touch state, then
         // work on the SHARED in-memory config so concurrent requests can't clobber
         // each other's field writes.
@@ -185,50 +185,37 @@ export async function startRouterServer(port = 13337, background = false) {
         // Revive accounts whose limit cooldown has expired before picking one.
         if (reviveLimitedAccounts(config)) store.scheduleWrite();
 
-        let provider = config.providers.find(p =>
-          p.id.toLowerCase() === providerQuery || slugify(p.name) === providerQuery
-        );
-
-        if (!provider) {
-          res.writeHead(404);
-          res.end(JSON.stringify({ error: `Provider '${providerQuery}' not found in BobbyTools` }));
-          return;
-        }
-
-        // `actualModel` is the FRIENDLY name the client asked for (provider prefix
-        // stripped). The concrete upstream id can differ per provider (aliases),
-        // so payload.model is resolved per loop iteration below, not here.
         // Inbound wire format is fixed by the path the client hit: Anthropic
         // clients (claude-code) POST /v1/messages; OpenAI clients POST
-        // /v1/chat/completions. This never changes across account/provider
-        // fallback, so decide it once. The provider's format is decided per
-        // iteration inside the loop (a fallback provider may differ).
-        const inboundFmt = req.url.includes('/messages') ? 'anthropic' : 'openai';
-        const wantsStream = payload.stream === true;
+        // /v1/chat/completions; Gemini clients POST …/models/{model}:generate…;
+        // OpenAI Responses clients POST /v1/responses. This never changes across
+        // spec/account/provider fallback, so decide it once. The provider's
+        // format is decided per iteration inside the loop (a fallback may differ).
+        const inboundFmt =
+          req.url.includes('/messages') ? 'anthropic' :
+          /:(?:stream)?[gG]enerateContent/.test(req.url) ? 'gemini' :
+          req.url.includes('/responses') ? 'responses' :
+          'openai';
 
-        let activeAccounts = provider.accounts.filter(a => a.status === 'active');
-        
-        if (activeAccounts.length === 0) {
-          const fallbackProvider = findFallbackProvider(config, provider.id, actualModel);
-          if (fallbackProvider) {
-            process.stdout.write('\x1b[2K\r' + chalk.magenta(`[FALLBACK] ${provider.name} out of accounts. Auto-switching to ${fallbackProvider.name} for ${actualModel}...\n`));
-            provider = fallbackProvider;
-            activeAccounts = provider.accounts.filter(a => a.status === 'active');
-          } else {
-            res.writeHead(429);
-            res.end(JSON.stringify({ error: `No active accounts left for provider '${provider.name}' and no fallback found.` }));
-            return;
-          }
+        // Gemini carries the model in the URL and signals streaming via the verb
+        // (:streamGenerateContent), not body fields. Normalize both onto the
+        // payload so the shared model-routing + stream logic below works unchanged.
+        if (inboundFmt === 'gemini') {
+          const m = /\/models\/(.+?):(stream)?[gG]enerateContent/.exec(req.url);
+          if (m && !payload.model) payload.model = decodeURIComponent(m[1]);
+          if (m && m[2]) payload.stream = true;
         }
 
-        activeAccounts.sort((a, b) => (a.lastUsed || 0) - (b.lastUsed || 0));
-        let currentAccount = activeAccounts[0];
-        
-        currentAccount.lastUsed = Date.now();
-        store.scheduleWrite();
+        // A combo is a user-defined ordered list of provider/model specs; a plain
+        // request is just a one-element list. The router tries each spec in turn,
+        // dropping to the NEXT only when the current model has no live account left
+        // anywhere (its own accounts + any model-locked cross-provider fallback).
+        // Only combos may change the model between specs — a plain request never does.
+        const comboSpecs = resolveComboSpecs(config, payload.model);
+        const modelSpecs = comboSpecs && comboSpecs.length ? comboSpecs : [payload.model || ''];
+        const isCombo = !!(comboSpecs && comboSpecs.length);
 
-        let attempt = 0;
-        let maxAttempts = activeAccounts.length;
+        const wantsStream = payload.stream === true;
 
         // One close listener for the whole request (not per-iteration, or rotating
         // across N accounts would stack N listeners). It aborts whichever fetch is
@@ -244,12 +231,75 @@ export async function startRouterServer(port = 13337, background = false) {
         const onClientClose = () => { if (!res.writableEnded) activeController?.abort(); };
         res.on('close', onClientClose);
 
-        while (attempt < maxAttempts) {
+        // Outer loop over combo specs (one iteration for a plain request). Each
+        // spec runs the full account-rotation + cross-provider fallback pipeline;
+        // when a spec is fully exhausted we advance to the next combo model.
+        let handled = false;   // a response was sent (success or a real upstream error)
+        let lastError = null;  // for the final "all specs exhausted" message
+        for (const spec of modelSpecs) {
+          const modelParts = (spec || '').split('/');
+          if (modelParts.length < 2) {
+            // A malformed spec: for a plain request that's a 400; inside a combo we
+            // skip the bad entry rather than fail the whole combo.
+            if (isCombo) { lastError = `bad combo entry "${spec}" (need provider/model)`; continue; }
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Model format must be providerId/modelName' }));
+            return;
+          }
+
+          const providerQuery = modelParts[0].toLowerCase();
+          const actualModel = modelParts.slice(1).join('/');
+
+          let provider = config.providers.find(p =>
+            p.id.toLowerCase() === providerQuery || slugify(p.name) === providerQuery
+          );
+
+          if (!provider) {
+            if (isCombo) { lastError = `provider '${providerQuery}' not found`; continue; }
+            res.writeHead(404);
+            res.end(JSON.stringify({ error: `Provider '${providerQuery}' not found in BobbyTools` }));
+            return;
+          }
+
+          let activeAccounts = provider.accounts.filter(a => a.status === 'active');
+
+          if (activeAccounts.length === 0) {
+            const fallbackProvider = findFallbackProvider(config, provider.id, actualModel);
+            if (fallbackProvider) {
+              process.stdout.write('\x1b[2K\r' + chalk.magenta(`[FALLBACK] ${provider.name} out of accounts. Auto-switching to ${fallbackProvider.name} for ${actualModel}...\n`));
+              provider = fallbackProvider;
+              activeAccounts = provider.accounts.filter(a => a.status === 'active');
+            } else {
+              // No account for this model anywhere. In a combo, drop to the next
+              // model; a plain request has nothing left to try.
+              lastError = `no active accounts for '${provider.name}' and no fallback`;
+              if (isCombo) { process.stdout.write('\x1b[2K\r' + chalk.magenta(`[COMBO] ${actualModel} unavailable, trying next model...\n`)); continue; }
+              res.writeHead(429);
+              res.end(JSON.stringify({ error: `No active accounts left for provider '${provider.name}' and no fallback found.` }));
+              return;
+            }
+          }
+
+          activeAccounts.sort((a, b) => (a.lastUsed || 0) - (b.lastUsed || 0));
+          let currentAccount = activeAccounts[0];
+
+          currentAccount.lastUsed = Date.now();
+          store.scheduleWrite();
+
+          let attempt = 0;
+          let maxAttempts = activeAccounts.length;
+
+          // The ONLY ways out of this loop are a `return` (success or a real
+          // upstream response was sent) or falling through (every account +
+          // cross-provider fallback for this spec is limited). Reaching past the
+          // loop therefore means "spec exhausted" — advance to the next combo model.
+          while (attempt < maxAttempts) {
           const baseUrl = resolveBaseUrl(provider, currentAccount).replace(/\/+$/, '');
           // Provider wire format, decided per iteration — a fallback provider may
           // differ from the one the request started on. Default 'openai' so every
-          // pre-existing provider (no apiFormat field) behaves exactly as before.
-          const providerFmt = provider.apiFormat === 'anthropic' ? 'anthropic' : 'openai';
+          // pre-existing provider (no apiFormat field) normalizes to openai —
+          // behaves exactly as before. Unknown values fall back to openai too.
+          const providerFmt = normalizeFormat(provider.apiFormat);
 
           // Resolve the friendly model name to THIS provider's upstream id (an
           // alias map, if any) — so "glm-5.2" can mean "genfity/glm-5.2" upstream
@@ -264,23 +314,44 @@ export async function startRouterServer(port = 13337, background = false) {
           // hot path — no cross-format work when inbound already matches.
           let outBody;
           if (inboundFmt !== providerFmt) {
-            const translated = inboundFmt === 'anthropic'
-              ? anthropicReqToOpenai(payload)   // claude-code -> OpenAI provider
-              : openaiReqToAnthropic(payload);  // OpenAI client -> Anthropic provider
-            outBody = JSON.stringify(translated);
+            // Pivot the request from the client's format to the provider's,
+            // through the OpenAI hub (see translate.js FORMATS).
+            outBody = JSON.stringify(translateRequest(payload, inboundFmt, providerFmt));
+          } else if (providerFmt === 'gemini') {
+            // Same-format Gemini passthrough: model/stream were hoisted from the
+            // URL onto the payload for routing; strip them so the outbound body is
+            // a clean GenerateContentRequest (Gemini doesn't want them in-body).
+            const { model, stream, ...geminiBody } = payload;
+            outBody = JSON.stringify(geminiBody);
           } else {
             outBody = JSON.stringify(payload);
           }
 
           // Endpoint path must match what the PROVIDER expects, not what the client
-          // sent: an OpenAI provider wants /chat/completions, an Anthropic one wants
-          // /messages. When formats already match we keep the client's own suffix
-          // (covers /v1beta and other variants without a lookup table).
-          let endpointPath = req.url.startsWith('/v1/') ? req.url.slice(3) : req.url;
-          if (inboundFmt !== providerFmt) {
-            endpointPath = providerFmt === 'anthropic' ? '/messages' : '/chat/completions';
+          // sent. OpenAI wants /chat/completions, Anthropic /messages, Gemini a
+          // model-scoped verb (/v1beta/models/{model}:generateContent, or
+          // :streamGenerateContent?alt=sse when streaming — Gemini carries the
+          // model in the URL, not the body). When formats already match we keep
+          // the client's own suffix (covers /v1beta and other variants).
+          let endpointPath;
+          if (inboundFmt === providerFmt) {
+            endpointPath = req.url.startsWith('/v1/') ? req.url.slice(3) : req.url;
+          } else if (providerFmt === 'gemini') {
+            const verb = wantsStream ? 'streamGenerateContent?alt=sse' : 'generateContent';
+            endpointPath = `/v1beta/models/${encodeURIComponent(payload.model)}:${verb}`;
+          } else if (providerFmt === 'anthropic') {
+            endpointPath = '/messages';
+          } else if (providerFmt === 'responses') {
+            endpointPath = '/responses';
+          } else {
+            endpointPath = '/chat/completions';
           }
-          const targetUrl = baseUrl + endpointPath;
+          // Gemini base URLs are conventionally the API root (…/v1beta lives in the
+          // path we build), so strip a trailing /v1 or /v1beta the user may have set.
+          const effectiveBase = providerFmt === 'gemini'
+            ? baseUrl.replace(/\/v1(beta)?$/, '')
+            : baseUrl;
+          const targetUrl = effectiveBase + endpointPath;
 
           const primaryCred = provider.credentials.find(c => c.secret) || provider.credentials[0];
           let apiKey = null;
@@ -290,9 +361,36 @@ export async function startRouterServer(port = 13337, background = false) {
 
           const headers = { ...req.headers };
           delete headers.host;
+          // Strip hop-by-hop / body-framing headers copied from the inbound request.
+          // We send our own content-length below; leaving the client's transfer-encoding
+          // (e.g. "chunked" when the client didn't set content-length) makes undici reject
+          // the outbound fetch with UND_ERR_INVALID_ARG (can't have both). connection/
+          // keep-alive are per-hop and mustn't be forwarded either.
+          delete headers['transfer-encoding'];
+          delete headers['connection'];
+          delete headers['keep-alive'];
           headers['content-length'] = Buffer.byteLength(outBody);
+          // Auth placement depends on the PROVIDER's format, not the client's.
+          // When we translate across formats the client's own auth header (e.g.
+          // an Anthropic client's x-api-key) is meaningless to the target and
+          // must be replaced by the scheme the provider expects — otherwise a
+          // stale/wrong-scheme credential leaks through. Strip all known auth
+          // headers first, then set the right one for the provider.
+          if (inboundFmt !== providerFmt) {
+            delete headers['x-api-key'];
+            delete headers['api-key'];
+            delete headers['x-goog-api-key'];
+            delete headers['authorization'];
+          }
           if (apiKey) {
-            if (headers['x-api-key']) {
+            if (providerFmt === 'gemini') {
+              headers['x-goog-api-key'] = apiKey; // Gemini: key in x-goog-api-key header
+            } else if (providerFmt === 'anthropic') {
+              headers['x-api-key'] = apiKey;
+              // Anthropic requires a version header; supply a default when the
+              // client didn't send one (e.g. an OpenAI client we translated).
+              if (!headers['anthropic-version']) headers['anthropic-version'] = '2023-06-01';
+            } else if (headers['x-api-key']) {
               headers['x-api-key'] = apiKey;
             } else if (headers['api-key']) {
               headers['api-key'] = apiKey;
@@ -416,9 +514,9 @@ export async function startRouterServer(port = 13337, background = false) {
             // unknown (chunked). The generator yields ready-to-write text frames.
             responseHeaders['content-type'] = 'text/event-stream; charset=utf-8';
             res.writeHead(response.status, responseHeaders);
-            const gen = inboundFmt === 'anthropic'
-              ? openaiStreamToAnthropic(response.body, { model: actualModel })  // client wants Anthropic, provider streamed OpenAI
-              : anthropicStreamToOpenai(response.body, { model: actualModel }); // client wants OpenAI, provider streamed Anthropic
+            // Reframe the provider's stream (providerFmt) into the client's
+            // (inboundFmt), pivoting through the OpenAI hub. Stays lazy.
+            const gen = translateStream(response.body, providerFmt, inboundFmt, { model: actualModel });
             for await (const frame of gen) res.write(frame);
             res.end();
             return;
@@ -429,9 +527,9 @@ export async function startRouterServer(port = 13337, background = false) {
           let outText = raw;
           try {
             const parsed = JSON.parse(raw);
-            const translated = inboundFmt === 'anthropic'
-              ? openaiRespToAnthropic(parsed)  // client wants Anthropic, provider returned OpenAI
-              : anthropicRespToOpenai(parsed); // client wants OpenAI, provider returned Anthropic
+            // Pivot the response from the provider's format back to the
+            // client's, through the OpenAI hub.
+            const translated = translateResponse(parsed, providerFmt, inboundFmt);
             outText = JSON.stringify(translated);
           } catch {
             // Not JSON (an upstream error page, etc.) — pass the raw body through
@@ -440,11 +538,28 @@ export async function startRouterServer(port = 13337, background = false) {
           responseHeaders['content-type'] = 'application/json';
           res.writeHead(response.status, responseHeaders);
           res.end(outText);
+          handled = true;
           return;
-        }
+          } // end while (account rotation for this spec)
 
-        res.writeHead(429);
-        res.end(JSON.stringify({ error: 'All accounts for this provider hit limits' }));
+          // Fell through the while = every account + fallback for THIS spec is
+          // limited. A combo drops to the next model; a plain request is done.
+          lastError = `all accounts for '${actualModel}' hit limits`;
+          if (isCombo) {
+            process.stdout.write('\x1b[2K\r' + chalk.magenta(`[COMBO] ${actualModel} exhausted, trying next model...\n`));
+            continue;
+          }
+          res.writeHead(429);
+          res.end(JSON.stringify({ error: 'All accounts for this provider hit limits' }));
+          handled = true;
+          return;
+        } // end for (combo specs)
+
+        // Only reached when every combo spec was exhausted without a response.
+        if (!handled) {
+          res.writeHead(429);
+          res.end(JSON.stringify({ error: `All combo models exhausted${lastError ? ` (last: ${lastError})` : ''}` }));
+        }
 
       } catch (err) {
         // AbortError = we cancelled the fetch on purpose (client hung up, or the

@@ -147,6 +147,47 @@ export function isLocalUrl(url) {
   );
 }
 
+// Loopback hostnames the control plane trusts. A browser can only reach the
+// router as one of these; anything else in the Host header means the request
+// arrived via a rebound DNS name (a remote site whose domain was pointed at
+// 127.0.0.1 to slip past the same-origin policy).
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]', '::1', '0.0.0.0']);
+
+// Pull just the hostname out of a Host header ("127.0.0.1:13337" -> "127.0.0.1")
+// or an Origin/Referer URL ("http://localhost:13337/x" -> "localhost"). Returns
+// '' when it can't be parsed, so a malformed value fails the loopback check.
+function hostnameOf(value) {
+  if (!value) return '';
+  const s = String(value).trim();
+  if (/^https?:\/\//i.test(s)) {
+    try { return new URL(s).hostname.toLowerCase(); } catch { return ''; }
+  }
+  // Bare authority ("host:port"). Strip the port; keep [::1] brackets intact.
+  const m = /^(\[[^\]]+\]|[^:]+)(?::\d+)?$/.exec(s);
+  return (m ? m[1] : s).toLowerCase();
+}
+
+/**
+ * Guard for the control plane (`/` dashboard + `/api/*`), which can read the
+ * whole config (API keys) and overwrite it. The router binds 127.0.0.1, but that
+ * is NOT enough: your own browser is a local process, so any site you visit can
+ * POST to http://127.0.0.1:13337/api/config (CSRF, wiping providers), and a
+ * rebound DNS name can GET /api/config to read your keys. This closes both
+ * without a login:
+ *   - Host must be a loopback name (rejects DNS-rebinding reads).
+ *   - Origin/Referer, when present, must also be loopback (rejects cross-site
+ *     writes). Absent Origin is fine — same-origin GETs and non-browser callers
+ *     (curl) omit it; the Host check still applies.
+ * The proxy path (/v1/*) does NOT use this — it's hit by local CLIs that carry
+ * no Origin and authenticate with their own bearer key. Pure: headers in, bool out.
+ */
+export function isTrustedControlRequest(headers = {}) {
+  if (!LOOPBACK_HOSTS.has(hostnameOf(headers.host))) return false;
+  const cross = headers.origin || headers.referer;
+  if (cross && !LOOPBACK_HOSTS.has(hostnameOf(cross))) return false;
+  return true;
+}
+
 /**
  * Compare two semver-ish version strings ("3.9.0" vs "3.10.0").
  * Returns 1 if a > b, -1 if a < b, 0 if equal. Compares numerically per
@@ -227,6 +268,31 @@ export function normalizeFetchedModels(provider, rawIds = []) {
     models.push(friendly);
   }
   return { models: [...new Set(models)], aliases };
+}
+
+/**
+ * Resolve a "combo" — a user-defined, ordered list of `provider/model` specs the
+ * router tries in turn, dropping to the NEXT model only when the current one has
+ * no live account left anywhere. Combos live in `config.combos` as
+ * { comboName: ["groq/llama-3.3-70b", "openrouter/anthropic/claude-3-haiku"] }.
+ *
+ * Returns the spec array (only entries that look like provider/model) when `name`
+ * matches a combo (exact, then case-insensitive — same rule as model aliases), or
+ * null when it isn't a combo, so the caller treats a plain request as a
+ * one-element list. Unlike the model-locked cross-provider fallback, a combo MAY
+ * change the model between entries — that's the whole point, and it only happens
+ * for names the user explicitly defined as combos.
+ */
+export function resolveComboSpecs(config, name) {
+  const combos = config?.combos;
+  if (!combos || !name) return null;
+  const clean = (arr) => arr.filter((s) => typeof s === 'string' && s.includes('/'));
+  if (Array.isArray(combos[name])) return clean(combos[name]);
+  const lc = name.toLowerCase();
+  for (const k in combos) {
+    if (k.toLowerCase() === lc && Array.isArray(combos[k])) return clean(combos[k]);
+  }
+  return null;
 }
 
 /**
