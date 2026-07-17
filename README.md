@@ -23,6 +23,21 @@ Dua cara pake, tinggal pilih sesuai tingkat kemalasan lo hari ini.
 
 ---
 
+## 🧩 Bobby bisa apa aja
+
+Singkatnya, satu tempat buat semua urusan API key AI lo:
+
+- **Kumpulin banyak akun jadi satu.** Punya 5 key Groq gratisan + 2 OpenRouter + 1 Gemini? Masukin semua. Bobby yang muter giliran (round-robin), lo cukup panggil `groq/llama3-70b-8192`.
+- **Anti-limit 429 otomatis.** Satu key kena limit, Bobby diem-diem pindah ke key berikutnya dan retry. Yang kena limit dikasih cooldown, balik aktif sendiri. CLI lo gak pernah tau ada drama.
+- **Fallback lintas provider.** Semua key satu provider abis? Bobby nyari provider lain yang punya model sama, pindah mid-request.
+- **Penerjemah format.** claude-code (Anthropic) nembak provider OpenAI-style (Groq/OpenRouter), atau ke Gemini, atau ke Responses — Bobby nerjemahin di tengah jalan. Teks, streaming, tool calls, gambar. Semua arah.
+- **Combos.** Bikin rantai model cadangan bernama (`ngebut`, `murah-dulu`, dst). Bobby turun ke model berikut cuma kalo yang sekarang bener-bener abis.
+- **Dua mode.** Router (server lokal, anti-limit, translator) **atau** launcher klasik (inject key ke env, spawn CLI langsung, tanpa proxy).
+- **Dashboard live.** Pantau key mana yang idup/kebakar, countdown cooldown, request per menit, log aktivitas — auto-refresh, gak usah pencet-pencet.
+- **Zero-trust, zero-cloud.** Gak masang cert, gak ada MITM, gak ada telemetry. Key lo cuma nyampe ke provider yang lo daftarin. Router cuma dengerin `127.0.0.1`.
+
+---
+
 ## ⚡ Pasang
 
 Butuh Node.js v18 ke atas. Cek dulu: `node -v`. Kalo di bawah 18, update dulu, jangan ngeyel.
@@ -99,6 +114,23 @@ Besok-besok tinggal `bobby go` — langsung lanjut sesi terakhir lo, tanpa klik-
 
 ---
 
+## 🔀 Combos (rantai model cadangan)
+
+Kadang lo pengen "pake yang murah/cepet dulu, kalo semua tewas baru naik ke yang mahal". Itu gunanya combo.
+
+Combo = daftar `provider/model` berurutan yang lo kasih **satu nama**. Bobby coba dari paling atas; begitu satu model **bener-bener abis** (semua akunnya kena limit *plus* fallback lintas-provider udah mentok), baru dia turun ke model berikutnya.
+
+- **Bikin:** menu `bobby` → **Manage Combos** → Add Combo → kasih nama (jangan pake `/`) → susun langkahnya (urutan bisa digeser). Dari web dashboard juga bisa, tab **Combos**.
+- **Pake:** panggil nama combo-nya di posisi model. Combo bernama `ngebut`? Tinggal:
+
+```bash
+opencode -m ngebut
+```
+
+Combo itu **satu-satunya** tempat Bobby ganti model di tengah request — dan cuma buat nama yang emang lo daftarin sebagai combo. Request `provider/model` biasa tetep **dikunci** ke model itu: kena 429 ya dikasih tau 429, gak diem-diem loncat ke model lain yang beda harga/kualitas tanpa lo minta.
+
+---
+
 ## 🧠 Ngatur Model per Provider
 
 Masuk **Manage Providers → Edit Provider → (pilih) → Edit Models**. Di sini lo bisa CRUD daftar model:
@@ -122,6 +154,7 @@ Kalo provider lo gak punya endpoint model, ya gampang, tinggal Add manual.
 | `bobby serve` | Router di foreground. Tutup terminal = mati. Enak buat ngintip log. |
 | `bobby serve-bg` | Router di background (daemon) + auto buka browser. Terminal bebas ditutup. |
 | `bobby list` | Liat semua provider & akun tanpa masuk menu. |
+| `bobby serve --port <n>` | Router di port lain (default `13337`). Bisa `-p` juga. |
 | `bobby update` | Cek versi terbaru di npm, langsung tawarin update otomatis kalo ada yang baru. |
 | `bobby -v` | Cek versi. |
 | `bobby -h` | Contekan bantuan. |
@@ -156,20 +189,23 @@ Langkah 2 itu **permanen** — semua key yang lo simpen ilang. Kalo cuma mau ins
 
 Ini yang bikin BobbyTools beda dari sekadar proxy: **router nerjemahin format API otomatis.**
 
-Masalahnya gini. claude-code (dan tool sejenis) ngomong format **Anthropic Messages** (`/v1/messages`). Tapi mayoritas provider murah/gratis — Groq, OpenRouter, DeepSeek, dll — cuma ngerti format **OpenAI Chat Completions** (`/v1/chat/completions`). Dua bahasa beda. Tanpa penerjemah, claude-code nembak Groq ya langsung error.
+Masalahnya gini. Tiap CLI ngomong bahasa API-nya sendiri: claude-code pake **Anthropic Messages** (`/v1/messages`), mayoritas provider murah/gratis — Groq, OpenRouter, DeepSeek, dll — cuma ngerti **OpenAI Chat Completions** (`/v1/chat/completions`), Google pake **Gemini** (`generateContent`), dan OpenAI sekarang punya **Responses API** (`/v1/responses`) juga. Bahasa beda-beda. Tanpa penerjemah, claude-code nembak Groq ya langsung error.
 
-BobbyTools nutup jurang itu. Router deteksi format dari path yang ditembak CLI-mu, bandingin sama format provider tujuan, dan nerjemahin kalo beda — dua arah:
+BobbyTools nutup jurang itu. Router deteksi format dari path yang ditembak CLI-mu, bandingin sama format provider tujuan, dan nerjemahin kalo beda. Arsitekturnya **hub-and-spoke**: OpenAI Chat Completions jadi hub (bahasa tengah), tiap format lain cuma perlu tau cara nerjemah ke/dari hub. Jadi semua kombinasi jalan lewat hub tanpa kode pasangan langsung:
 
-- **Anthropic → OpenAI** (claude-code ke Groq/OpenRouter/dll)
-- **OpenAI → Anthropic** (CLI OpenAI ke endpoint Anthropic asli)
+- **Anthropic ↔ OpenAI** (claude-code ke Groq/OpenRouter/dll, atau sebaliknya)
+- **Gemini ↔ apa pun** (claude-code ke provider Gemini, CLI OpenAI ke Gemini, dst)
+- **Responses ↔ apa pun** (CLI Responses ke provider mana pun, atau sebaliknya)
 
-Yang diterjemahin: teks, **streaming** (SSE di-reframe on the fly, jawaban ngalir normal), **tool/function calling** penuh (`tool_use`/`tool_result` ↔ `tool_calls`, skema tool, tool_choice — dua arah), dan **gambar/vision** (blok `image` base64/URL ↔ `image_url`). Ini yang bikin claude-code beneran kepake, bukan cuma "nyambung tapi tumpul".
+Nambah format ke-N cuma butuh 6 fungsi (satu per arah × 3 tahap), bukan N penerjemah pasangan — linear, bukan kuadratik.
+
+Yang diterjemahin: teks, **streaming** (SSE di-reframe on the fly, jawaban ngalir normal), **tool/function calling** penuh (`tool_use`/`tool_result` ↔ `tool_calls` ↔ `functionCall`/`functionResponse` ↔ `function_call`, skema tool, tool_choice — semua arah), dan **gambar/vision** (blok `image` base64/URL ↔ `image_url` ↔ `inlineData` ↔ `input_image`). Ini yang bikin claude-code beneran kepake, bukan cuma "nyambung tapi tumpul".
 
 **Kapan aktif?** Cuma pas format beda. Kalo CLI dan provider udah sama format (kasus paling umum sekarang), router lewat jalur cepat — diterusin apa adanya, nol overhead, nol risiko. Penerjemah nyala cuma pas dibutuhin.
 
-**Setelannya di mana?** Provider default dianggap format OpenAI (jadi semua provider lama jalan tanpa diubah). Kalo provider-mu ngomong Anthropic asli, set lewat **Edit Provider → API Format → anthropic**. Buat kasus utama (claude-code → provider OpenAI), lo gak usah setel apa-apa — jalan langsung.
+**Setelannya di mana?** Provider default dianggap format OpenAI (jadi semua provider lama jalan tanpa diubah). Kalo provider-mu ngomong format lain, set lewat **Edit Provider → API Format → openai / anthropic / gemini / responses**. Buat kasus utama (claude-code → provider OpenAI), lo gak usah setel apa-apa — jalan langsung.
 
-*Catatan jujur:* teks, streaming, tool calls, dan gambar semua udah diterjemahin — dan udah diuji langsung ke provider asli (termasuk kirim gambar ke model vision lewat jalur terjemahan). Yang belum ketutup: format-format langka di luar text/tool/image (misal audio input).
+*Catatan jujur:* teks, streaming, tool calls, dan gambar semua udah diterjemahin lintas keempat format lewat hub — dan udah diuji langsung ke provider asli (termasuk kirim gambar ke model vision lewat jalur terjemahan). Yang belum ketutup: format-format langka di luar text/tool/image (misal audio input), dan tool ter-hosting khusus Gemini/Responses (web_search dll) yang gak punya padanan di hub.
 
 ---
 
@@ -189,8 +225,8 @@ Bukan berarti alat lain jelek — buat kebutuhan enterprise/tim, mereka mungkin 
 ## 🚫 Yang Perlu Lo Tau (Disclaimer)
 
 1. **Config disimpen polos.** Semua ada di `~/.bobbytools/config.json`, gak dienkripsi. Jangan sekali-kali commit file ini ke repo publik. API key bocor gara-gara lo sendiri ceroboh, ya salahin cermin.
-2. **Router cuma dengerin localhost.** Server bind ke `127.0.0.1`, jadi gak keekspos ke jaringan. Aman buat mesin sendiri.
-3. **Terjemahan format nutup teks, streaming, tool calls, dan gambar** — dua arah, udah diuji ke provider asli. Format di luar itu (misal audio input) belum ditangani; kalo CLI-mu ngirimnya, bagian itu di-drop, bukan bikin error.
+2. **Router cuma dengerin localhost — dan beneran dikunci.** Server bind ke `127.0.0.1`, jadi gak keekspos ke jaringan. Tapi bind doang gak cukup: browser lo juga proses lokal, jadi situs jahat yang lo buka bisa nembak `127.0.0.1:13337`. Makanya panel kontrol (dashboard + `/api/*`, yang bisa baca/nimpa config berisi API key) cuma nerima request dari loopback — Origin lintas-situs ditolak (anti-CSRF, gak bisa ngehapus provider lo), Host asing ditolak (anti DNS-rebinding, gak bisa nyuri key lo). Semua ini **tanpa perlu login/password**. Jalur proxy `/v1/*` dikecualiin — itu ditembak CLI lokal yang bawa key sendiri, bukan browser.
+3. **Terjemahan format nutup teks, streaming, tool calls, dan gambar** — lintas empat format (OpenAI, Anthropic, Gemini, Responses) lewat hub, udah diuji ke provider asli. Format di luar itu (misal audio input) belum ditangani; kalo CLI-mu ngirimnya, bagian itu di-drop, bukan bikin error.
 
 ---
 *Dibuat karena males. Dirawat karena kepalang.*

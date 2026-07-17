@@ -339,7 +339,7 @@
         <path d="M7 12h8a4 4 0 0 1 4 4v0a4 4 0 0 1-4 4H7"></path>
       </svg>
       <div style="display: flex; flex-direction: column;">
-        BobbyTools
+        BobbyTools <span id="brand-version" style="font-size: 0.7rem; font-weight: 400; color: var(--text-muted); letter-spacing: 0.02em;"></span>
         <div class="brand-status" style="margin-top: 2px;">
           <div class="pulse-dot"></div>
           Router Online
@@ -354,6 +354,10 @@
     <div class="nav-item" onclick="switchTab('providers')" id="nav-providers">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
       Providers
+    </div>
+    <div class="nav-item" onclick="switchTab('combos')" id="nav-combos">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+      Combos
     </div>
     <div class="nav-item" onclick="switchTab('logs')" id="nav-logs">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
@@ -428,6 +432,23 @@
 
       <div id="providers-container">
         <div class="empty-state">Loading configuration...</div>
+      </div>
+    </div>
+
+    <!-- VIEW: COMBOS -->
+    <div id="tab-combos" class="tab-pane">
+      <div class="page-header">
+        <h2 class="page-title">Combos</h2>
+        <button class="btn btn-primary" onclick="openAddComboModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          New Combo
+        </button>
+      </div>
+      <p style="color: var(--text-muted); margin-bottom: 1.5rem; font-size: 0.9rem; max-width: 640px;">
+        A combo is your own ordered fallback list of models. Call it by name (e.g. <code>-m daily-driver</code>) and the router tries each model in order, dropping to the next only when the current one is fully out of live keys. Plain <code>provider/model</code> requests stay locked to that one model.
+      </p>
+      <div id="combos-container">
+        <div class="empty-state">Loading combos...</div>
       </div>
     </div>
 
@@ -546,6 +567,25 @@ aider --model openrouter/anthropic/claude-3-haiku</code></pre>
           <p style="margin-bottom: 0;">Kalo lo bikin provider yang nunjuk ke alamat lokal (<code>localhost</code>, <code>127.0.0.1</code>, <code>0.0.0.0</code>, <code>::1</code>) — misal nunjuk balik ke router Bobby sendiri, atau ke Ollama/LM Studio — endpoint model-nya <strong>sengaja dimatiin</strong>. Bobby gak bakal narik model dari situ, biar gak ada acara serap-menyerap muter-muter yang bikin daftar model jadi sampah. Buat provider lokal: <strong>isi model manual</strong> lewat Edit Models. Itu wajar, bukan bug.</p>
         </div>
 
+        <h3 style="margin-top: 2rem;">4. Combos — rantai model cadangan 🔀</h3>
+        <p>Combo itu daftar <code>provider/model</code> berurutan yang lo kasih satu nama. Bobby coba dari paling atas; begitu satu model <strong>bener-bener abis</strong> (semua akunnya kena limit <em>plus</em> fallback lintas-provider udah mentok), baru dia turun ke model berikutnya di daftar. Cocok buat "pake yang murah/cepet dulu, kalo tewas semua baru naik ke yang mahal".</p>
+        <ul style="padding-left: 1.5rem; color: var(--text-muted);">
+          <li><strong>Bikin:</strong> menu <strong>Combos</strong> → <strong>Add Combo</strong> → kasih nama (jangan pake "/") → susun langkahnya satu-satu (urutan bisa digeser naik/turun).</li>
+          <li><strong>Pake:</strong> panggil nama combo-nya di posisi model. Kalo combo lo namanya <code>ngebut</code>: <code>opencode -m ngebut</code>.</li>
+        </ul>
+        <div style="background: rgba(129, 140, 248, 0.08); border: 1px solid rgba(129, 140, 248, 0.25); padding: 1rem; border-radius: 8px; margin-top: 1rem;">
+          <p style="margin-bottom: 0;">Ini <strong>satu-satunya</strong> tempat Bobby ganti model di tengah request — dan cuma buat nama yang lo daftarin sebagai combo. Request <code>provider/model</code> biasa tetep <strong>dikunci</strong> ke model itu: kena 429 ya dikasih tau 429, gak diem-diem pindah ke model lain yang mungkin beda kualitas/harga.</p>
+        </div>
+
+        <h3 style="margin-top: 2rem;">5. Penerjemah Format — kenapa claude-code bisa nembak provider apa aja 🌐</h3>
+        <p>Tiap CLI ngomong "bahasa" API sendiri: claude-code pake <strong>Anthropic Messages</strong>, mayoritas provider murah pake <strong>OpenAI Chat Completions</strong>, Google pake <strong>Gemini</strong>, OpenAI yang baru punya <strong>Responses</strong>. Beda bahasa = biasanya langsung error. Bobby nutup jurang itu: dia deteksi format dari CLI lo, bandingin sama format provider tujuan, dan nerjemahin kalo beda — lewat satu "hub" tengah, jadi kombinasi mana pun nyambung.</p>
+        <p>Yang keterjemah: teks, <strong>streaming</strong> (jawaban tetep ngalir normal), <strong>tool/function calling</strong> penuh, dan <strong>gambar/vision</strong> — dua arah.</p>
+        <ul style="padding-left: 1.5rem; color: var(--text-muted);">
+          <li><strong>Setelan:</strong> Providers → Edit Provider → <strong>API Format</strong> → pilih <code>openai</code> / <code>anthropic</code> / <code>gemini</code> / <code>responses</code>.</li>
+          <li><strong>Default <code>openai</code></strong>, jadi mayoritas provider gak usah disetel. Set ini cuma kalo provider-nya beneran ngomong format lain (misal endpoint Anthropic/Gemini asli).</li>
+          <li>Kalo format CLI == format provider, Bobby lewat <strong>jalur cepat</strong> — diterusin apa adanya, nol overhead. Translator nyala cuma pas dibutuhin.</li>
+        </ul>
+
         <h3 style="margin-top: 2rem;">📚 Daftar Perintah (Commands) BobbyTools</h3>
         <ul style="padding-left: 1.5rem; color: var(--text-muted);">
           <li style="margin-bottom: 0.5rem"><strong><code>bobby</code></strong><br/>Buka menu utama interaktif (nambah akun, pilih model, atur provider, dll).</li>
@@ -557,12 +597,14 @@ aider --model openrouter/anthropic/claude-3-haiku</code></pre>
           <li style="margin-bottom: 0.5rem"><strong><code>bobby -v</code></strong> / <strong><code>--version</code></strong><br/>Cek versi yang lagi kepasang.</li>
           <li style="margin-bottom: 0.5rem"><strong><code>bobby -h</code></strong> / <strong><code>--help</code></strong><br/>Nampilin contekan bantuan.</li>
         </ul>
+        <p style="color: var(--text-muted); margin-top: 0.75rem;"><em>Semua ini juga ada di menu interaktif <code>bobby</code> (termasuk Manage Combos & Manage Providers). Command di atas cuma jalan pintas biar gak usah klik-klik.</em></p>
 
         <h3 style="margin-top: 2rem;">🔧 Kalo Mampet (Troubleshooting)</h3>
         <ul style="padding-left: 1.5rem; color: var(--text-muted);">
           <li style="margin-bottom: 0.5rem"><strong>401 Unauthorized terus?</strong> API key di akunnya salah/expired, atau format model-nya kebalik. Cek pake tombol Test di menu akun (mode CLI).</li>
           <li style="margin-bottom: 0.5rem"><strong>"Provider not found"?</strong> Prefix model lo gak cocok sama nama provider. Samain dengan nama di list (spasi → strip).</li>
           <li style="margin-bottom: 0.5rem"><strong>Model lokal gak muncul?</strong> Emang gak diserep otomatis (baca kotak kuning di atas). Tambah manual di Edit Models.</li>
+          <li style="margin-bottom: 0.5rem"><strong>Jawaban aneh / request ditolak provider padahal key bener?</strong> Kemungkinan format-nya kebalik. Cek <strong>API Format</strong> provider itu (Edit Provider) — mayoritas <code>openai</code>, tapi kalo endpoint-nya Anthropic/Gemini asli ya harus disamain.</li>
           <li style="margin-bottom: 0.5rem"><strong>Semua kacau, mau mulai bersih?</strong> Menu Settings → Factory Reset (mode CLI). Config lama ada backup-nya di <code>~/.bobbytools/config.backup.json</code>.</li>
         </ul>
 
@@ -643,6 +685,39 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
       <div style="display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1.5rem;">
         <button class="btn" style="background: rgba(255,255,255,0.1); color: white; flex: 1;" onclick="closeModal('addProviderModal')">Cancel</button>
         <button class="btn btn-primary" style="flex: 1;" onclick="saveNewProvider()">Add Provider</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit Combo Modal -->
+  <div class="modal-overlay" id="addComboModal" onclick="if(event.target===this) closeModal('addComboModal')">
+    <div class="modal" style="max-width: 560px">
+      <h3 style="margin-bottom: 1.5rem" id="comboModalTitle">New Combo</h3>
+      <div class="form-group">
+        <label>Combo Name</label>
+        <input type="text" id="comboNameInput" class="form-control" placeholder="e.g. daily-driver">
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px;">This is the name you pass with <code>-m</code>. Avoid using a real <code>provider/model</code> string.</div>
+      </div>
+
+      <div class="form-group" style="margin-top: 1rem;">
+        <label>Add a model to the sequence</label>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          <select id="comboProviderSelect" class="form-control" style="flex: 1; min-width: 140px;" onchange="onComboProviderChange()"></select>
+          <select id="comboModelSelect" class="form-control" style="flex: 1; min-width: 140px;"></select>
+          <button class="btn btn-primary" style="padding: 0.5rem 1rem;" onclick="addComboStep()">Add</button>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-top: 1rem;">
+        <label>Fallback order <span style="color: var(--text-muted); font-weight: 400;">(top tried first)</span></label>
+        <div id="comboStepsList" style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem;">
+          <div class="empty-state" style="padding: 1rem;">No models yet. Add at least one above.</div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1.5rem;">
+        <button class="btn" style="background: rgba(255,255,255,0.1); color: white; flex: 1;" onclick="closeModal('addComboModal')">Cancel</button>
+        <button class="btn btn-primary" style="flex: 1;" onclick="saveCombo()">Save Combo</button>
       </div>
     </div>
   </div>
@@ -737,6 +812,7 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
       if(tabId === 'overview') loadStats();
       if(tabId === 'settings') renderCliTools();
       if(tabId === 'logs') loadLogs();
+      if(tabId === 'combos') renderCombos();
     }
 
     // -- Overview: live status. Server does all the math (/api/stats); we render. --
@@ -1245,6 +1321,143 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
       await saveConfig();
     }
 
+    // -- Combos: user-defined ordered fallback lists (config.combos). --
+    // Draft state for the modal builder; committed to bobbyConfig only on Save.
+    let comboDraft = { name: '', steps: [], editingOriginalName: null };
+
+    function renderCombos() {
+      const container = document.getElementById('combos-container');
+      const combos = (bobbyConfig && bobbyConfig.combos) || {};
+      const names = Object.keys(combos);
+      if (names.length === 0) {
+        container.innerHTML = `<div class="empty-state">No combos yet. Click "New Combo" to build your first fallback chain.</div>`;
+        return;
+      }
+      container.innerHTML = names.map(name => {
+        const specs = Array.isArray(combos[name]) ? combos[name] : [];
+        const chain = specs.map((s, i) => `
+          <span class="badge" style="background: rgba(99,102,241,0.15); color: #a5b4fc;">${i + 1}. ${escapeHtml(s)}</span>
+          ${i < specs.length - 1 ? '<span style="color: var(--text-muted); margin: 0 2px;">&rarr;</span>' : ''}
+        `).join('');
+        return `
+          <div class="glass-card">
+            <div class="provider-header">
+              <div>
+                <div class="provider-name">${escapeHtml(name)}</div>
+                <div class="provider-url">-m ${escapeHtml(name)}</div>
+              </div>
+              <div style="display:flex; flex-wrap: wrap; gap: 0.75rem">
+                <button class="btn btn-primary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem" onclick="openAddComboModal('${escapeAttr(name)}')">Edit</button>
+                <button class="btn btn-danger" style="padding: 0.4rem 0.8rem; font-size: 0.85rem" onclick="deleteCombo('${escapeAttr(name)}')">Delete</button>
+              </div>
+            </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-top: 0.75rem;">
+              ${chain || '<span style="color: var(--text-muted); font-size: 0.85rem;">empty</span>'}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function escapeAttr(s) { return String(s).replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
+
+    function openAddComboModal(editName) {
+      const combos = (bobbyConfig && bobbyConfig.combos) || {};
+      if (editName && Array.isArray(combos[editName])) {
+        comboDraft = { name: editName, steps: [...combos[editName]], editingOriginalName: editName };
+        document.getElementById('comboModalTitle').innerText = 'Edit Combo';
+      } else {
+        comboDraft = { name: '', steps: [], editingOriginalName: null };
+        document.getElementById('comboModalTitle').innerText = 'New Combo';
+      }
+      document.getElementById('comboNameInput').value = comboDraft.name;
+      // Populate provider dropdown from registered providers.
+      const provSel = document.getElementById('comboProviderSelect');
+      const providers = (bobbyConfig && bobbyConfig.providers) || [];
+      provSel.innerHTML = providers.length
+        ? providers.map(p => `<option value="${escapeAttr(p.id)}">${escapeHtml(p.name)}</option>`).join('')
+        : '<option value="">No providers</option>';
+      onComboProviderChange();
+      renderComboSteps();
+      document.getElementById('addComboModal').classList.add('active');
+    }
+
+    function onComboProviderChange() {
+      const provId = document.getElementById('comboProviderSelect').value;
+      const provider = ((bobbyConfig && bobbyConfig.providers) || []).find(p => p.id === provId);
+      const modelSel = document.getElementById('comboModelSelect');
+      const models = (provider && Array.isArray(provider.models)) ? provider.models : [];
+      modelSel.innerHTML = models.length
+        ? models.map(m => `<option value="${escapeAttr(m)}">${escapeHtml(m)}</option>`).join('')
+        : '<option value="">No known models — sync first</option>';
+    }
+
+    function addComboStep() {
+      const provId = document.getElementById('comboProviderSelect').value;
+      const model = document.getElementById('comboModelSelect').value;
+      if (!provId || !model) { bobbyAlert('Pick a provider and a model first.'); return; }
+      const spec = `${provId}/${model}`;
+      if (comboDraft.steps.includes(spec)) { bobbyAlert('That model is already in the chain.'); return; }
+      comboDraft.steps.push(spec);
+      renderComboSteps();
+    }
+
+    function removeComboStep(idx) { comboDraft.steps.splice(idx, 1); renderComboSteps(); }
+    function moveComboStep(idx, dir) {
+      const j = idx + dir;
+      if (j < 0 || j >= comboDraft.steps.length) return;
+      const s = comboDraft.steps;
+      [s[idx], s[j]] = [s[j], s[idx]];
+      renderComboSteps();
+    }
+
+    function renderComboSteps() {
+      const list = document.getElementById('comboStepsList');
+      if (comboDraft.steps.length === 0) {
+        list.innerHTML = `<div class="empty-state" style="padding: 1rem;">No models yet. Add at least one above.</div>`;
+        return;
+      }
+      list.innerHTML = comboDraft.steps.map((spec, i) => `
+        <div class="account-item">
+          <div><span class="badge">${i + 1}</span> <strong>${escapeHtml(spec)}</strong></div>
+          <div style="display: flex; gap: 0.3rem;">
+            <button class="btn" style="background: rgba(255,255,255,0.08); color: white; padding: 0.3rem 0.5rem; font-size: 0.8rem" onclick="moveComboStep(${i}, -1)" ${i === 0 ? 'disabled' : ''}>&uarr;</button>
+            <button class="btn" style="background: rgba(255,255,255,0.08); color: white; padding: 0.3rem 0.5rem; font-size: 0.8rem" onclick="moveComboStep(${i}, 1)" ${i === comboDraft.steps.length - 1 ? 'disabled' : ''}>&darr;</button>
+            <button class="btn" style="background: rgba(239,68,68,0.1); color: var(--danger); padding: 0.3rem 0.6rem; font-size: 0.8rem" onclick="removeComboStep(${i})">Remove</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function saveCombo() {
+      const name = document.getElementById('comboNameInput').value.trim();
+      if (!name) { bobbyAlert('Give the combo a name.'); return; }
+      if (name.includes('/')) { bobbyAlert('Combo name cannot contain "/" (that looks like a provider/model).'); return; }
+      if (comboDraft.steps.length === 0) { bobbyAlert('Add at least one model to the chain.'); return; }
+      if (!bobbyConfig.combos) bobbyConfig.combos = {};
+      // Renaming an existing combo: drop the old key.
+      if (comboDraft.editingOriginalName && comboDraft.editingOriginalName !== name) {
+        delete bobbyConfig.combos[comboDraft.editingOriginalName];
+      }
+      // Guard against clobbering a different existing combo on rename/create.
+      if (name !== comboDraft.editingOriginalName && bobbyConfig.combos[name]) {
+        if (!(await bobbyConfirm(`A combo named "${name}" already exists. Overwrite it?`))) return;
+      }
+      bobbyConfig.combos[name] = [...comboDraft.steps];
+      await saveConfig();
+      closeModal('addComboModal');
+      renderCombos();
+      bobbyAlert(`Combo "${name}" saved.`, 'success');
+    }
+
+    async function deleteCombo(name) {
+      if (!(await bobbyConfirm(`Delete combo "${name}"?`))) return;
+      if (bobbyConfig.combos) delete bobbyConfig.combos[name];
+      await saveConfig();
+      renderCombos();
+    }
+
     async function saveConfig() {
       isSaving = true;
       try {
@@ -1261,7 +1474,18 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
       }
     }
 
+    // Stamp the running router's version into the sidebar (one shot — it can't
+    // change while the process is up). Silent on failure; it's just a label.
+    async function loadVersion() {
+      try {
+        const res = await fetch('/api/ping');
+        const data = await res.json();
+        if (data.version) document.getElementById('brand-version').textContent = 'v' + data.version;
+      } catch {}
+    }
+
     // Init
+    loadVersion();
     loadConfig();
     loadStats();
     loadMetrics();

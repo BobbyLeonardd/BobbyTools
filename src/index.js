@@ -7,6 +7,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { spawn, spawnSync, exec } from 'child_process';
 import { manageProviders } from './providers.js';
+import { manageCombos } from './combos.js';
 import { launchSession, quickLaunch } from './launcher.js';
 import { PROVIDER_TEMPLATES } from './templates.js';
 import { compareVersions } from './helpers.js';
@@ -155,6 +156,7 @@ async function mainMenu() {
 
     choices.push(
       { name: '📦  Manage Providers', value: 'providers' },
+      { name: '🔀  Manage Combos', value: 'combos' },
       { name: '🔧  Settings', value: 'settings' },
       { name: '📖  Cara Pakai (Tutorial)', value: 'tutorial' },
       { name: '❌  Exit', value: 'exit' },
@@ -190,6 +192,9 @@ async function mainMenu() {
         break;
       case 'providers':
         await manageProviders();
+        break;
+      case 'combos':
+        await manageCombos();
         break;
       case 'settings':
         await manageSettings();
@@ -334,38 +339,42 @@ async function showTutorial() {
   clearScreen();
   showBanner();
   console.log(chalk.cyan.bold('  📖 PANDUAN LENGKAP BOBBYTOOLS (Biar Lo Ga Keder)\n'));
-  
+
   console.log(chalk.gray('  Duduk manis. Baca bentar, gue tulis ini sekali biar gak ditanyain mulu.'));
-  console.log(chalk.gray('  Konsep intinya cuma satu: lo simpen semua API key di sini, Bobby yang ngatur'));
-  console.log(chalk.gray('  giliran + rotasi pas kena limit. Ada dua cara makenya:\n'));
-  console.log(chalk.white('    1. Mode Web/Router  ') + chalk.gray('- satu server buat semua CLI, auto-rotate nyala. (rekomendasi)'));
+  console.log(chalk.gray('  Konsep intinya satu: lo simpen semua API key di sini, Bobby yang ngatur'));
+  console.log(chalk.gray('  giliran + rotasi pas kena limit + nerjemahin format kalo beda. Dua cara makenya:\n'));
+  console.log(chalk.white('    1. Mode Web/Router  ') + chalk.gray('- satu server buat semua CLI, auto-rotate + translator nyala. (rekomendasi)'));
   console.log(chalk.white('    2. Mode Klasik      ') + chalk.gray('- launcher interaktif, sekali jalan satu sesi.\n'));
 
   divider();
   console.log(chalk.white.bold('\n  📦 INSTALL / UPDATE / UNINSTALL\n'));
-  console.log(chalk.gray('  Butuh Node.js v18+ (cek: ') + chalk.yellow('node -v') + chalk.gray('). Sisanya npm yang urus.\n'));
+  console.log(chalk.gray('  Butuh Node.js v18+ (cek: ') + chalk.yellow('node -v') + chalk.gray('). Gak ada = ambil LTS di nodejs.org. Sisanya npm yang urus.\n'));
   console.log(chalk.white('  Install   ') + chalk.gray(': ') + chalk.yellow('npm install -g bobbytools') + chalk.gray('   (sekali doang, langsung bisa dipanggil "bobby" di mana aja)'));
-  console.log(chalk.white('  Update    ') + chalk.gray(': ') + chalk.yellow('bobby update') + chalk.gray('   (dia ngecek versi npm & nawarin update otomatis)'));
-  console.log(chalk.white('  Uninstall ') + chalk.gray(': ') + chalk.yellow('npm uninstall -g bobbytools'));
+  console.log(chalk.gray('              Cek berhasil: ') + chalk.yellow('bobby -v') + chalk.gray('. "command not found"? folder npm global belum masuk PATH — restart terminal.'));
+  console.log(chalk.white('  Update    ') + chalk.gray(': ') + chalk.yellow('bobby update') + chalk.gray('   (dia ngecek versi npm & nawarin update otomatis, tinggal Enter)'));
+  console.log(chalk.white('  Uninstall ') + chalk.gray(': matiin dulu router yang jalan (menu ') + chalk.yellow('Stop Web Dashboard') + chalk.gray('), terus:'));
+  console.log(chalk.gray('              ') + chalk.yellow('npm uninstall -g bobbytools'));
   console.log(chalk.gray('              Config lo (') + chalk.cyan('~/.bobbytools/') + chalk.gray(') gak ikut kehapus. Mau bersih total, hapus manual:'));
-  console.log(chalk.gray('              Mac/Linux : ') + chalk.yellow('rm -rf ~/.bobbytools'));
-  console.log(chalk.gray('              Windows   : ') + chalk.yellow('rmdir /s /q %USERPROFILE%\\.bobbytools') + chalk.gray('  (atau hapus folder-nya lewat Explorer)'));
-  console.log(chalk.gray('              PowerShell: ') + chalk.yellow('Remove-Item -Recurse -Force $env:USERPROFILE\\.bobbytools\n'));
+  console.log(chalk.gray('              Mac/Linux/GitBash : ') + chalk.yellow('rm -rf ~/.bobbytools'));
+  console.log(chalk.gray('              Windows PowerShell: ') + chalk.yellow('Remove-Item -Recurse -Force "$env:USERPROFILE\\.bobbytools"'));
+  console.log(chalk.gray('              Windows CMD       : ') + chalk.yellow('rmdir /s /q %USERPROFILE%\\.bobbytools'));
+  console.log(chalk.red('              ⚠  Langkah hapus config itu permanen — semua key ilang, gak ada undo. Cuma reinstall? Skip.\n'));
 
   divider();
   console.log(chalk.white.bold('\n  🔥 MODE 1: WEB / ROUTER\n'));
   console.log(chalk.gray('  Bobby jalan jadi server lokal (port 13337). CLI lo nembak ke situ, Bobby'));
-  console.log(chalk.gray('  yang nyuntikin key asli + muterin akun kalo ada yang limit.\n'));
+  console.log(chalk.gray('  yang nyuntikin key asli, muterin akun kalo ada yang limit, dan nerjemahin format kalo beda.\n'));
 
   console.log(chalk.white('  Langkah 1. ') + chalk.gray('Dari menu utama, pilih ') + chalk.yellow('🌐 Start Web Dashboard (Background)') + chalk.gray('.'));
   console.log(chalk.gray('             Browser kebuka otomatis ke ') + chalk.cyan('http://127.0.0.1:13337') + chalk.gray('. Terminal ini boleh ditutup,'));
-  console.log(chalk.gray('             server-nya udah jadi daemon di background.'));
+  console.log(chalk.gray('             server-nya udah jadi daemon di background. (Atau langsung: ') + chalk.yellow('bobby serve-bg') + chalk.gray('.)'));
   console.log(chalk.white('  Langkah 2. ') + chalk.gray('Di web: ') + chalk.yellow('Add Provider') + chalk.gray(' (misal Groq) -> tambahin SEMUA akun/key yang lo punya.'));
   console.log(chalk.gray('             Makin banyak akun, makin lama lo kebal limit.'));
   console.log(chalk.white('  Langkah 3. ') + chalk.gray('Buka terminal ngoding lo (aider/opencode/cursor/claude), arahin ke Bobby:'));
   console.log(chalk.gray('             Mac/Linux/GitBash : ') + chalk.yellow('export OPENAI_BASE_URL="http://127.0.0.1:13337/v1"'));
   console.log(chalk.gray('             Windows PowerShell: ') + chalk.yellow('$env:OPENAI_BASE_URL="http://127.0.0.1:13337/v1"'));
   console.log(chalk.gray('             Windows CMD       : ') + chalk.yellow('set OPENAI_BASE_URL=http://127.0.0.1:13337/v1'));
+  console.log(chalk.gray('             Pake claude-code / CLI Anthropic-style? Ganti prefix jadi ') + chalk.yellow('ANTHROPIC_BASE_URL') + chalk.gray(', URL-nya sama.'));
   console.log(chalk.gray('             API key-nya isi apa aja (') + chalk.yellow('sk-bobby') + chalk.gray('), Bobby gak peduli — yang asli dia yang pegang.'));
   console.log(chalk.white('  Langkah 4. ') + chalk.gray('Panggil model pake format ') + chalk.yellow('<provider>/<model>') + chalk.gray(':'));
   console.log(chalk.gray('             ') + chalk.cyan('opencode -m groq/llama3-70b-8192'));
@@ -375,26 +384,53 @@ async function showTutorial() {
   console.log(chalk.green('  Yang kejadian di belakang layar:'));
   console.log(chalk.gray('  • ') + chalk.white('Auto-rotate: ') + chalk.gray('akun kena 429/401/402 -> Bobby lompat ke akun aktif berikutnya, retry, CLI lo gak tau apa-apa.'));
   console.log(chalk.gray('  • ') + chalk.white('Cooldown:    ') + chalk.gray('akun yang kena limit auto-balik "aktif" setelah nunggu sebentar. Gak perlu reset manual.'));
-  console.log(chalk.gray('  • ') + chalk.white('Fallback:    ') + chalk.gray('kalo semua akun 1 provider abis, Bobby cari provider LAIN yang punya model sama.\n'));
+  console.log(chalk.gray('  • ') + chalk.white('Fallback:    ') + chalk.gray('kalo semua akun 1 provider abis, Bobby cari provider LAIN yang punya model sama.'));
+  console.log(chalk.gray('  • ') + chalk.white('Translator:  ') + chalk.gray('kalo format CLI ≠ format provider, Bobby nerjemahin di tengah jalan (lihat bagian bawah).\n'));
 
   divider();
   console.log(chalk.white.bold('\n  💻 MODE 2: KLASIK (LAUNCHER)\n'));
   console.log(chalk.gray('  Buat yang males buka browser & males ngetik export. Sekali jalan, satu sesi.\n'));
   console.log(chalk.white('  Langkah 1. ') + chalk.gray('Ketik ') + chalk.yellow('bobby') + chalk.gray('.'));
   console.log(chalk.white('  Langkah 2. ') + chalk.yellow('📦 Manage Providers') + chalk.gray(' -> Add Provider (sekalian isi Target CLI, misal opencode).'));
-  console.log(chalk.white('  Langkah 3. ') + chalk.yellow('👤 Manage Accounts') + chalk.gray(' -> masukin API key lo.'));
+  console.log(chalk.white('  Langkah 3. ') + chalk.gray('Buka provider itu -> ') + chalk.yellow('Manage Accounts') + chalk.gray(' -> masukin API key lo.'));
   console.log(chalk.white('  Langkah 4. ') + chalk.gray('Balik ke menu, ') + chalk.yellow('🚀 Start Session') + chalk.gray(' -> pilih Provider, Akun, Model.'));
-  console.log(chalk.gray('             Bobby nutup dirinya sendiri, ngebuka CLI target dengan key udah kesuntik di memori.\n'));
+  console.log(chalk.gray('             Bobby nutup dirinya sendiri, ngebuka CLI target dengan key udah kesuntik di memori.'));
+  console.log(chalk.gray('             Besoknya tinggal ') + chalk.yellow('bobby go') + chalk.gray(' — langsung lanjut sesi terakhir, tanpa klik-klik.\n'));
+
+  divider();
+  console.log(chalk.white.bold('\n  🔀 COMBOS (Manage Combos) — rantai model cadangan\n'));
+  console.log(chalk.gray('  Combo = daftar ') + chalk.cyan('provider/model') + chalk.gray(' berurutan yang lo kasih satu nama. Bobby coba dari atas;'));
+  console.log(chalk.gray('  begitu SATU model bener-bener abis (semua akunnya + fallback lintas-provider mentok), baru turun ke model berikutnya.\n'));
+  console.log(chalk.white('  Bikin  : ') + chalk.gray('menu ') + chalk.yellow('🔀 Manage Combos') + chalk.gray(' -> Add Combo -> kasih nama (tanpa "/") -> susun langkahnya (urutannya bisa digeser).'));
+  console.log(chalk.white('  Pake   : ') + chalk.gray('panggil nama combo-nya di posisi model: ') + chalk.cyan('opencode -m ngebut') + chalk.gray('  (kalo combo-nya bernama "ngebut").'));
+  console.log(chalk.gray('  Ini SATU-SATUNYA tempat Bobby ganti model di tengah request — dan cuma buat nama yang lo daftarin sebagai combo.'));
+  console.log(chalk.gray('  Request ') + chalk.cyan('provider/model') + chalk.gray(' biasa tetep dikunci ke model itu (kena 429 ya 429, gak diem-diem pindah model).\n'));
+
+  divider();
+  console.log(chalk.white.bold('\n  🌐 PENERJEMAH FORMAT (kenapa claude-code bisa nembak provider apa aja)\n'));
+  console.log(chalk.gray('  Tiap CLI ngomong "bahasa" API sendiri: claude-code = ') + chalk.cyan('Anthropic Messages') + chalk.gray(', mayoritas provider = ') + chalk.cyan('OpenAI Chat'));
+  console.log(chalk.gray('  Completions') + chalk.gray(', Google = ') + chalk.cyan('Gemini') + chalk.gray(', OpenAI baru = ') + chalk.cyan('Responses') + chalk.gray('. Bobby nerjemahin lewat "hub" tengah,'));
+  console.log(chalk.gray('  jadi kombinasi mana pun nyambung: teks, streaming, tool/function call, dan gambar/vision — dua arah.\n'));
+  console.log(chalk.white('  Setelan: ') + chalk.gray('Manage Providers -> Edit Provider -> ') + chalk.yellow('API Format') + chalk.gray(' -> pilih ') + chalk.cyan('openai / anthropic / gemini / responses') + chalk.gray('.'));
+  console.log(chalk.gray('           Default = ') + chalk.cyan('openai') + chalk.gray(', jadi mayoritas provider gak usah disetel apa-apa. Set ini cuma kalo provider-nya beneran ngomong format lain.'));
+  console.log(chalk.gray('           Kalo format CLI == format provider, Bobby lewat jalur cepat (diterusin apa adanya, nol overhead).\n'));
 
   divider();
   console.log(chalk.white.bold('\n  🧠 NGATUR MODEL (Manage Providers -> Edit Provider -> Edit Models)\n'));
   console.log(chalk.gray('  Tiap provider punya daftar model sendiri. Di menu Edit Models lo bisa:'));
   console.log(chalk.gray('  • ') + chalk.white('Add/Rename/Delete') + chalk.gray(' model manual.'));
-  console.log(chalk.gray('  • ') + chalk.white('Fetch/Refresh') + chalk.gray(' — narik daftar model langsung dari API provider (kalo dia punya endpoint /models).'));
+  console.log(chalk.gray('  • ') + chalk.white('Fetch/Refresh') + chalk.gray(' — narik daftar model langsung dari API provider (kalo dia punya endpoint /models), hasilnya di-merge.'));
   console.log(chalk.gray('  • ') + chalk.white('Set Models Endpoint') + chalk.gray(' — path buat nge-fetch tadi. Kosongin = provider jadi manual-only.\n'));
   console.log(chalk.yellow('  ⚠  Provider dengan Base URL lokal (localhost/127.0.0.1) = manual-only.'));
   console.log(chalk.gray('     Fetch-nya sengaja dimatiin biar gak nyerep model dari router sendiri (bikin loop & nama aneh).'));
   console.log(chalk.gray('     Jadi buat provider lokal, tambahin model-nya pake tangan aja.\n'));
+
+  divider();
+  console.log(chalk.white.bold('\n  🔧 KALO MAMPET (Troubleshooting)\n'));
+  console.log(chalk.gray('  • ') + chalk.white('401 terus?      ') + chalk.gray('key-nya salah/expired. Cek pake tombol Test di menu akun.'));
+  console.log(chalk.gray('  • ') + chalk.white('"Provider not found"? ') + chalk.gray('prefix model lo gak cocok sama nama provider. Samain (spasi -> strip).'));
+  console.log(chalk.gray('  • ') + chalk.white('Model lokal gak muncul? ') + chalk.gray('emang gak diserep otomatis. Tambah manual di Edit Models.'));
+  console.log(chalk.gray('  • ') + chalk.white('Mau mulai bersih? ') + chalk.gray('Settings -> Factory Reset. Config lama ada backup di ') + chalk.cyan('~/.bobbytools/config.backup.json') + chalk.gray('.\n'));
 
   divider();
   console.log(chalk.cyan.bold('\n  💤 TIPS MALAS:'));
@@ -446,6 +482,9 @@ function showHelp() {
   console.log(chalk.gray('    Install   : ') + chalk.yellow('npm install -g bobbytools') + chalk.gray('   (butuh Node.js >= 18)'));
   console.log(chalk.gray('    Uninstall : ') + chalk.yellow('npm uninstall -g bobbytools'));
   console.log(chalk.gray('    Hapus data: ') + chalk.yellow('~/.bobbytools') + chalk.gray(' (config + backup — hapus manual kalo mau bersih total).'));
+  console.log();
+
+  console.log(chalk.gray('  Mau panduan lengkap (combos, penerjemah format, troubleshooting)? Ketik ') + chalk.yellow('bobby') + chalk.gray(' -> ') + chalk.yellow('📖 Cara Pakai (Tutorial)') + chalk.gray('.'));
   console.log();
 }
 

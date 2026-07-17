@@ -1,6 +1,11 @@
 import chalk from 'chalk';
+import { createRequire } from 'module';
 
-export const VERSION = '3.2.0';
+// Single source of truth: read the version straight from package.json so `bobby
+// -v`, the banner, and `bobby update`'s compare can never drift from what npm
+// actually published. createRequire loads JSON on every Node 18+ without the
+// import-assertion syntax that changed between versions.
+export const VERSION = createRequire(import.meta.url)('../package.json').version;
 
 const BRAND = chalk.hex('#FF6B35');
 const ACCENT = chalk.hex('#00D4AA');
