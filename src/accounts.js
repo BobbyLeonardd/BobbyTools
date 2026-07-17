@@ -307,6 +307,9 @@ async function toggleAccount(config, provider) {
       const acc = provider.accounts.find(a => a.id === id);
       if (acc) {
         acc.status = acc.status === 'active' ? 'limited' : 'active';
+        // Flipping back to active means the user fixed/accepts the key — clear the
+        // router's limit bookkeeping so a revived key starts clean.
+        if (acc.status === 'active') { delete acc.limitedAt; delete acc.retryAfterMs; delete acc.authFailed; }
       }
     }
     

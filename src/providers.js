@@ -1,7 +1,7 @@
 import { select, input, confirm, Separator } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { getConfig, saveConfig } from './config.js';
-import { slugTaken, isLocalUrl } from './helpers.js';
+import { slugTaken, isLocalUrl, normalizeFetchedModels } from './helpers.js';
 import { PROVIDER_TEMPLATES } from './templates.js';
 import { success, error, warn, info, dim, divider, clearScreen, pause, showBanner } from './ui.js';
 import { manageAccounts } from './accounts.js';
@@ -416,6 +416,7 @@ async function editProvider() {
 
       choices.push(
         { name: `Opencode Plugin: ${provider.opencodeNpm || '@ai-sdk/openai-compatible'}`, value: 'opencodeNpm' },
+        { name: `API Format: ${provider.apiFormat === 'anthropic' ? 'anthropic (Messages API)' : 'openai (Chat Completions)'}`, value: 'apiFormat' },
         { name: `Default CLI: ${provider.defaultCli || '(none)'}`, value: 'defaultCli' },
         { name: chalk.gray('↩️  Back'), value: 'back' }
       );
@@ -433,6 +434,26 @@ async function editProvider() {
         const newCli = await selectCliTool(config, 'Select new default CLI');
         if (!newCli) continue;
         provider.defaultCli = newCli;
+        saveConfig(config);
+        success('Provider updated!');
+        await pause();
+        continue;
+      }
+
+      // Wire format this provider speaks. Default 'openai' (most providers).
+      // Set 'anthropic' only for a native Anthropic Messages endpoint (e.g.
+      // api.anthropic.com) — the router translates when it differs from the
+      // format the client sent. See src/translate.js.
+      if (field === 'apiFormat') {
+        const newFmt = await select({
+          message: 'API format this provider speaks',
+          choices: [
+            { name: 'openai — Chat Completions (Groq, OpenRouter, most)', value: 'openai' },
+            { name: 'anthropic — Messages API (api.anthropic.com)', value: 'anthropic' },
+          ],
+          default: provider.apiFormat === 'anthropic' ? 'anthropic' : 'openai',
+        });
+        provider.apiFormat = newFmt;
         saveConfig(config);
         success('Provider updated!');
         await pause();
@@ -622,12 +643,20 @@ async function fetchModelsInto(config, provider) {
     return;
   }
 
+  // Auto-clean self-prefixed ids (e.g. genfity's "genfity/glm-5.2" -> "glm-5.2")
+  // and record aliases back to the advertised id so upstream still gets what it
+  // published. Keeps stored names routable without any hand-editing.
+  const { models: cleaned, aliases } = normalizeFetchedModels(provider, fetched);
   const before = new Set(provider.models || []);
-  const merged = [...new Set([...(provider.models || []), ...fetched])].sort();
+  const merged = [...new Set([...(provider.models || []), ...cleaned])].sort();
   const added = merged.filter((m) => !before.has(m)).length;
   provider.models = merged;
+  if (Object.keys(aliases).length) {
+    provider.modelAliases = { ...(provider.modelAliases || {}), ...aliases };
+  }
   saveConfig(config);
-  success(`Fetched ${fetched.length} model(s) — ${added} new, ${merged.length} total.`);
+  const aliasNote = Object.keys(aliases).length ? `, ${Object.keys(aliases).length} auto-aliased` : '';
+  success(`Fetched ${fetched.length} model(s) — ${added} new, ${merged.length} total${aliasNote}.`);
   await pause();
 }
 
