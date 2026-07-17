@@ -1,7 +1,7 @@
 import { search, input } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { getConfig, saveConfig } from './config.js';
-import { resolveBaseUrl, getApiKey, isLocalUrl } from './helpers.js';
+import { resolveBaseUrl, getApiKey, isLocalUrl, normalizeFetchedModels } from './helpers.js';
 import { success, warn, info, dim } from './ui.js';
 
 export async function fetchModels(provider, account) {
@@ -55,9 +55,14 @@ export async function selectModel(provider, account) {
   const p = config.providers.find((pr) => pr.id === provider.id);
 
   if (models && models.length > 0) {
-    // Cache fetched models
+    // Auto-clean self-prefixed ids ("genfity/glm-5.2" -> "glm-5.2") + record an
+    // alias back to the advertised id, same as Edit Models' fetch. Keeps the
+    // cached list routable and the picker showing friendly names.
+    const { models: cleaned, aliases } = normalizeFetchedModels(provider, models);
+    models = cleaned;
     if (p) {
-      p.models = models;
+      p.models = cleaned;
+      if (Object.keys(aliases).length) p.modelAliases = { ...(p.modelAliases || {}), ...aliases };
       saveConfig(config);
     }
   } else if (p && p.models && p.models.length > 0) {

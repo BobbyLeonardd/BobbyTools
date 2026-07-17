@@ -3,18 +3,30 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
-import { getConfig, saveConfig } from './config.js';
-import { resolveBaseUrl, reviveLimitedAccounts, slugify, isLocalUrl, fetchWithConnectTimeout } from './helpers.js';
+import { store } from './store.js';
+import { logStore } from './logstore.js';
+import { resolveBaseUrl, reviveLimitedAccounts, slugify, isLocalUrl, fetchWithConnectTimeout, computeStats, parseRetryAfter, rollupMetrics, resolveModelId, findFallbackProvider } from './helpers.js';
+import {
+  anthropicReqToOpenai, openaiReqToAnthropic,
+  anthropicRespToOpenai, openaiRespToAnthropic,
+  anthropicStreamToOpenai, openaiStreamToAnthropic,
+} from './translate.js';
 import { PROVIDER_TEMPLATES } from './templates.js';
 import chalk from 'chalk';
 
-const requestLogs = [];
-const MAX_LOGS = 100;
+// Request logs live in logStore (a persistent, bounded ring hydrated from disk).
 // How long to wait for a provider to START responding (send headers). Once the
 // stream is flowing this timer is cleared, so long LLM answers are never cut off.
 const CONNECT_TIMEOUT_MS = 30_000;
 
 export async function startRouterServer(port = 13337, background = false) {
+  // Best-effort flush on process teardown (Ctrl+C, SIGTERM) so the last stat
+  // bumps aren't lost. 'exit' can only run sync work — store.flush() is sync.
+  // SIGINT/SIGTERM don't fire 'exit' on their own, so bounce them through exit().
+  process.on('exit', () => { try { store.flush(); } catch {} try { logStore.flush(); } catch {} });
+  process.on('SIGINT', () => process.exit(0));
+  process.on('SIGTERM', () => process.exit(0));
+
   const server = http.createServer(async (req, res) => {
     
     // --- 0. WEB DASHBOARD ENDPOINTS ---
@@ -37,8 +49,9 @@ export async function startRouterServer(port = 13337, background = false) {
       return;
     }
     if (req.method === 'GET' && req.url === '/api/config') {
+      store.reloadIfChanged();
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(getConfig()));
+      res.end(JSON.stringify(store.get()));
       return;
     }
     if (req.method === 'GET' && req.url === '/api/templates') {
@@ -49,7 +62,25 @@ export async function startRouterServer(port = 13337, background = false) {
     }
     if (req.method === 'GET' && req.url === '/api/logs') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(requestLogs));
+      res.end(JSON.stringify(logStore.all()));
+      return;
+    }
+    if (req.method === 'GET' && req.url === '/api/stats') {
+      // Live status: aggregate config + recent logs into one snapshot. Reload
+      // first so a CLI edit is reflected, and revive expired cooldowns so the
+      // "limited until" countdown a client shows matches what routing will do.
+      store.reloadIfChanged();
+      const config = store.get();
+      if (reviveLimitedAccounts(config)) store.scheduleWrite();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(computeStats(config, logStore.all())));
+      return;
+    }
+    if (req.method === 'GET' && req.url === '/api/metrics') {
+      // Per-provider/-model rollup of the persisted log ring: success/limit/error
+      // counts, error rate, avg latency, requests-per-minute.
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(rollupMetrics(logStore.all())));
       return;
     }
     if (req.method === 'POST' && req.url === '/api/config') {
@@ -65,7 +96,9 @@ export async function startRouterServer(port = 13337, background = false) {
             res.end(JSON.stringify({ error: 'Invalid config: "providers" array is required' }));
             return;
           }
-          saveConfig(conf);
+          // Dashboard save: replace the whole in-memory config and persist NOW
+          // (user pressed save — it must land, not sit in the debounce window).
+          store.replace(conf);
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: true }));
         } catch(e) {
@@ -76,6 +109,8 @@ export async function startRouterServer(port = 13337, background = false) {
       return;
     }
     if (req.method === 'POST' && req.url === '/api/shutdown') {
+      store.flush(); // persist any pending debounced write before exiting
+      logStore.flush();
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ success: true }));
       setTimeout(() => {
@@ -86,7 +121,9 @@ export async function startRouterServer(port = 13337, background = false) {
 
     // --- 1. ENDPOINT GET /v1/models ---
     if (req.method === 'GET' && req.url.endsWith('/models')) {
-      const config = getConfig();
+      // External edit (CLI/hand) wins over our in-memory copy — reload if changed.
+      store.reloadIfChanged();
+      const config = store.get();
       let aggregatedModels = [];
 
       for (const provider of config.providers) {
@@ -140,9 +177,13 @@ export async function startRouterServer(port = 13337, background = false) {
         const providerQuery = modelParts[0].toLowerCase();
         const actualModel = modelParts.slice(1).join('/');
 
-        const config = getConfig();
+        // Pick up any external edit (CLI/hand edit) before we touch state, then
+        // work on the SHARED in-memory config so concurrent requests can't clobber
+        // each other's field writes.
+        store.reloadIfChanged();
+        const config = store.get();
         // Revive accounts whose limit cooldown has expired before picking one.
-        if (reviveLimitedAccounts(config)) saveConfig(config);
+        if (reviveLimitedAccounts(config)) store.scheduleWrite();
 
         let provider = config.providers.find(p =>
           p.id.toLowerCase() === providerQuery || slugify(p.name) === providerQuery
@@ -154,13 +195,21 @@ export async function startRouterServer(port = 13337, background = false) {
           return;
         }
 
-        payload.model = actualModel;
-        const newPayloadStr = JSON.stringify(payload);
+        // `actualModel` is the FRIENDLY name the client asked for (provider prefix
+        // stripped). The concrete upstream id can differ per provider (aliases),
+        // so payload.model is resolved per loop iteration below, not here.
+        // Inbound wire format is fixed by the path the client hit: Anthropic
+        // clients (claude-code) POST /v1/messages; OpenAI clients POST
+        // /v1/chat/completions. This never changes across account/provider
+        // fallback, so decide it once. The provider's format is decided per
+        // iteration inside the loop (a fallback provider may differ).
+        const inboundFmt = req.url.includes('/messages') ? 'anthropic' : 'openai';
+        const wantsStream = payload.stream === true;
 
         let activeAccounts = provider.accounts.filter(a => a.status === 'active');
         
         if (activeAccounts.length === 0) {
-          const fallbackProvider = config.providers.find(p => p.id !== provider.id && p.accounts.some(a => a.status === 'active') && p.models && p.models.includes(actualModel));
+          const fallbackProvider = findFallbackProvider(config, provider.id, actualModel);
           if (fallbackProvider) {
             process.stdout.write('\x1b[2K\r' + chalk.magenta(`[FALLBACK] ${provider.name} out of accounts. Auto-switching to ${fallbackProvider.name} for ${actualModel}...\n`));
             provider = fallbackProvider;
@@ -176,7 +225,7 @@ export async function startRouterServer(port = 13337, background = false) {
         let currentAccount = activeAccounts[0];
         
         currentAccount.lastUsed = Date.now();
-        saveConfig(config);
+        store.scheduleWrite();
 
         let attempt = 0;
         let maxAttempts = activeAccounts.length;
@@ -184,17 +233,52 @@ export async function startRouterServer(port = 13337, background = false) {
         // One close listener for the whole request (not per-iteration, or rotating
         // across N accounts would stack N listeners). It aborts whichever fetch is
         // currently in flight if the client (CLI) disconnects mid-request.
+        //
+        // Watch RES, not REQ: the request (readable) stream emits 'close' as soon as
+        // its body is fully read — which for a normal POST happens immediately, long
+        // before the upstream responds. Listening on req.close therefore aborts EVERY
+        // request the instant the body arrives (→ spurious 504s). res.close fires when
+        // the client actually hangs up; the writableEnded guard means a normal
+        // res.end() (response already sent) never triggers a bogus abort.
         let activeController = null;
-        const onClientClose = () => activeController?.abort();
-        req.on('close', onClientClose);
+        const onClientClose = () => { if (!res.writableEnded) activeController?.abort(); };
+        res.on('close', onClientClose);
 
         while (attempt < maxAttempts) {
           const baseUrl = resolveBaseUrl(provider, currentAccount).replace(/\/+$/, '');
-          // CLI usually sends /v1/chat/completions. We want to extract /chat/completions
-          // and append it to the provider's base URL which already includes /v1 for most providers.
-          let endpointPath = req.url;
-          if (endpointPath.startsWith('/v1/')) {
-            endpointPath = endpointPath.slice(3); // becomes /chat/completions
+          // Provider wire format, decided per iteration — a fallback provider may
+          // differ from the one the request started on. Default 'openai' so every
+          // pre-existing provider (no apiFormat field) behaves exactly as before.
+          const providerFmt = provider.apiFormat === 'anthropic' ? 'anthropic' : 'openai';
+
+          // Resolve the friendly model name to THIS provider's upstream id (an
+          // alias map, if any) — so "glm-5.2" can mean "genfity/glm-5.2" upstream
+          // on one provider and "GLM-5.2" on another. No alias = the name as-is
+          // (exactly the old behavior). Done per iteration: a fallback provider
+          // may map the same friendly name to a different id.
+          payload.model = resolveModelId(provider, actualModel);
+
+          // Translate the request body only when the client's format differs from
+          // the provider's. Same format = plain re-serialize (model may have been
+          // remapped above); different format = translate. Passthrough stays the
+          // hot path — no cross-format work when inbound already matches.
+          let outBody;
+          if (inboundFmt !== providerFmt) {
+            const translated = inboundFmt === 'anthropic'
+              ? anthropicReqToOpenai(payload)   // claude-code -> OpenAI provider
+              : openaiReqToAnthropic(payload);  // OpenAI client -> Anthropic provider
+            outBody = JSON.stringify(translated);
+          } else {
+            outBody = JSON.stringify(payload);
+          }
+
+          // Endpoint path must match what the PROVIDER expects, not what the client
+          // sent: an OpenAI provider wants /chat/completions, an Anthropic one wants
+          // /messages. When formats already match we keep the client's own suffix
+          // (covers /v1beta and other variants without a lookup table).
+          let endpointPath = req.url.startsWith('/v1/') ? req.url.slice(3) : req.url;
+          if (inboundFmt !== providerFmt) {
+            endpointPath = providerFmt === 'anthropic' ? '/messages' : '/chat/completions';
           }
           const targetUrl = baseUrl + endpointPath;
 
@@ -206,7 +290,7 @@ export async function startRouterServer(port = 13337, background = false) {
 
           const headers = { ...req.headers };
           delete headers.host;
-          headers['content-length'] = Buffer.byteLength(newPayloadStr);
+          headers['content-length'] = Buffer.byteLength(outBody);
           if (apiKey) {
             if (headers['x-api-key']) {
               headers['x-api-key'] = apiKey;
@@ -221,45 +305,65 @@ export async function startRouterServer(port = 13337, background = false) {
 
           process.stdout.write('\x1b[2K\r' + chalk.cyan(`[ROUTER] Routing to ${provider.name} (${currentAccount.name}) -> ${actualModel}`));
 
-          const logEntry = {
+          const logEntry = logStore.push({
             id: randomUUID(),
             timestamp: new Date().toISOString(),
             provider: provider.name,
             account: currentAccount.name,
             model: actualModel,
             status: 'pending'
-          };
-          requestLogs.unshift(logEntry);
-          if (requestLogs.length > MAX_LOGS) requestLogs.pop();
+          });
 
           // Connect-timeout only (see fetchWithConnectTimeout): a dead provider
           // can't hang forever, but a long stream is never cut off. The shared
           // controller also lets onClientClose abort this fetch mid-stream.
           activeController = new AbortController();
+          const t0 = Date.now();
           const response = await fetchWithConnectTimeout(
             targetUrl,
-            { method: 'POST', headers, body: newPayloadStr },
+            { method: 'POST', headers, body: outBody },
             activeController,
             CONNECT_TIMEOUT_MS,
           );
+          logEntry.latencyMs = Date.now() - t0; // upstream time-to-headers (routing latency, not stream duration)
 
-          if (response.status === 429 || response.status === 401 || response.status === 402) {
+          if (response.status === 429 || response.status === 401 || response.status === 403 || response.status === 402) {
+            // 401/403 = the key itself is rejected (bad/revoked/forbidden). That's
+            // permanent — retrying it every 60s just burns a request slot forever,
+            // so we disable it (authFailed, no limitedAt) and it won't auto-revive
+            // until the user fixes the key. 429/402 = transient rate/quota limit:
+            // mark limitedAt so it auto-revives, honoring Retry-After when given.
+            const permanent = response.status === 401 || response.status === 403;
             logEntry.status = 'limit';
-            process.stdout.write('\x1b[2K\r' + chalk.yellow(`[ROUTER] Account "${currentAccount.name}" hit limit (${response.status}). Auto-rotating...`));
-            
+            logStore.touch(); // persist the finalized 'limit' status + latency
+            const kind = permanent ? 'auth failed (key rejected)' : 'hit limit';
+            process.stdout.write('\x1b[2K\r' + chalk.yellow(`[ROUTER] Account "${currentAccount.name}" ${kind} (${response.status}). Auto-rotating...`));
+
             const p = config.providers.find(x => x.id === provider.id);
             const a = p?.accounts.find(x => x.id === currentAccount.id);
-            if (a) { a.status = 'limited'; a.limitedAt = Date.now(); }
-            
+            if (a) {
+              a.status = 'limited';
+              if (permanent) {
+                a.authFailed = true;
+                delete a.limitedAt;      // no auto-revive for a dead key
+                delete a.retryAfterMs;
+              } else {
+                a.limitedAt = Date.now();
+                delete a.authFailed;
+                const ra = parseRetryAfter(response.headers.get('retry-after'));
+                if (ra != null) a.retryAfterMs = ra; else delete a.retryAfterMs;
+              }
+            }
+
             const nextAccount = p?.accounts.find(x => x.status === 'active' && x.id !== currentAccount.id);
             if (nextAccount) {
               currentAccount = nextAccount;
               currentAccount.lastUsed = Date.now();
-              saveConfig(config);
+              store.scheduleWrite();
               attempt++;
               continue; 
             } else {
-               const fallback = config.providers.find(px => px.id !== provider.id && px.accounts.some(ax => ax.status === 'active') && px.models && px.models.includes(actualModel));
+               const fallback = findFallbackProvider(config, provider.id, actualModel);
                if (fallback) {
                  process.stdout.write('\x1b[2K\r' + chalk.magenta(`[FALLBACK] ${provider.name} accounts exhausted. Switching to ${fallback.name}...\n`));
                  provider = fallback;
@@ -267,24 +371,25 @@ export async function startRouterServer(port = 13337, background = false) {
                  fallbackActive.sort((a, b) => (a.lastUsed || 0) - (b.lastUsed || 0));
                  currentAccount = fallbackActive[0];
                  currentAccount.lastUsed = Date.now();
-                 saveConfig(config);
+                 store.scheduleWrite();
                  attempt = 0;
                  maxAttempts = fallbackActive.length;
                  continue;
                }
                process.stdout.write('\x1b[2K\r' + chalk.red(`[ROUTER] All accounts for ${provider.name} are limited.`));
-               saveConfig(config);
-               break; 
+               store.scheduleWrite();
+               break;
             }
           }
 
           logEntry.status = response.ok ? 'success' : 'error';
+          logStore.touch(); // persist the finalized status + latency
           if (response.ok) {
             const p = config.providers.find(x => x.id === provider.id);
             const a = p?.accounts.find(x => x.id === currentAccount.id);
             if (a) {
               a.usageCount = (a.usageCount || 0) + 1;
-              saveConfig(config);
+              store.scheduleWrite();
             }
           }
 
@@ -295,13 +400,46 @@ export async function startRouterServer(port = 13337, background = false) {
           delete responseHeaders['content-encoding'];
           delete responseHeaders['content-length'];
 
-          res.writeHead(response.status, responseHeaders);
-          if (response.body) {
-            for await (const chunk of response.body) {
-              res.write(chunk);
+          // FAST PATH: formats match → byte-for-byte passthrough, exactly as before.
+          if (inboundFmt === providerFmt || !response.body) {
+            res.writeHead(response.status, responseHeaders);
+            if (response.body) {
+              for await (const chunk of response.body) res.write(chunk);
             }
+            res.end();
+            return;
           }
-          res.end();
+
+          // TRANSLATE the response back into the format the client expects.
+          if (wantsStream) {
+            // SSE reframing. content-type must announce an event stream; length is
+            // unknown (chunked). The generator yields ready-to-write text frames.
+            responseHeaders['content-type'] = 'text/event-stream; charset=utf-8';
+            res.writeHead(response.status, responseHeaders);
+            const gen = inboundFmt === 'anthropic'
+              ? openaiStreamToAnthropic(response.body, { model: actualModel })  // client wants Anthropic, provider streamed OpenAI
+              : anthropicStreamToOpenai(response.body, { model: actualModel }); // client wants OpenAI, provider streamed Anthropic
+            for await (const frame of gen) res.write(frame);
+            res.end();
+            return;
+          }
+
+          // Non-streaming: buffer the whole body, parse, translate, send as JSON.
+          const raw = await response.text();
+          let outText = raw;
+          try {
+            const parsed = JSON.parse(raw);
+            const translated = inboundFmt === 'anthropic'
+              ? openaiRespToAnthropic(parsed)  // client wants Anthropic, provider returned OpenAI
+              : anthropicRespToOpenai(parsed); // client wants OpenAI, provider returned Anthropic
+            outText = JSON.stringify(translated);
+          } catch {
+            // Not JSON (an upstream error page, etc.) — pass the raw body through
+            // untouched rather than turning a real error into a parse crash.
+          }
+          responseHeaders['content-type'] = 'application/json';
+          res.writeHead(response.status, responseHeaders);
+          res.end(outText);
           return;
         }
 
@@ -313,7 +451,7 @@ export async function startRouterServer(port = 13337, background = false) {
         // connect timer fired). Not a real error — don't spam it as one.
         const aborted = err?.name === 'AbortError';
         if (!aborted) {
-          requestLogs.unshift({
+          logStore.push({
             id: randomUUID(),
             timestamp: new Date().toISOString(),
             provider: 'Unknown',
@@ -321,8 +459,7 @@ export async function startRouterServer(port = 13337, background = false) {
             model: 'Unknown',
             status: 'error',
             error: err.message
-          });
-          if (requestLogs.length > MAX_LOGS) requestLogs.pop();
+          }); // push already schedules the persist
           process.stdout.write('\x1b[2K\r' + chalk.red('[ROUTER] Error: ') + (err.message || err));
         }
 

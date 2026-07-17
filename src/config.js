@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, copyFileSync, renameSync, mkdirSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, copyFileSync, renameSync, mkdirSync, existsSync, statSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 
@@ -53,6 +53,17 @@ export function saveConfig(config) {
   // instead of a half-written one. rename is atomic on the same filesystem.
   writeFileSync(CONFIG_TMP, JSON.stringify(config, null, 2), 'utf-8');
   renameSync(CONFIG_TMP, CONFIG_FILE);
+}
+
+// mtime of the on-disk config in ms, or 0 if it doesn't exist / can't be read.
+// The router uses this to detect edits made by a separate `bobby` CLI process
+// while it holds config in memory, so it can reload instead of overwriting them.
+export function configMtimeMs() {
+  try {
+    return statSync(CONFIG_FILE).mtimeMs;
+  } catch {
+    return 0;
+  }
 }
 
 // ── Migrations ──

@@ -275,6 +275,17 @@
     .status-badge.pending { background: rgba(245, 158, 11, 0.1); color: #f59e0b; border-color: rgba(245, 158, 11, 0.2); }
     .status-badge.error { background: rgba(244, 63, 94, 0.1); color: var(--danger); border-color: rgba(244, 63, 94, 0.2); }
 
+    /* Overview / live status */
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+    .stat-card { background: var(--glass-bg); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid var(--glass-border); border-radius: 20px; padding: 1.25rem 1.5rem; }
+    .stat-value { font-size: 2.25rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+    .stat-label { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.5rem; }
+    .stat-sub { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.35rem; }
+    .key-row { display: flex; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--glass-border); font-size: 0.9rem; }
+    .key-row:last-child { border-bottom: none; }
+    .key-detail { margin-left: auto; color: var(--text-muted); font-size: 0.85rem; }
+    .live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 8px var(--success); margin-right: 8px; animation: pulse 1.6s ease-in-out infinite; }
+
     @keyframes slideUp {
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
@@ -336,7 +347,11 @@
       </div>
     </div>
 
-    <div class="nav-item active" onclick="switchTab('providers')" id="nav-providers">
+    <div class="nav-item active" onclick="switchTab('overview')" id="nav-overview">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+      Overview
+    </div>
+    <div class="nav-item" onclick="switchTab('providers')" id="nav-providers">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
       Providers
     </div>
@@ -364,8 +379,23 @@
   <!-- MAIN CONTENT -->
   <main class="main-content">
     
+    <!-- VIEW: OVERVIEW (live status) -->
+    <div id="tab-overview" class="tab-pane active">
+      <div class="page-header">
+        <h2 class="page-title">Overview</h2>
+        <div style="font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+          <span class="live-dot"></span> Live &middot; refreshes every 3s
+        </div>
+      </div>
+      <div id="stat-cards" class="stat-grid"></div>
+      <div id="stat-providers">
+        <div class="empty-state">Loading live status...</div>
+      </div>
+      <div id="stat-metrics" style="margin-top:1.5rem;"></div>
+    </div>
+
     <!-- VIEW: PROVIDERS -->
-    <div id="tab-providers" class="tab-pane active">
+    <div id="tab-providers" class="tab-pane">
       <div class="page-header">
         <h2 class="page-title">Manage Providers</h2>
         <button class="btn btn-primary" onclick="openAddProviderModal()">
@@ -637,6 +667,7 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
     let bobbyConfig = null;
     let configHash = '';
     let logsHash = '';
+    let statsHash = '';
     let isSaving = false;
 
     // -- Custom UI Utilities --
@@ -703,8 +734,124 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
       document.getElementById('tab-' + tabId).classList.add('active');
       document.getElementById('nav-' + tabId).classList.add('active');
       
+      if(tabId === 'overview') loadStats();
       if(tabId === 'settings') renderCliTools();
       if(tabId === 'logs') loadLogs();
+    }
+
+    // -- Overview: live status. Server does all the math (/api/stats); we render. --
+    function fmtRecovers(ms) {
+      if (ms === null || ms === undefined) return '';
+      if (ms <= 0) return 'recovering now';
+      const s = Math.ceil(ms / 1000);
+      if (s < 60) return `back in ${s}s`;
+      return `back in ${Math.ceil(s / 60)}m`;
+    }
+    async function loadStats() {
+      try {
+        const res = await fetch('/api/stats');
+        const text = await res.text();
+        if (text === statsHash) return; // unchanged — skip re-render (avoids flicker)
+        statsHash = text;
+        const s = JSON.parse(text);
+        renderStats(s);
+      } catch (e) {}
+    }
+    function renderStats(s) {
+      // Top metric cards.
+      const cards = [
+        { label: 'Active Keys', value: `${s.totals.active}`, sub: `of ${s.totals.accounts} across ${s.totals.providers} provider(s)`, color: 'var(--success)' },
+        { label: 'Limited Keys', value: `${s.totals.limited}`, sub: s.totals.limited > 0 ? 'auto-recovering on cooldown' : 'all clear', color: s.totals.limited > 0 ? 'var(--danger)' : 'var(--text-muted)' },
+        { label: 'Requests / min', value: `${s.requests.lastMinute}`, sub: `${s.requests.total} total logged`, color: '#a5b4fc' },
+        { label: 'Success / Limit', value: `${s.requests.success} / ${s.requests.limit}`, sub: s.requests.error > 0 ? `${s.requests.error} error(s)` : 'no errors', color: 'var(--success)' },
+      ];
+      document.getElementById('stat-cards').innerHTML = cards.map(c => `
+        <div class="stat-card">
+          <div class="stat-label">${c.label}</div>
+          <div class="stat-value" style="color:${c.color}">${c.value}</div>
+          <div class="stat-sub">${c.sub}</div>
+        </div>
+      `).join('');
+
+      // Per-provider key health.
+      const wrap = document.getElementById('stat-providers');
+      if (!s.providers.length) {
+        wrap.innerHTML = `<div class="empty-state">No providers yet. Add one in the Providers tab.</div>`;
+        return;
+      }
+      wrap.innerHTML = s.providers.map(p => {
+        const dots = p.accounts.map(a => {
+          const active = a.status === 'active';
+          const cls = active ? 'status-active' : 'status-limited';
+          const detail = active
+            ? `${a.usageCount}x used`
+            : (a.authFailed ? "auth failed (bad key — fix & re-enable)"
+               : a.recoversInMs === null ? "manual (won't auto-revive)"
+               : fmtRecovers(a.recoversInMs));
+          return `<div class="key-row">
+            <span class="status-dot ${cls}" style="cursor:default"></span>
+            <strong>${a.name}</strong>
+            <span class="key-detail">${detail}</span>
+          </div>`;
+        }).join('') || `<div style="color:var(--text-muted); font-size:0.9rem;">No accounts.</div>`;
+        return `
+          <div class="glass-card" style="margin-bottom:1rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+              <div class="provider-name">${p.name}</div>
+              <div>
+                <span class="badge" style="color:var(--success)">${p.active} active</span>
+                ${p.limited > 0 ? `<span class="badge" style="color:var(--danger)">${p.limited} limited</span>` : ''}
+              </div>
+            </div>
+            ${dots}
+          </div>`;
+      }).join('');
+    }
+
+    // -- Observability: per-provider/model rollup from /api/metrics. Server does
+    //    the math (rollupMetrics); we render. Latency + success-rate that survive
+    //    a router restart, unlike the raw log list. --
+    let metricsHash = '';
+    async function loadMetrics() {
+      try {
+        const res = await fetch('/api/metrics');
+        const text = await res.text();
+        if (text === metricsHash) return; // unchanged — skip re-render (avoids flicker)
+        metricsHash = text;
+        renderMetrics(JSON.parse(text));
+      } catch (e) {}
+    }
+    function fmtRate(r) { return r === null || r === undefined ? '—' : `${r}%`; }
+    function fmtLat(ms) { return ms === null || ms === undefined ? '—' : `${ms}ms`; }
+    function renderMetrics(m) {
+      const wrap = document.getElementById('stat-metrics');
+      if (!m || !m.total) {
+        wrap.innerHTML = `<div class="empty-state">No requests logged yet. Metrics appear once the router handles traffic.</div>`;
+        return;
+      }
+      const row = (r, label) => `
+        <tr>
+          <td><strong>${label}</strong></td>
+          <td>${r.total}</td>
+          <td style="color:var(--success)">${r.success}</td>
+          <td style="color:var(--danger)">${r.limit + r.error}</td>
+          <td>${fmtRate(r.successRate)}</td>
+          <td>${fmtLat(r.avgLatencyMs)}</td>
+          <td>${r.lastMinute}/min</td>
+        </tr>`;
+      const table = (title, rows) => rows.length ? `
+        <div class="glass-card" style="margin-bottom:1rem;">
+          <div class="provider-name" style="margin-bottom:0.75rem;">${title}</div>
+          <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+            <thead><tr style="text-align:left; color:var(--text-muted);">
+              <th>Name</th><th>Total</th><th>OK</th><th>Fail</th><th>Rate</th><th>Avg latency</th><th>Recent</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>` : '';
+      wrap.innerHTML =
+        table('By provider', m.providers.map(p => row(p, p.provider)).join('')) +
+        table('By model', m.models.map(p => row(p, p.model)).join(''));
     }
 
     async function loadLogs(manual = false) {
@@ -1084,7 +1231,9 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
       if(p) {
         const a = p.accounts.find(x => x.id === accountId);
         if(a) {
-          a.status = a.status === 'active' ? 'limit' : 'active';
+          a.status = a.status === 'active' ? 'limited' : 'active';
+          // Reviving a key: clear the router's limit bookkeeping so it starts clean.
+          if(a.status === 'active') { delete a.limitedAt; delete a.retryAfterMs; delete a.authFailed; }
           await saveConfig();
         }
       }
@@ -1114,10 +1263,14 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
 
     // Init
     loadConfig();
+    loadStats();
+    loadMetrics();
     setInterval(() => {
+      loadStats();   // live status is the landing tab — keep it warm regardless of which tab is open
+      loadMetrics();
       loadLogs();
       syncConfig();
-    }, 3000); // auto-refresh logs & sync config
+    }, 3000); // auto-refresh stats, metrics, logs & sync config
   </script>
 </body>
 </html>
