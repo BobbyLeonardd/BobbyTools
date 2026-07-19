@@ -117,7 +117,7 @@ export async function runBrowserAuthFlow(opts) {
 
       if (err) { finish(false, `Provider returned: ${err}`); return reject(new Error(`OAuth denied: ${err}`)); }
       // CSRF: reject a callback whose state we didn't issue.
-      if (gotState !== state) { finish(false, 'State mismatch (possible CSRF).'); return reject(new Error('OAuth state mismatch — aborting for safety')); }
+      if (gotState !== state) { finish(false, 'State mismatch (possible CSRF).'); return reject(new Error('OAuth state mismatch, aborting for safety')); }
       if (!code) { finish(false, 'No authorization code in callback.'); return reject(new Error('OAuth callback missing code')); }
       finish(true, 'Token stored. BobbyTools will refresh it automatically.');
       resolve(code);

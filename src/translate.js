@@ -1207,6 +1207,69 @@ export function translateResponse(body, from, to) {
   return FORMATS[to].respFromHub(hub);
 }
 
+// ── USAGE SNIFFING ──
+// Token counts live in the response body (`usage`/`usageMetadata`), which the
+// fast-path passthrough never parses. These pull them out AFTER the bytes have
+// already been forwarded, so tracking costs nothing on the hot path.
+//
+// Format-agnostic on purpose: every provider format nests token counts under a
+// slightly different key, but they never collide, so one reader covers all four
+// (openai/anthropic/gemini/responses) plus their streaming envelopes. Returns
+// raw {input,output,cached} (any field undefined if the body didn't report it),
+// or null when nothing usage-shaped is present.
+export function extractUsage(o) {
+  if (!o || typeof o !== 'object') return null;
+  // Unwrap the known envelopes: bare body, anthropic message_start (usage under
+  // .message), responses' response.completed event (usage under .response).
+  const u = o.usage || o.usageMetadata || o.response?.usage || o.response?.usageMetadata || o.message?.usage;
+  if (!u || typeof u !== 'object') return null;
+  const pick = (v) => (typeof v === 'number' && v >= 0 ? v : undefined);
+  const input = pick(u.input_tokens ?? u.prompt_tokens ?? u.promptTokenCount);
+  const output = pick(u.output_tokens ?? u.completion_tokens ?? u.candidatesTokenCount);
+  const cached = pick(u.cache_read_input_tokens ?? u.prompt_tokens_details?.cached_tokens ?? u.cachedContentTokenCount);
+  if (input === undefined && output === undefined && cached === undefined) return null;
+  return { input, output, cached };
+}
+
+function normalizeUsage(u) {
+  if (!u) return null;
+  const out = {};
+  if (u.input !== undefined) out.inputTokens = u.input;
+  if (u.output !== undefined) out.outputTokens = u.output;
+  if (u.cached !== undefined) out.cachedTokens = u.cached;
+  return Object.keys(out).length ? out : null;
+}
+
+// Pull token usage out of a whole response body. `wasStream` picks the shape:
+// an SSE event stream (scan every data: frame, merge per-field so anthropic's
+// split input@message_start / output@message_delta reunites, and cumulative
+// gemini/openai final-chunk counts land on the last value) vs a single JSON
+// object. Returns {inputTokens?,outputTokens?,cachedTokens?} or null.
+export function sniffUsage(text, wasStream) {
+  if (!text) return null;
+  if (!wasStream) {
+    try { return normalizeUsage(extractUsage(JSON.parse(text))); } catch { return null; }
+  }
+  const merged = {};
+  let found = false;
+  for (const line of text.split('\n')) {
+    const s = line.trim();
+    if (!s.startsWith('data:')) continue;
+    const payload = s.slice(5).trim();
+    if (!payload || payload === '[DONE]') continue;
+    let obj; try { obj = JSON.parse(payload); } catch { continue; }
+    const u = extractUsage(obj);
+    if (!u) continue;
+    found = true;
+    // Per-field last-writer-wins: a frame that omits a field leaves the prior
+    // value intact (message_delta has no input, so message_start's input holds).
+    if (u.input !== undefined) merged.input = u.input;
+    if (u.output !== undefined) merged.output = u.output;
+    if (u.cached !== undefined) merged.cached = u.cached;
+  }
+  return found ? normalizeUsage(merged) : null;
+}
+
 // Stream stays lazy end-to-end: no buffering, generators compose. `from` is the
 // provider's format (what it streamed), `to` is the client's format (what it
 // expects). opts (model/id) flow to whichever spoke needs to synthesize them.

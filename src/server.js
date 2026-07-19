@@ -5,9 +5,9 @@ import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
 import { store } from './store.js';
 import { logStore } from './logstore.js';
-import { resolveBaseUrl, reviveLimitedAccounts, slugify, isLocalUrl, fetchWithConnectTimeout, computeStats, parseRetryAfter, rollupMetrics, resolveModelId, findFallbackProvider, isTrustedControlRequest, resolveComboSpecs, normalizeFetchedModels, DEFAULT_ROUTER_PORT } from './helpers.js';
+import { resolveBaseUrl, reviveLimitedAccounts, slugify, isLocalUrl, fetchWithConnectTimeout, computeStats, parseRetryAfter, rollupMetrics, resolveModelId, findFallbackProvider, isTrustedControlRequest, resolveComboSpecs, normalizeFetchedModels, extractModelPricing, DEFAULT_ROUTER_PORT } from './helpers.js';
 import {
-  translateRequest, translateResponse, translateStream, normalizeFormat,
+  translateRequest, translateResponse, translateStream, normalizeFormat, sniffUsage,
 } from './translate.js';
 import { resolveAccessToken, normalizeAuthType, invalidateToken } from './oauth.js';
 import { PROVIDER_TEMPLATES } from './templates.js';
@@ -18,6 +18,48 @@ import chalk from 'chalk';
 // How long to wait for a provider to START responding (send headers). Once the
 // stream is flowing this timer is cleared, so long LLM answers are never cut off.
 const CONNECT_TIMEOUT_MS = 30_000;
+
+// How many trailing bytes of a response we retain to sniff token usage. Usage
+// lives at the END (final SSE frame / usage key at the tail of a JSON body), so
+// we keep the tail, not the head. Bounds memory on huge streams; usage past this
+// window is simply not recovered (the request logs as unmeasured, never wrong).
+const USAGE_TAIL_CAP = 256 * 1024;
+
+// Forward a passthrough body chunk-by-chunk (unchanged bytes, still lazy) while
+// keeping a rolling tail for usage sniffing. Yields every chunk so callers use it
+// exactly like the raw body — in a for-await to res.write, or as the source of
+// translateStream. Calls sink(tailText) once the body ends.
+// ponytail: a multibyte UTF-8 char can be split at the tail cutoff; the first
+// partial line then fails to parse and is skipped — fine, usage is a whole frame.
+export async function* tapTail(body, sink) {
+  let tail = Buffer.alloc(0);
+  // sink runs in finally, not after the loop: a cross-format translate whose
+  // provider is OpenAI ends on a `data: [DONE]` frame, and the downstream
+  // reframer breaks on it — that closes this generator early (.return()), so
+  // code placed after the for-await would be skipped and usage never sniffed.
+  // finally fires on both natural end and early close, and the usage frame
+  // always precedes [DONE] in the byte stream, so the tail already holds it.
+  try {
+    for await (const chunk of body) {
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      tail = tail.length ? Buffer.concat([tail, buf]) : buf;
+      if (tail.length > USAGE_TAIL_CAP) tail = tail.subarray(tail.length - USAGE_TAIL_CAP);
+      yield chunk;
+    }
+  } finally {
+    sink(tail.toString('utf-8'));
+  }
+}
+
+// Stamp sniffed token counts onto a log entry (in place) and persist. No-op when
+// the body reported no usage, so entries without it read as unmeasured, not zero.
+function recordUsage(logEntry, usage) {
+  if (!logEntry || !usage) return;
+  if (usage.inputTokens !== undefined) logEntry.inputTokens = usage.inputTokens;
+  if (usage.outputTokens !== undefined) logEntry.outputTokens = usage.outputTokens;
+  if (usage.cachedTokens !== undefined) logEntry.cachedTokens = usage.cachedTokens;
+  logStore.touch();
+}
 
 export async function startRouterServer(port = DEFAULT_ROUTER_PORT, background = false) {
   // Best-effort flush on process teardown (Ctrl+C, SIGTERM) so the last stat
@@ -133,9 +175,9 @@ export async function startRouterServer(port = DEFAULT_ROUTER_PORT, background =
           store.reloadIfChanged();
           const provider = store.get().providers.find(p => p.id === providerId);
           if (!provider) { res.writeHead(404); res.end(JSON.stringify({ error: 'Provider not found' })); return; }
-          if (!provider.modelsEndpoint) { res.writeHead(400); res.end(JSON.stringify({ error: 'Provider has no models endpoint — add models manually' })); return; }
+          if (!provider.modelsEndpoint) { res.writeHead(400); res.end(JSON.stringify({ error: 'Provider has no models endpoint: add models manually' })); return; }
           const account = (provider.accounts || [])[0];
-          if (!account) { res.writeHead(400); res.end(JSON.stringify({ error: 'Add an account first — fetching needs a key' })); return; }
+          if (!account) { res.writeHead(400); res.end(JSON.stringify({ error: 'Add an account first: fetching needs a key' })); return; }
           const baseUrl = resolveBaseUrl(provider, account).replace(/\/+$/, '');
           // Same self-loop guard as the CLI: a local provider points back at us.
           if (isLocalUrl(baseUrl)) { res.writeHead(400); res.end(JSON.stringify({ error: 'Local provider is manual-only (fetch disabled to avoid a self-loop)' })); return; }
@@ -149,8 +191,12 @@ export async function startRouterServer(port = DEFAULT_ROUTER_PORT, background =
           const raw = data.data || data.models || data.result || data;
           const ids = (Array.isArray(raw) ? raw : []).map(m => (typeof m === 'string' ? m : m.id || m.name)).filter(Boolean);
           const { models, aliases } = normalizeFetchedModels(provider, ids);
+          // OpenRouter (and a few aggregators) publish per-model price in the same
+          // list; pull it out so the cost view auto-fills. Empty {} for providers
+          // that don't — the manual editor stays authoritative for those.
+          const pricing = extractModelPricing(Array.isArray(raw) ? raw : []);
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ models, aliases }));
+          res.end(JSON.stringify({ models, aliases, pricing }));
         } catch (err) {
           res.writeHead(500);
           res.end(JSON.stringify({ error: err.message || 'fetch failed' }));
@@ -223,7 +269,7 @@ export async function startRouterServer(port = DEFAULT_ROUTER_PORT, background =
           // Same preconditions the CLI checks before offering browser login.
           if (normalizeAuthType(provider.authType) !== 'oauth2') { res.writeHead(400); res.end(JSON.stringify({ error: 'Provider is not OAuth (authType must be oauth2)' })); return; }
           if ((provider.oauth?.grantType || 'refresh_token') !== 'refresh_token') { res.writeHead(400); res.end(JSON.stringify({ error: 'Browser login only applies to the refresh_token grant' })); return; }
-          if (!provider.oauth?.authUrl) { res.writeHead(400); res.end(JSON.stringify({ error: 'Provider has no oauth.authUrl — set it in Edit Provider first' })); return; }
+          if (!provider.oauth?.authUrl) { res.writeHead(400); res.end(JSON.stringify({ error: 'Provider has no oauth.authUrl: set it in Edit Provider first' })); return; }
           if (!clientId) { res.writeHead(400); res.end(JSON.stringify({ error: 'OAuth Client ID is required to start browser login' })); return; }
           const { runBrowserAuthFlow } = await import('./oauth-flow.js');
           const tokens = await runBrowserAuthFlow({
@@ -589,20 +635,42 @@ export async function startRouterServer(port = DEFAULT_ROUTER_PORT, background =
           // the provider's. Same format = plain re-serialize (model may have been
           // remapped above); different format = translate. Passthrough stays the
           // hot path — no cross-format work when inbound already matches.
-          let outBody;
+          let outObj;
           if (inboundFmt !== providerFmt) {
             // Pivot the request from the client's format to the provider's,
             // through the OpenAI hub (see translate.js FORMATS).
-            outBody = JSON.stringify(translateRequest(payload, inboundFmt, providerFmt));
+            outObj = translateRequest(payload, inboundFmt, providerFmt);
           } else if (providerFmt === 'gemini') {
             // Same-format Gemini passthrough: model/stream were hoisted from the
             // URL onto the payload for routing; strip them so the outbound body is
             // a clean GenerateContentRequest (Gemini doesn't want them in-body).
             const { model, stream, ...geminiBody } = payload;
-            outBody = JSON.stringify(geminiBody);
+            outObj = geminiBody;
           } else {
-            outBody = JSON.stringify(payload);
+            outObj = payload;
           }
+
+          // Ask OpenAI-format providers to emit token usage on STREAMED responses.
+          // Unlike anthropic/gemini/responses (which always report usage in the
+          // stream), OpenAI chat.completions only appends the final usage frame when
+          // the request carries stream_options.include_usage — and CLIs (opencode,
+          // aider, cursor…) don't send it. Without this the observability tap has
+          // nothing to sniff and every streamed request reads as "—". We inject it
+          // so usage tracking works transparently; non-stream already returns usage.
+          //
+          // ponytail: on the OpenAI->OpenAI passthrough this forwards one extra
+          // trailing frame `data:{choices:[],usage:{…}}` to the client. That's valid
+          // OpenAI SSE (any include_usage response has it) and the official SDKs the
+          // common CLIs use handle it; a hand-rolled client that blindly reads
+          // choices[0] on every frame could trip. If that ever bites, the upgrade
+          // path is to strip the empty-choices usage frame in the fast path instead
+          // of forwarding it — at the cost of parsing the SSE there (loses byte-for-
+          // byte passthrough), so we don't pay that unless a real client needs it.
+          if (providerFmt === 'openai' && outObj && outObj.stream === true) {
+            outObj.stream_options = { ...(outObj.stream_options || {}), include_usage: true };
+          }
+
+          const outBody = JSON.stringify(outObj);
 
           // Endpoint path must match what the PROVIDER expects, not what the client
           // sent. OpenAI wants /chat/completions, Anthropic /messages, Gemini a
@@ -808,10 +876,15 @@ export async function startRouterServer(port = DEFAULT_ROUTER_PORT, background =
           delete responseHeaders['content-length'];
 
           // FAST PATH: formats match → byte-for-byte passthrough, exactly as before.
+          // Still lazy: tapTail forwards each chunk untouched, only retaining a
+          // bounded tail to sniff token usage once the body ends. On success we
+          // stamp the log entry; a failed/error body just yields no usage.
           if (inboundFmt === providerFmt || !response.body) {
             res.writeHead(response.status, responseHeaders);
             if (response.body) {
-              for await (const chunk of response.body) res.write(chunk);
+              for await (const chunk of tapTail(response.body, (tail) => {
+                if (response.ok) recordUsage(logEntry, sniffUsage(tail, wantsStream));
+              })) res.write(chunk);
             }
             res.end();
             return;
@@ -823,9 +896,12 @@ export async function startRouterServer(port = DEFAULT_ROUTER_PORT, background =
             // unknown (chunked). The generator yields ready-to-write text frames.
             responseHeaders['content-type'] = 'text/event-stream; charset=utf-8';
             res.writeHead(response.status, responseHeaders);
-            // Reframe the provider's stream (providerFmt) into the client's
-            // (inboundFmt), pivoting through the OpenAI hub. Stays lazy.
-            const gen = translateStream(response.body, providerFmt, inboundFmt, { model: actualModel });
+            // Sniff the provider's RAW stream (providerFmt) via the tap, then
+            // reframe the tapped stream into the client's format. Both stay lazy.
+            const tapped = tapTail(response.body, (tail) => {
+              if (response.ok) recordUsage(logEntry, sniffUsage(tail, true));
+            });
+            const gen = translateStream(tapped, providerFmt, inboundFmt, { model: actualModel });
             for await (const frame of gen) res.write(frame);
             res.end();
             return;
@@ -833,6 +909,7 @@ export async function startRouterServer(port = DEFAULT_ROUTER_PORT, background =
 
           // Non-streaming: buffer the whole body, parse, translate, send as JSON.
           const raw = await response.text();
+          if (response.ok) recordUsage(logEntry, sniffUsage(raw, false));
           let outText = raw;
           try {
             const parsed = JSON.parse(raw);
@@ -913,10 +990,10 @@ export async function startRouterServer(port = DEFAULT_ROUTER_PORT, background =
       console.log(chalk.green.bold(`\n  🚀 BobbyTools Local Router Berjalan di Port ${port}`));
       console.log(chalk.gray('  ' + '─'.repeat(50)));
       
-      console.log(chalk.cyan.bold('\n  📖 TUTORIAL CARA PAKAI:'));
-      console.log(chalk.white(`  1. Buka terminal baru (biarkan terminal ini menyala).`));
-      console.log(chalk.white(`  2. Atur env vars di terminal baru (pilih sesuai bawaan CLI-mu):`));
-      console.log(chalk.red(`     ⚠️  PENTING (Beda OS Beda Cara):`));
+      console.log(chalk.cyan.bold('\n  📖 CARA PAKAI:'));
+      console.log(chalk.white(`  1. Buka terminal baru (yang ini biarin nyala).`));
+      console.log(chalk.white(`  2. Set env vars di terminal baru (pilih sesuai CLI lo):`));
+      console.log(chalk.red(`     ⚠️  PENTING (beda OS beda cara):`));
       console.log(chalk.gray(`     - Mac/Linux/GitBash  : pakai `) + chalk.yellow(`export VAR="nilai"`));
       console.log(chalk.gray(`     - Windows PowerShell : pakai `) + chalk.yellow(`$env:VAR="nilai"`));
       console.log(chalk.gray(`     - Windows CMD        : pakai `) + chalk.yellow(`set VAR="nilai"`));
@@ -934,26 +1011,26 @@ export async function startRouterServer(port = DEFAULT_ROUTER_PORT, background =
       console.log(chalk.yellow(`     export GEMINI_BASE_URL="http://127.0.0.1:${port}/v1"   export GEMINI_API_KEY="sk-bobby"`));
       console.log(chalk.yellow(`     export GROQ_BASE_URL="http://127.0.0.1:${port}/v1"     export GROQ_API_KEY="sk-bobby"`));
 
-      console.log(chalk.white(`\n  3. Panggil CLI favoritmu dan gabungkan Provider + Model:`));
+      console.log(chalk.white(`\n  3. Panggil CLI favorit lo, gabungin provider + model:`));
       console.log(chalk.yellow(`     <nama-cli> -m <nama-provider>/<nama-model>`));
       console.log(chalk.gray(`     Contoh 1: opencode -m groq/llama3-70b-8192`));
       console.log(chalk.gray(`     Contoh 2: aider --model openrouter/anthropic/claude-3-haiku`));
       console.log(chalk.gray(`     Contoh 3: claude -m google/gemini-1.5-pro`));
-      
-      console.log(chalk.cyan.bold('\n  ✨ MAGIC YANG TERJADI:'));
-      console.log(chalk.white(`  - Router akan memotong nama depan (misal: "groq") dan mencari akun Groq-mu.`));
-      console.log(chalk.white(`  - Jika akun tersebut limit (Error 429), router otomatis muter ke akun Groq`));
-      console.log(chalk.white(`    berikutnya TANPA membuat opencode/aider berhenti/error.`));
-      console.log(chalk.white(`  - Semua provider yang kamu daftarkan (termasuk custom) sudah tergabung di sini!`));
+
+      console.log(chalk.cyan.bold('\n  ✨ Yang kejadian di belakang layar:'));
+      console.log(chalk.white(`  - Bobby motong nama depan (misal "groq"), terus nyari akun Groq lo.`));
+      console.log(chalk.white(`  - Akun itu kena limit (429)? Bobby lompat ke akun Groq berikutnya,`));
+      console.log(chalk.white(`    opencode/aider lo gak berhenti, gak error.`));
+      console.log(chalk.white(`  - Semua provider yang lo daftarin (custom juga) udah nyatu di sini.`));
 
       console.log(chalk.gray('\n  ' + '─'.repeat(50)));
-      console.log(chalk.yellow.bold(`  Tekan 'q' (atau 'b') lalu Enter untuk mematikan router & keluar...\n`));
+      console.log(chalk.yellow.bold(`  Pencet 'q' (atau 'b') terus Enter buat matiin router & keluar...\n`));
     });
 
     const onData = (data) => {
       const key = data.toString().trim().toLowerCase();
       if (key === 'b' || key === 'q') {
-        console.log(chalk.yellow('\nMematikan router. Sampai jumpa!'));
+        console.log(chalk.yellow('\nRouter dimatiin. Sampai ketemu lagi, bro!'));
         process.stdin.off('data', onData);
         process.stdin.pause();
         // Foreground `serve` is a direct command, not launched from the menu —

@@ -8,7 +8,7 @@ export const PROVIDER_TEMPLATES = [
   // ═══════════════════════════════════
   {
     name: 'OpenRouter',
-    description: 'Unified API — 200+ models',
+    description: 'Unified API, 200+ models',
     category: 'cloud',
     baseUrlTemplate: 'https://openrouter.ai/api/v1',
     modelsEndpoint: '/models',
@@ -30,7 +30,7 @@ export const PROVIDER_TEMPLATES = [
   },
   {
     name: 'Cloudflare Workers AI',
-    description: 'Serverless AI — needs Account ID',
+    description: 'Serverless AI, needs Account ID',
     category: 'cloud',
     baseUrlTemplate: 'https://api.cloudflare.com/client/v4/accounts/{accountId}/ai/v1',
     modelsEndpoint: '/models',
@@ -144,7 +144,7 @@ export const PROVIDER_TEMPLATES = [
     // refresh_token, which the router silently exchanges for ~1h access tokens.
     // "Manage Accounts → Add" runs the browser flow and stores the refresh token.
     name: 'Google Gemini (OAuth login)',
-    description: 'Gemini via Google login — browser consent, no API key',
+    description: 'Gemini via Google login (browser consent, no API key)',
     category: 'cloud',
     baseUrlTemplate: 'https://generativelanguage.googleapis.com/v1beta/openai',
     modelsEndpoint: null,
@@ -172,7 +172,7 @@ export const PROVIDER_TEMPLATES = [
     // key signs a JWT that the token endpoint exchanges for an access token.
     // Paste the clientEmail + privateKey from a Google service-account JSON.
     name: 'Google Vertex AI (service account)',
-    description: 'Vertex via service-account key — JWT bearer, no browser',
+    description: 'Vertex via service-account key (JWT bearer, no browser)',
     category: 'cloud',
     baseUrlTemplate: 'https://{region}-aiplatform.googleapis.com/v1/projects/{projectId}/locations/{region}/endpoints/openapi',
     modelsEndpoint: null,
@@ -249,7 +249,7 @@ export const PROVIDER_TEMPLATES = [
   },
   {
     name: 'Azure OpenAI',
-    description: 'Azure-hosted OpenAI — needs resource name',
+    description: 'Azure-hosted OpenAI, needs resource name',
     category: 'cloud',
     baseUrlTemplate: 'https://{resourceName}.openai.azure.com/openai',
     modelsEndpoint: null,

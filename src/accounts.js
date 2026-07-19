@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import { getConfig, saveConfig } from './config.js';
 import { resolveBaseUrl, maskValue, timeAgo } from './helpers.js';
 import { resolveAccessToken, normalizeAuthType } from './oauth.js';
-import { success, error, warn, info, dim, divider, clearScreen, pause, showBanner } from './ui.js';
+import { success, error, warn, info, dim, divider, clearScreen, pause, showBanner, statusDot } from './ui.js';
 import { randomUUID } from 'crypto';
 
 export async function manageAccounts(providerId) {
@@ -130,7 +130,7 @@ async function addAccount(config, provider) {
           onPrompt: (url) => dim(`If the browser didn't open, visit:\n  ${url}`),
         });
         credentials.refreshToken = tokens.refreshToken;
-        success('Authorized — refresh token stored.');
+        success('Authorized. Refresh token stored.');
       } catch (err) {
         error(`Browser login failed: ${err.message}`);
         dim('You can paste a Refresh Token manually instead, or retry.');
@@ -168,7 +168,7 @@ function listAccounts(provider) {
   }
 
   for (const acc of provider.accounts) {
-    const status = acc.status === 'active' ? chalk.green('● active') : chalk.red('● limited');
+    const status = statusDot(acc.status, true);
     const lastUsed = acc.lastUsed ? timeAgo(acc.lastUsed) : 'never';
     const isCurrent = provider.lastAccountId === acc.id ? chalk.yellow(' ← current') : '';
 
@@ -252,10 +252,10 @@ async function deleteAccount(config, provider) {
     const { checkbox } = await import('@inquirer/prompts');
     
     const choices = provider.accounts.map(a => ({
-      name: `${a.status === 'active' ? chalk.green('●') : chalk.red('●')} ${a.name}`,
+      name: `${statusDot(a.status)} ${a.name}`,
       value: a.id
     }));
-    
+
     dim('Press <Space> to select, <Enter> to confirm, or <Enter> with 0 selected to cancel.');
     console.log();
     
@@ -306,7 +306,7 @@ async function testAccount(provider) {
       success(`Connection OK! (HTTP ${res.status})`);
     } else {
       const body = await res.text().catch(() => '');
-      error(`HTTP ${res.status}: ${res.statusText}${body ? ` — ${body.slice(0, 120)}` : ''}`);
+      error(`HTTP ${res.status}: ${res.statusText}${body ? `: ${body.slice(0, 120)}` : ''}`);
     }
   } catch (err) {
     error(`Connection failed: ${err.message}`);
@@ -331,7 +331,7 @@ async function toggleAccount(config, provider) {
     const { checkbox } = await import('@inquirer/prompts');
     
     const choices = provider.accounts.map(a => ({
-      name: `${a.status === 'active' ? chalk.green('●') : chalk.red('●')} ${a.name} ${chalk.gray(`(${a.status})`)}`,
+      name: `${statusDot(a.status)} ${a.name} ${chalk.gray(`(${a.status})`)}`,
       value: a.id
     }));
     
@@ -386,7 +386,7 @@ async function pickAccount(provider, message) {
       }
       
       for (const a of provider.accounts) {
-        const displayName = `${a.status === 'active' ? chalk.green('●') : chalk.red('●')} ${a.name}`;
+        const displayName = `${statusDot(a.status)} ${a.name}`;
         if (a.name.toLowerCase().includes(term)) {
           results.push({ name: displayName, value: a });
         }

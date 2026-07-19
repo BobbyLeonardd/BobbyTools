@@ -30,6 +30,42 @@
     ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
     ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
 
+    /* Keyboard focus: one visible ring for every interactive element. :focus-visible
+       so a mouse click doesn't leave a ring, but Tab always does. */
+    :focus-visible {
+      outline: 2px solid var(--primary);
+      outline-offset: 2px;
+      border-radius: 8px;
+    }
+
+    /* Respect the OS "reduce motion" setting — kill the ambient pulse/flash/slide
+       for users who get motion-sick, keeping a near-instant transition for state. */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+
+    /* Skip-link: off-screen until a keyboard user Tabs to it, then it drops into
+       view as the first focusable stop so they can jump past the nav. */
+    .skip-link {
+      position: fixed;
+      top: -100px;
+      left: 1rem;
+      z-index: 100;
+      padding: 0.75rem 1.25rem;
+      background: var(--primary);
+      color: #fff;
+      font-weight: 600;
+      border-radius: 10px;
+      text-decoration: none;
+      transition: top 0.2s ease;
+    }
+    .skip-link:focus { top: 1rem; }
+
     body {
       font-family: 'Inter', -apple-system, sans-serif;
       background-color: var(--bg-base);
@@ -98,6 +134,11 @@
     }
 
     .nav-item {
+      /* Semantic button element: reset the native chrome so it reads as our nav pill. */
+      width: 100%;
+      text-align: left;
+      font-family: inherit;
+      background: none;
       padding: 0.85rem 1.2rem;
       border-radius: 12px;
       cursor: pointer;
@@ -225,7 +266,7 @@
     }
     .account-item:hover { background: rgba(0, 0, 0, 0.6); border-color: rgba(255,255,255, 0.1); }
     
-    .status-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 12px; cursor: pointer; transition: transform 0.2s; }
+    .status-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 12px; cursor: pointer; transition: transform 0.2s; padding: 0; border: none; -webkit-appearance: none; appearance: none; vertical-align: middle; }
     .status-dot:hover { transform: scale(1.2); }
     .status-active { background: var(--success); box-shadow: 0 0 12px var(--success); }
     .status-limited { background: var(--danger); box-shadow: 0 0 12px var(--danger); }
@@ -286,6 +327,21 @@
     .key-detail { margin-left: auto; color: var(--text-muted); font-size: 0.85rem; }
     .live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 8px var(--success); margin-right: 8px; animation: pulse 1.6s ease-in-out infinite; }
 
+    /* A stat value briefly glows when its number changes, so a live update is
+       visible instead of silently swapping in. Added/removed by renderStats. */
+    @keyframes valueFlash {
+      0%   { color: #fff; text-shadow: 0 0 12px var(--primary-glow); }
+      100% { }
+    }
+    .stat-value.flash { animation: valueFlash 0.9s ease-out; }
+    /* Section heading above a group of Overview cards/panels — quiet label so the
+       page reads as distinct zones (health / traffic / tokens) not one long stack. */
+    .section-label { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 0.75rem 0.15rem; }
+    /* Chart bar hover: lift opacity + show the native tooltip cleanly. */
+    .chart-bar { transition: opacity 0.15s; cursor: default; }
+    .chart-bar:hover { opacity: 1 !important; }
+    svg:hover .chart-bar:not(:hover) { opacity: 0.35; }
+
     @keyframes slideUp {
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
@@ -324,6 +380,8 @@
 </head>
 <body>
 
+  <a href="#main-content" class="skip-link">Skip ke konten utama</a>
+
   <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="brand" style="flex-direction: row; align-items: center; gap: 0.8rem;">
@@ -347,41 +405,41 @@
       </div>
     </div>
 
-    <div class="nav-item active" onclick="switchTab('overview')" id="nav-overview">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+    <button type="button" class="nav-item active" onclick="switchTab('overview')" id="nav-overview">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
       Overview
-    </div>
-    <div class="nav-item" onclick="switchTab('providers')" id="nav-providers">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+    </button>
+    <button type="button" class="nav-item" onclick="switchTab('providers')" id="nav-providers">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
       Providers
-    </div>
-    <div class="nav-item" onclick="switchTab('combos')" id="nav-combos">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+    </button>
+    <button type="button" class="nav-item" onclick="switchTab('combos')" id="nav-combos">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
       Combos
-    </div>
-    <div class="nav-item" onclick="switchTab('logs')" id="nav-logs">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+    </button>
+    <button type="button" class="nav-item" onclick="switchTab('logs')" id="nav-logs">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
       Activity Logs
-    </div>
-    <div class="nav-item" onclick="switchTab('settings')" id="nav-settings">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+    </button>
+    <button type="button" class="nav-item" onclick="switchTab('settings')" id="nav-settings">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
       Settings
-    </div>
-    <div class="nav-item" onclick="switchTab('tutorial')" id="nav-tutorial">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+    </button>
+    <button type="button" class="nav-item" onclick="switchTab('tutorial')" id="nav-tutorial">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
       Quick Guide
-    </div>
+    </button>
 
     <div class="nav-bottom">
-      <div class="nav-item danger" onclick="shutdownRouter()">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+      <button type="button" class="nav-item danger" onclick="shutdownRouter()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
         Shutdown
-      </div>
+      </button>
     </div>
   </aside>
 
   <!-- MAIN CONTENT -->
-  <main class="main-content">
+  <main class="main-content" id="main-content">
     
     <!-- VIEW: OVERVIEW (live status) -->
     <div id="tab-overview" class="tab-pane active">
@@ -391,7 +449,17 @@
           <span class="live-dot"></span> Live &middot; refreshes every 3s
         </div>
       </div>
+      <div class="section-label">Key health</div>
       <div id="stat-cards" class="stat-grid"></div>
+
+      <div class="section-label" style="margin-top:1.75rem;">Tokens &amp; cost</div>
+      <div id="stat-tokens" class="stat-grid"></div>
+
+      <div class="section-label" style="margin-top:1.75rem;">Traffic</div>
+      <div id="stat-chart"></div>
+      <div id="stat-graph" style="margin-top:1.25rem;"></div>
+
+      <div class="section-label" style="margin-top:1.75rem;">Providers</div>
       <div id="stat-providers">
         <div class="empty-state">Loading live status...</div>
       </div>
@@ -469,11 +537,13 @@
               <th>Provider</th>
               <th>Akun</th>
               <th>Model</th>
+              <th>In tok</th>
+              <th>Out tok</th>
               <th>Status</th>
             </tr>
           </thead>
           <tbody id="logs-tbody">
-            <tr><td colspan="5" class="empty-state" style="padding: 2rem">Loading logs...</td></tr>
+            <tr><td colspan="7" class="empty-state" style="padding: 2rem">Loading logs...</td></tr>
           </tbody>
         </table>
       </div>
@@ -486,6 +556,15 @@
       </div>
       
       <div style="display: grid; grid-template-columns: 1fr; gap: 1.5rem; margin-bottom: 2rem;">
+        <div class="glass-card">
+          <h3 style="margin-bottom: 0.5rem;">Model Pricing (buat estimasi biaya)</h3>
+          <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.85rem">Harga per <strong>1 juta token</strong> (USD). Provider yang expose harga di API-nya (OpenRouter dll) <strong>auto-keisi</strong> pas lo Fetch Models, sisanya isi manual di sini. Model tanpa harga di-skip (muncul "—" di Overview → Costs).</p>
+          <div id="pricing-rows"></div>
+          <div style="display:flex; gap:0.5rem; margin-top:1rem;">
+            <button class="btn" style="background: rgba(255,255,255,0.08); color: white; font-size: 0.85rem" onclick="addPricingRow()">+ Tambah model</button>
+            <button class="btn btn-primary" style="font-size: 0.85rem" onclick="savePricing()">Simpan harga</button>
+          </div>
+        </div>
         <div class="glass-card">
           <h3 style="color: var(--danger); margin-bottom: 0.5rem;">Danger Zone</h3>
           <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.85rem">Hapus semua data provider, akun, dan kembalikan pengaturan ke awal.</p>
@@ -506,37 +585,37 @@
         <p style="color: var(--text-muted); font-style: italic; margin-bottom: 1.5rem;">Baca bentar doang, janji. Gue nulis ini karena gue juga males jawabin pertanyaan yang sama berulang-ulang. Abis baca ini lo bakal ngerti semua isi BobbyTools.</p>
 
         <h3>Dua mode, pilih salah satu (atau dua-duanya)</h3>
-        <p>BobbyTools punya dua cara pakai. <strong>Mode Web/Router</strong> (halaman ini) buat yang mau anti-limit 429 otomatis. <strong>Mode Klasik/CLI</strong> buat yang cuma mau launch cepat satu akun tanpa ribet. Isi provider & akun sekali, dua mode langsung kepake dua-duanya — datanya sama (<code>~/.bobbytools/config.json</code>).</p>
+        <p>BobbyTools punya dua cara pakai. <strong>Mode Web/Router</strong> (halaman ini) buat yang mau anti-limit 429 otomatis. <strong>Mode Klasik/CLI</strong> buat yang cuma mau launch cepat satu akun tanpa ribet. Isi provider & akun sekali, dua mode langsung kepake dua-duanya, datanya sama (<code>~/.bobbytools/config.json</code>).</p>
 
         <h3 style="margin-top: 2rem;">0. Install dulu (kalo belum) 📦</h3>
-        <p>BobbyTools jalan di atas Node.js — minimal <strong>versi 18</strong>. Cek dulu punya lo: <code>node -v</code>. Kalo belum ada atau ketuaan, ambil di <a href="https://nodejs.org" target="_blank" style="color: #a5b4fc;">nodejs.org</a> (pilih yang LTS).</p>
-        <p>Abis itu install global lewat npm — sekali doang, langsung bisa dipanggil <code>bobby</code> dari terminal mana aja:</p>
+        <p>BobbyTools jalan di atas Node.js, minimal <strong>versi 18</strong>. Cek dulu punya lo: <code>node -v</code>. Kalo belum ada atau ketuaan, ambil di <a href="https://nodejs.org" target="_blank" style="color: #a5b4fc;">nodejs.org</a> (pilih yang LTS).</p>
+        <p>Abis itu install global lewat npm. Sekali doang, langsung bisa dipanggil <code>bobby</code> dari terminal mana aja:</p>
         <pre><code>npm install -g bobbytools</code></pre>
-        <p style="margin-top: 0.5rem"><em>Cek berhasil: ketik <code>bobby -v</code>, harusnya keluar nomor versinya. Kalo shell-nya bilang "command not found", biasanya folder global npm belum masuk PATH — restart terminal dulu, atau cek <code>npm bin -g</code>.</em></p>
-        <p style="margin-top: 0.5rem;">Mau update ke versi terbaru nanti? Gampang, tinggal <code>bobby update</code> — dia ngecek npm dan nawarin update sendiri.</p>
+        <p style="margin-top: 0.5rem"><em>Cek berhasil: ketik <code>bobby -v</code>, harusnya keluar nomor versinya. Kalo shell-nya bilang "command not found", biasanya folder global npm belum masuk PATH, restart terminal dulu, atau cek <code>npm bin -g</code>.</em></p>
+        <p style="margin-top: 0.5rem;">Mau update ke versi terbaru nanti? Gampang, tinggal <code>bobby update</code>, dia ngecek npm dan nawarin update sendiri.</p>
 
-        <h3 style="margin-top: 2rem;">1. Mode Web (Router) — yang bikin alat ini worth it 🌟</h3>
+        <h3 style="margin-top: 2rem;">1. Mode Web (Router): yang bikin alat ini worth it 🌟</h3>
         <p>Bobby jalan di background jadi "calo" (middleman) di <code>127.0.0.1:13337</code>. CLI ngoding lo nembak ke Bobby, Bobby yang nyuntikin API key asli dan muterin akun kalo kena limit. Terminal lo gak pernah tau ada drama di belakang.</p>
 
-        <p><strong>Langkah 1 — Daftarin Provider & Akun:</strong></p>
+        <p><strong>Langkah 1. Daftarin Provider & Akun:</strong></p>
         <ul style="padding-left: 1.5rem; color: var(--text-muted);">
           <li>Klik <strong>Add Provider</strong> (menu Providers). Ada dua cara: pilih <strong>From Template</strong> (Groq, OpenAI, Gemini, dll udah jadi) atau <strong>Custom Setup</strong> kalo provider lo aneh.</li>
-          <li>Buka provider itu, klik <strong>Add Account</strong>. Masukin semua API key yang lo punya — akun A sampe Z. Makin banyak akun, makin lama lo baru kena limit.</li>
+          <li>Buka provider itu, klik <strong>Add Account</strong>. Masukin semua API key yang lo punya, akun A sampe Z. Makin banyak akun, makin lama lo baru kena limit.</li>
         </ul>
 
-        <p><strong>Langkah 2 — Sambungin CLI ngoding lo (Aider / Opencode / Cursor):</strong></p>
+        <p><strong>Langkah 2. Sambungin CLI ngoding lo (Aider / Opencode / Cursor):</strong></p>
         <p>Lo cuma perlu ngibulin CLI biar dia ngira Bobby itu server aslinya. Buka terminal, copas sesuai OS lo:</p>
         <pre><code>Mac/Linux/GitBash : export OPENAI_BASE_URL="http://127.0.0.1:13337/v1"
 Windows PowerShell: $env:OPENAI_BASE_URL="http://127.0.0.1:13337/v1"
 Windows CMD       : set OPENAI_BASE_URL=http://127.0.0.1:13337/v1</code></pre>
-        <p style="margin-top: 0.5rem"><em>(Gak usah repot ngeset <code>OPENAI_API_KEY</code> — isi <code>sk-bobby</code> atau <code>asdf</code> juga bodo amat. Yang nyuntikin key asli itu Bobby, bukan lo.)</em></p>
+        <p style="margin-top: 0.5rem"><em>(Gak usah repot ngeset <code>OPENAI_API_KEY</code>, isi <code>sk-bobby</code> atau <code>asdf</code> juga bodo amat. Yang nyuntikin key asli itu Bobby, bukan lo.)</em></p>
         <p style="margin-top: 0.75rem;">Pake CLI yang maunya standar Anthropic (kayak claude-code)? Ganti prefix env var-nya, URL-nya sama: <code>ANTHROPIC_BASE_URL</code> + <code>ANTHROPIC_API_KEY</code>.</p>
 
-        <p><strong>Langkah 3 — Jalanin, pake format <code>provider/model</code>:</strong></p>
+        <p><strong>Langkah 3, Jalanin pake format <code>provider/model</code>:</strong></p>
         <p>Nama depan itu yang bikin router tau mau nembak ke provider mana.</p>
         <pre><code>opencode -m groq/llama3-70b-8192
 aider --model openrouter/anthropic/claude-3-haiku</code></pre>
-        <p style="margin-top: 0.5rem"><em>Bingung nama provider-nya apa? Liat aja di list Providers sebelah — nama yang lo kasih itu yang dipake (spasi jadi strip, misal "My Router" → <code>my-router</code>).</em></p>
+        <p style="margin-top: 0.5rem"><em>Bingung nama provider-nya apa? Liat aja di list Providers sebelah, nama yang lo kasih itu yang dipake (spasi jadi strip, misal "My Router" → <code>my-router</code>).</em></p>
 
         <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); padding: 1rem; border-radius: 8px; margin-top: 1.5rem;">
           <h4 style="color: var(--success); margin-bottom: 0.5rem;">✨ Yang terjadi di belakang layar:</h4>
@@ -547,56 +626,56 @@ aider --model openrouter/anthropic/claude-3-haiku</code></pre>
           </ul>
         </div>
 
-        <h3 style="margin-top: 2rem;">2. Mode Klasik (CLI Launcher) — buat yang paling males 💤</h3>
+        <h3 style="margin-top: 2rem;">2. Mode Klasik (CLI Launcher): buat yang paling males 💤</h3>
         <p>Males buka browser, males ngeset env var, cuma mau jalanin satu akun? Tutup web ini, buka terminal, ketik <code>bobby</code>.</p>
         <ul style="padding-left: 1.5rem; color: var(--text-muted);">
           <li>Pilih <strong>Start Session</strong> → klik-klik: Provider → Akun → Model.</li>
           <li>Bobby launch target CLI lo (misal opencode) dengan API key udah kesuntik di memori proses. Gak ada acara ngetik <code>export</code> manual.</li>
-          <li><strong>Pro tip:</strong> besoknya tinggal <code>bobby go</code> — langsung buka sesi terakhir lo, tanpa klik-klik lagi.</li>
+          <li><strong>Pro tip:</strong> besoknya tinggal <code>bobby go</code>, langsung buka sesi terakhir lo, tanpa klik-klik lagi.</li>
         </ul>
 
         <h3 style="margin-top: 2rem;">3. Ngatur Provider &amp; Model 🧠</h3>
         <p>Tiap kartu provider punya tombol <strong>Edit</strong>. Di situ (langsung dari web, gak usah balik ke CLI) lo bisa ganti nama, Base URL, <strong>API Format</strong>, <strong>Auth Type</strong>, <strong>Model Aliases</strong>, dan daftar <strong>Model</strong>-nya.</p>
         <ul style="padding-left: 1.5rem; color: var(--text-muted);">
           <li><strong>Nambah model:</strong> ketik nama di kotak Models → <strong>Add</strong> (atau Enter). Hapus tinggal klik <code>×</code> di chip-nya.</li>
-          <li><strong>Punya endpoint /models?</strong> Pencet <strong>Fetch</strong> — Bobby narik daftar model langsung dari API provider (lewat router, pake key asli lo) dan nggabungin ke list. Gak nimpa yang udah ada.</li>
-          <li><strong>Gak punya endpoint?</strong> Santai — ketik manual aja. Sama aja.</li>
-          <li><em>Rename model belum ada di web — buat itu pake mode CLI (<code>bobby</code> → Manage Providers → Edit Models). Di web tinggal hapus + tambah lagi.</em></li>
+          <li><strong>Punya endpoint /models?</strong> Pencet <strong>Fetch</strong>. Bobby narik daftar model langsung dari API provider (lewat router, pake key asli lo) dan nggabungin ke list. Gak nimpa yang udah ada.</li>
+          <li><strong>Gak punya endpoint?</strong> Santai, ketik manual aja. Sama aja.</li>
+          <li><em>Rename model belum ada di web. Buat itu pake mode CLI (<code>bobby</code> → Manage Providers → Edit Models). Di web tinggal hapus + tambah lagi.</em></li>
         </ul>
 
         <div style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.25); padding: 1rem; border-radius: 8px; margin-top: 1rem;">
           <h4 style="color: #eab308; margin-bottom: 0.5rem;">⚠️ Soal provider yang base URL-nya lokal</h4>
-          <p style="margin-bottom: 0;">Kalo lo bikin provider yang nunjuk ke alamat lokal (<code>localhost</code>, <code>127.0.0.1</code>, <code>0.0.0.0</code>, <code>::1</code>) — misal nunjuk balik ke router Bobby sendiri, atau ke Ollama/LM Studio — endpoint model-nya <strong>sengaja dimatiin</strong>. Bobby gak bakal narik model dari situ, biar gak ada acara serap-menyerap muter-muter yang bikin daftar model jadi sampah. Buat provider lokal: <strong>isi model manual</strong> lewat Edit Models. Itu wajar, bukan bug.</p>
+          <p style="margin-bottom: 0;">Kalo lo bikin provider yang nunjuk ke alamat lokal (<code>localhost</code>, <code>127.0.0.1</code>, <code>0.0.0.0</code>, <code>::1</code>), misal nunjuk balik ke router Bobby sendiri atau ke Ollama/LM Studio, endpoint model-nya <strong>sengaja dimatiin</strong>. Bobby gak bakal narik model dari situ, biar gak ada acara serap-menyerap muter-muter yang bikin daftar model jadi sampah. Buat provider lokal: <strong>isi model manual</strong> lewat Edit Models. Itu wajar, bukan bug.</p>
         </div>
 
-        <h3 style="margin-top: 2rem;">4. Combos — rantai model cadangan 🔀</h3>
+        <h3 style="margin-top: 2rem;">4. Combos: rantai model cadangan 🔀</h3>
         <p>Combo itu daftar <code>provider/model</code> berurutan yang lo kasih satu nama. Bobby coba dari paling atas; begitu satu model <strong>bener-bener abis</strong> (semua akunnya kena limit <em>plus</em> fallback lintas-provider udah mentok), baru dia turun ke model berikutnya di daftar. Cocok buat "pake yang murah/cepet dulu, kalo tewas semua baru naik ke yang mahal".</p>
         <ul style="padding-left: 1.5rem; color: var(--text-muted);">
           <li><strong>Bikin:</strong> menu <strong>Combos</strong> → <strong>Add Combo</strong> → kasih nama (jangan pake "/") → susun langkahnya satu-satu (urutan bisa digeser naik/turun).</li>
           <li><strong>Pake:</strong> panggil nama combo-nya di posisi model. Kalo combo lo namanya <code>ngebut</code>: <code>opencode -m ngebut</code>.</li>
         </ul>
         <div style="background: rgba(129, 140, 248, 0.08); border: 1px solid rgba(129, 140, 248, 0.25); padding: 1rem; border-radius: 8px; margin-top: 1rem;">
-          <p style="margin-bottom: 0;">Ini <strong>satu-satunya</strong> tempat Bobby ganti model di tengah request — dan cuma buat nama yang lo daftarin sebagai combo. Request <code>provider/model</code> biasa tetep <strong>dikunci</strong> ke model itu: kena 429 ya dikasih tau 429, gak diem-diem pindah ke model lain yang mungkin beda kualitas/harga.</p>
+          <p style="margin-bottom: 0;">Ini <strong>satu-satunya</strong> tempat Bobby ganti model di tengah request, dan cuma buat nama yang lo daftarin sebagai combo. Request <code>provider/model</code> biasa tetep <strong>dikunci</strong> ke model itu: kena 429 ya dikasih tau 429, gak diem-diem pindah ke model lain yang mungkin beda kualitas/harga.</p>
         </div>
 
-        <h3 style="margin-top: 2rem;">5. Penerjemah Format — kenapa claude-code bisa nembak provider apa aja 🌐</h3>
-        <p>Tiap CLI ngomong "bahasa" API sendiri: claude-code pake <strong>Anthropic Messages</strong>, mayoritas provider murah pake <strong>OpenAI Chat Completions</strong>, Google pake <strong>Gemini</strong>, OpenAI yang baru punya <strong>Responses</strong>. Beda bahasa = biasanya langsung error. Bobby nutup jurang itu: dia deteksi format dari CLI lo, bandingin sama format provider tujuan, dan nerjemahin kalo beda — lewat satu "hub" tengah, jadi kombinasi mana pun nyambung.</p>
-        <p>Yang keterjemah: teks, <strong>streaming</strong> (jawaban tetep ngalir normal), <strong>tool/function calling</strong> penuh, dan <strong>gambar/vision</strong> — dua arah.</p>
+        <h3 style="margin-top: 2rem;">5. Penerjemah Format: kenapa claude-code bisa nembak provider apa aja 🌐</h3>
+        <p>Tiap CLI ngomong "bahasa" API sendiri: claude-code pake <strong>Anthropic Messages</strong>, mayoritas provider murah pake <strong>OpenAI Chat Completions</strong>, Google pake <strong>Gemini</strong>, OpenAI yang baru punya <strong>Responses</strong>. Beda bahasa = biasanya langsung error. Bobby nutup jurang itu: dia deteksi format dari CLI lo, bandingin sama format provider tujuan, dan nerjemahin kalo beda, lewat satu "hub" tengah, jadi kombinasi mana pun nyambung.</p>
+        <p>Yang keterjemah: teks, <strong>streaming</strong> (jawaban tetep ngalir normal), <strong>tool/function calling</strong> penuh, dan <strong>gambar/vision</strong>, dua arah bebas.</p>
         <ul style="padding-left: 1.5rem; color: var(--text-muted);">
           <li><strong>Setelan:</strong> Providers → Edit Provider → <strong>API Format</strong> → pilih <code>openai</code> / <code>anthropic</code> / <code>gemini</code> / <code>responses</code>.</li>
           <li><strong>Default <code>openai</code></strong>, jadi mayoritas provider gak usah disetel. Set ini cuma kalo provider-nya beneran ngomong format lain (misal endpoint Anthropic/Gemini asli).</li>
-          <li>Kalo format CLI == format provider, Bobby lewat <strong>jalur cepat</strong> — diterusin apa adanya, nol overhead. Translator nyala cuma pas dibutuhin.</li>
+          <li>Kalo format CLI == format provider, Bobby lewat <strong>jalur cepat</strong>: diterusin apa adanya, nol overhead. Translator nyala cuma pas dibutuhin.</li>
         </ul>
 
-        <h3 style="margin-top: 2rem;">6. Login OAuth — buat provider yang gak ngasih API key 🔑</h3>
-        <p>Sebagian provider gak ngasih API key statis yang tinggal copas. Google contohnya — lo login pake akun, bukan nempel key. Yang lo dapet cuma <em>refresh token</em>, dan itu mesti ditukerin jadi <em>access token</em> yang cuma idup ~1 jam, terus-terusan. Bobby yang ngurus: lo login sekali, dia simpen refresh token-nya, dan tiap router butuh nembak dia diem-diem nukerin jadi access token baru sebelum yang lama basi. Lo gak pernah nyentuh token yang cepet expired itu.</p>
+        <h3 style="margin-top: 2rem;">6. Login OAuth: buat provider yang gak ngasih API key 🔑</h3>
+        <p>Sebagian provider gak ngasih API key statis yang tinggal copas. Google contohnya: lo login pake akun, bukan nempel key. Yang lo dapet cuma <em>refresh token</em>, dan itu mesti ditukerin jadi <em>access token</em> yang cuma idup ~1 jam, terus-terusan. Bobby yang ngurus: lo login sekali, dia simpen refresh token-nya, dan tiap router butuh nembak dia diem-diem nukerin jadi access token baru sebelum yang lama basi. Lo gak pernah nyentuh token yang cepet expired itu.</p>
         <ul style="padding-left: 1.5rem; color: var(--text-muted);">
-          <li style="margin-bottom: 0.5rem"><strong>Login browser (refresh token)</strong> — buat login user biasa kayak Google Gemini. Pilih template <strong>Google Gemini (OAuth login)</strong>, isi Client ID (+ Secret kalo ada). Pas <strong>Add Account</strong>, Bobby nawarin <em>"buka browser buat login sekarang?"</em> — klik, izinin di halaman consent Google, tab-nya bilang beres, refresh token langsung kesimpen. Gak ada copas token manual.</li>
-          <li style="margin-bottom: 0.5rem"><strong>Service account (JWT, tanpa browser)</strong> — buat akses server-to-server kayak Google Vertex AI. Pilih template <strong>Google Vertex AI (service account)</strong>, tempel Service Account Email + Private Key (PEM) dari file JSON service account, plus Project ID & Region. Bobby nandatanganin JWT pake private key itu dan nuker jadi access token sendiri.</li>
+          <li style="margin-bottom: 0.5rem"><strong>Login browser (refresh token):</strong> buat login user biasa kayak Google Gemini. Pilih template <strong>Google Gemini (OAuth login)</strong>, isi Client ID (+ Secret kalo ada). Pas <strong>Add Account</strong>, Bobby nawarin <em>"buka browser buat login sekarang?"</em>, klik, izinin di halaman consent Google, tab-nya bilang beres, refresh token langsung kesimpen. Gak ada copas token manual.</li>
+          <li style="margin-bottom: 0.5rem"><strong>Service account (JWT, tanpa browser):</strong> buat akses server-to-server kayak Google Vertex AI. Pilih template <strong>Google Vertex AI (service account)</strong>, tempel Service Account Email + Private Key (PEM) dari file JSON service account, plus Project ID & Region. Bobby nandatanganin JWT pake private key itu dan nuker jadi access token sendiri.</li>
           <li><strong>Ubah provider yang udah ada:</strong> Edit Provider → <strong>Auth Type</strong> → <code>oauth2</code> → pilih grant (<code>refresh_token</code> buat browser, <code>jwt-bearer</code> buat service account) + isi Token URL &amp; Scope. Balik ke <code>apikey</code> tinggal sekali klik.</li>
         </ul>
         <div style="background: rgba(129, 140, 248, 0.08); border: 1px solid rgba(129, 140, 248, 0.25); padding: 1rem; border-radius: 8px; margin-top: 1rem;">
-          <p style="margin-bottom: 0;"><strong>Jujur ya:</strong> login browser (mbuka browser + nangkep hasilnya di <code>127.0.0.1</code>) jalan pas nambah akun lewat menu/dashboard, dan token-nya di-mint &amp; di-refresh di <strong>mode router</strong> — jadi buat provider OAuth, pake router, bukan launcher klasik. Kalo refresh token dicabut/expired, Bobby nandain akunnya mati (sama kayak key statis kena 401) dan pindah ke akun berikutnya, bukan retry percuma.</p>
+          <p style="margin-bottom: 0;"><strong>Jujur ya:</strong> login browser (mbuka browser + nangkep hasilnya di <code>127.0.0.1</code>) jalan pas nambah akun lewat menu/dashboard, dan token-nya di-mint &amp; di-refresh di <strong>mode router</strong>, jadi buat provider OAuth, pake router, bukan launcher klasik. Kalo refresh token dicabut/expired, Bobby nandain akunnya mati (sama kayak key statis kena 401) dan pindah ke akun berikutnya, bukan retry percuma.</p>
         </div>
 
         <h3 style="margin-top: 2rem;">📚 Daftar Perintah (Commands) BobbyTools</h3>
@@ -617,7 +696,7 @@ aider --model openrouter/anthropic/claude-3-haiku</code></pre>
           <li style="margin-bottom: 0.5rem"><strong>401 Unauthorized terus?</strong> API key di akunnya salah/expired, atau format model-nya kebalik. Cek pake tombol <strong>Test</strong> di kartu akun (ada di web sini & menu CLI).</li>
           <li style="margin-bottom: 0.5rem"><strong>"Provider not found"?</strong> Prefix model lo gak cocok sama nama provider. Samain dengan nama di list (spasi → strip).</li>
           <li style="margin-bottom: 0.5rem"><strong>Model lokal gak muncul?</strong> Emang gak diserep otomatis (baca kotak kuning di atas). Tambah manual di Edit Models.</li>
-          <li style="margin-bottom: 0.5rem"><strong>Jawaban aneh / request ditolak provider padahal key bener?</strong> Kemungkinan format-nya kebalik. Cek <strong>API Format</strong> provider itu (Edit Provider) — mayoritas <code>openai</code>, tapi kalo endpoint-nya Anthropic/Gemini asli ya harus disamain.</li>
+          <li style="margin-bottom: 0.5rem"><strong>Jawaban aneh / request ditolak provider padahal key bener?</strong> Kemungkinan format-nya kebalik. Cek <strong>API Format</strong> provider itu (Edit Provider). Mayoritas <code>openai</code>, tapi kalo endpoint-nya Anthropic/Gemini asli ya harus disamain.</li>
           <li style="margin-bottom: 0.5rem"><strong>Semua kacau, mau mulai bersih?</strong> Tab <strong>Settings → Factory Reset</strong> (di dashboard ini, atau menu Settings mode CLI). Config lama ada backup-nya di <code>~/.bobbytools/config.backup.json</code>.</li>
         </ul>
 
@@ -627,7 +706,7 @@ aider --model openrouter/anthropic/claude-3-haiku</code></pre>
         <p style="margin-top: 0.5rem;">Itu ngehapus program-nya doang. Config lo (semua API key & provider) masih nyangkut di <code>~/.bobbytools/</code>. Kalo mau hapus tuntas sekalian datanya:</p>
         <pre><code>Mac/Linux         : rm -rf ~/.bobbytools
 Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
-        <p style="margin-top: 0.5rem;"><em>Hati-hati — langkah kedua ngehapus semua API key yang lo simpen, gak ada undo. Kalo cuma mau install ulang, skip langkah ini biar config lo kejaga.</em></p>
+        <p style="margin-top: 0.5rem;"><em>Hati-hati, langkah kedua ngehapus semua API key yang lo simpen, gak ada undo. Kalo cuma mau install ulang, skip langkah ini biar config lo kejaga.</em></p>
       </div>
     </div>
 
@@ -651,7 +730,7 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
         <button type="button" class="btn" style="background: rgba(59,130,246,0.15); color: #60a5fa; width: 100%;" onclick="oauthBrowserLogin()">
           🔑 Login pakai browser (ambil refresh token otomatis)
         </button>
-        <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.4rem;">Isi Client ID (+ Secret kalo ada) dulu, klik ini, izinin di halaman consent. Refresh token langsung kesimpen — gak usah copas manual.</p>
+        <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.4rem;">Isi Client ID (+ Secret kalo ada) dulu, klik ini, izinin di halaman consent. Refresh token langsung kesimpen, gak usah copas manual.</p>
       </div>
       <div style="display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 2rem;">
         <button class="btn" style="background: rgba(255,255,255,0.1); color: white; flex: 1;" onclick="closeModal('addAccountModal')">Cancel</button>
@@ -729,10 +808,10 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
       <div class="form-group" style="margin-top: 1rem;">
         <label>API Format</label>
         <select id="editProvApiFormat" class="form-control">
-          <option value="openai">openai — Chat Completions (Groq, OpenRouter, most)</option>
-          <option value="anthropic">anthropic — Messages API (api.anthropic.com)</option>
-          <option value="gemini">gemini — Google Generative Language (generateContent)</option>
-          <option value="responses">responses — OpenAI Responses API (/v1/responses)</option>
+          <option value="openai">openai: Chat Completions (Groq, OpenRouter, most)</option>
+          <option value="anthropic">anthropic: Messages API (api.anthropic.com)</option>
+          <option value="gemini">gemini: Google Generative Language (generateContent)</option>
+          <option value="responses">responses: OpenAI Responses API (/v1/responses)</option>
         </select>
         <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px;">Wire format this provider speaks. The router translates when it differs from the format your CLI sent. Most providers are <code>openai</code>.</div>
       </div>
@@ -740,8 +819,8 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
       <div class="form-group" style="margin-top: 1rem;">
         <label>Auth Type</label>
         <select id="editProvAuthType" class="form-control" onchange="onEditAuthTypeChange()">
-          <option value="apikey">apikey — static API key (default)</option>
-          <option value="oauth2">oauth2 — minted access tokens (Google login / service account)</option>
+          <option value="apikey">apikey: static API key (default)</option>
+          <option value="oauth2">oauth2: minted access tokens (Google login / service account)</option>
         </select>
       </div>
 
@@ -750,8 +829,8 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
         <div class="form-group">
           <label>Grant Type</label>
           <select id="editProvGrantType" class="form-control" onchange="onEditGrantTypeChange()">
-            <option value="refresh_token">refresh_token — browser login (user OAuth)</option>
-            <option value="jwt-bearer">jwt-bearer — service account key (no browser)</option>
+            <option value="refresh_token">refresh_token: browser login (user OAuth)</option>
+            <option value="jwt-bearer">jwt-bearer: service account key (no browser)</option>
           </select>
         </div>
         <div class="form-group" style="margin-top: 0.75rem;">
@@ -770,7 +849,7 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
 
       <div class="form-group" style="margin-top: 1.5rem; border-top: 1px solid var(--glass-border); padding-top: 1.5rem;">
         <label>Models <span style="color: var(--text-muted); font-weight: 400;">(what you call with <code>provider/model</code>)</span></label>
-        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">The model list this provider serves. Add by hand, or pull from the provider's <code>/models</code> endpoint if it has one. Local providers (localhost) are manual-only — fetch is disabled to avoid a self-loop.</div>
+        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">The model list this provider serves. Add by hand, or pull from the provider's <code>/models</code> endpoint if it has one. Local providers (localhost) are manual-only: fetch is disabled to avoid a self-loop.</div>
         <div style="display: flex; gap: 0.5rem; margin-bottom: 8px;">
           <input type="text" id="editProvModelInput" class="form-control" placeholder="e.g. llama-3.3-70b" style="flex:1;" onkeydown="if(event.key==='Enter'){event.preventDefault();addEditModelFromInput();}">
           <button type="button" class="btn btn-primary" style="padding: 0.3rem 0.9rem;" onclick="addEditModelFromInput()">Add</button>
@@ -847,6 +926,7 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
     let configHash = '';
     let logsHash = '';
     let statsHash = '';
+    let lastLogs = [];        // last /api/logs payload, so the chart range toggle re-renders without refetch
     let isSaving = false;
 
     // -- Custom UI Utilities --
@@ -927,6 +1007,31 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
       if (s < 60) return `back in ${s}s`;
       return `back in ${Math.ceil(s / 60)}m`;
     }
+    // Render a strip of stat cards, flashing only the values that changed since
+    // the last render for this container — a quiet cue that a number is live,
+    // without re-animating the whole grid every 3s poll. Prior values are kept
+    // per-container so the two Overview strips don't cross-trigger each other.
+    const _cardValues = {};
+    function renderCards(containerId, cards) {
+      const el = document.getElementById(containerId);
+      if (!el) return;
+      const prev = _cardValues[containerId] || {};
+      const next = {};
+      el.innerHTML = cards.map(c => {
+        const k = c.key || c.label;
+        next[k] = c.value;
+        // Flash only when we've seen this card before and its value moved (skips
+        // the first paint, so the page doesn't flash everything on load).
+        const changed = (k in prev) && prev[k] !== c.value;
+        return `
+        <div class="stat-card">
+          <div class="stat-label">${c.label}</div>
+          <div class="stat-value${changed ? ' flash' : ''}" style="color:${c.color}">${c.value}</div>
+          <div class="stat-sub">${c.sub}</div>
+        </div>`;
+      }).join('');
+      _cardValues[containerId] = next;
+    }
     async function loadStats() {
       try {
         const res = await fetch('/api/stats');
@@ -938,20 +1043,15 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
       } catch (e) {}
     }
     function renderStats(s) {
-      // Top metric cards.
+      // Top metric cards. `key` lets us flash only the values that actually
+      // changed between polls (see renderCards) — a quiet live-update cue.
       const cards = [
-        { label: 'Active Keys', value: `${s.totals.active}`, sub: `of ${s.totals.accounts} across ${s.totals.providers} provider(s)`, color: 'var(--success)' },
-        { label: 'Limited Keys', value: `${s.totals.limited}`, sub: s.totals.limited > 0 ? 'auto-recovering on cooldown' : 'all clear', color: s.totals.limited > 0 ? 'var(--danger)' : 'var(--text-muted)' },
-        { label: 'Requests / min', value: `${s.requests.lastMinute}`, sub: `${s.requests.total} total logged`, color: '#a5b4fc' },
-        { label: 'Success / Limit', value: `${s.requests.success} / ${s.requests.limit}`, sub: s.requests.error > 0 ? `${s.requests.error} error(s)` : 'no errors', color: 'var(--success)' },
+        { key: 'active', label: 'Active Keys', value: `${s.totals.active}`, sub: `of ${s.totals.accounts} across ${s.totals.providers} provider(s)`, color: 'var(--success)' },
+        { key: 'limited', label: 'Limited Keys', value: `${s.totals.limited}`, sub: s.totals.limited > 0 ? 'auto-recovering on cooldown' : 'all clear', color: s.totals.limited > 0 ? 'var(--danger)' : 'var(--text-muted)' },
+        { key: 'rpm', label: 'Requests / min', value: `${s.requests.lastMinute}`, sub: `${s.requests.total} total logged`, color: '#a5b4fc' },
+        { key: 'sl', label: 'Success / Limit', value: `${s.requests.success} / ${s.requests.limit}`, sub: s.requests.error > 0 ? `${s.requests.error} error(s)` : 'no errors', color: 'var(--success)' },
       ];
-      document.getElementById('stat-cards').innerHTML = cards.map(c => `
-        <div class="stat-card">
-          <div class="stat-label">${c.label}</div>
-          <div class="stat-value" style="color:${c.color}">${c.value}</div>
-          <div class="stat-sub">${c.sub}</div>
-        </div>
-      `).join('');
+      renderCards('stat-cards', cards);
 
       // Per-provider key health.
       const wrap = document.getElementById('stat-providers');
@@ -965,11 +1065,11 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
           const cls = active ? 'status-active' : 'status-limited';
           const detail = active
             ? `${a.usageCount}x used`
-            : (a.authFailed ? "auth failed (bad key — fix & re-enable)"
+            : (a.authFailed ? "auth failed (bad key, fix & re-enable)"
                : a.recoversInMs === null ? "manual (won't auto-revive)"
                : fmtRecovers(a.recoversInMs));
           return `<div class="key-row">
-            <span class="status-dot ${cls}" style="cursor:default"></span>
+            <span class="status-dot ${cls}" style="cursor:default" role="img" aria-label="${active ? 'aktif' : 'limited'}"></span>
             <strong>${a.name}</strong>
             <span class="key-detail">${detail}</span>
           </div>`;
@@ -986,29 +1086,233 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
             ${dots}
           </div>`;
       }).join('');
+
+      renderGraph(s);
+    }
+
+    // -- Routing map: BobbyTools -> providers, as an HTML flow (NOT SVG). Plain
+    //    flex-wrap boxes, so the browser lays them out and nothing can ever collide
+    //    or overlap however many providers you have. Colour = live key health,
+    //    "Nx" = total requests routed. Data from /api/stats — no extra fetch. --
+    function renderGraph(s) {
+      const el = document.getElementById('stat-graph');
+      if (!el) return;
+      const providers = s.providers || [];
+      if (!providers.length) { el.innerHTML = ''; return; }
+      const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const chip = (p) => {
+        const healthy = p.active > 0;
+        const color = !healthy ? 'var(--danger)' : (p.limited > 0 ? '#f59e0b' : 'var(--success)');
+        const used = (p.accounts || []).reduce((a, x) => a + (x.usageCount || 0), 0);
+        return `
+          <div style="display:flex; align-items:center; gap:0.5rem; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); border-left:3px solid ${color}; border-radius:8px; padding:0.5rem 0.75rem;">
+            <span style="width:8px; height:8px; border-radius:50%; background:${color}; flex-shrink:0;"></span>
+            <div style="min-width:0;">
+              <div style="font-size:0.85rem; font-weight:600; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px;">${esc(p.name)}</div>
+              <div style="font-size:0.72rem; color:var(--text-muted);">${p.active}/${p.total} keys · ${used}x</div>
+            </div>
+          </div>`;
+      };
+      el.innerHTML = `
+        <div class="glass-card" style="padding:1rem;">
+          <div class="provider-name" style="margin-bottom:0.75rem;">Routing map</div>
+          <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; justify-content:center; background:rgba(99,102,241,0.15); border:2px solid var(--primary); border-radius:10px; padding:0.6rem 1rem; flex-shrink:0;">
+              <div style="text-align:center;">
+                <div style="font-size:0.9rem; font-weight:700; color:#fff;">BobbyTools</div>
+                <div style="font-size:0.72rem; color:var(--text-muted);">router</div>
+              </div>
+            </div>
+            <span style="color:var(--text-muted); font-size:1.2rem; flex-shrink:0;">&rarr;</span>
+            <div style="display:flex; gap:0.6rem; flex-wrap:wrap; flex:1;">
+              ${providers.map(chip).join('')}
+            </div>
+          </div>
+          <div style="display:flex; gap:1rem; flex-wrap:wrap; font-size:0.72rem; color:var(--text-muted); margin-top:0.75rem;">
+            <span><span style="color:var(--success)">&#9679;</span> all keys live</span>
+            <span><span style="color:#f59e0b">&#9679;</span> some limited</span>
+            <span><span style="color:var(--danger)">&#9679;</span> all limited/down</span>
+          </div>
+        </div>`;
+    }
+
+    // -- Timeseries: requests-over-time from the raw log ring (/api/logs). Buckets
+    //    the selected window into bars, stacked success (green) vs fail (red). Pure
+    //    SVG, recomputed on each log refresh. Range is user-selectable; each bar
+    //    carries a <title> so hovering shows its exact time slice + ok/fail counts. --
+    const CHART_RANGES = { '30m': 30 * 60e3, '1h': 60 * 60e3, '6h': 6 * 3600e3, '24h': 24 * 3600e3 };
+    let chartRange = '30m';
+    function setChartRange(r) { chartRange = r; if (lastLogs) renderChart(lastLogs); }
+    function renderChart(logs) {
+      const el = document.getElementById('stat-chart');
+      if (!el) return;
+      if (!logs || !logs.length) { el.innerHTML = `<div class="empty-state">No request history yet. The activity chart fills in as traffic flows.</div>`; return; }
+      const now = Date.now();
+      const SPAN_MS = CHART_RANGES[chartRange] || CHART_RANGES['30m'];
+      const BUCKETS = 30, step = SPAN_MS / BUCKETS;
+      const buckets = Array.from({ length: BUCKETS }, () => ({ ok: 0, fail: 0 }));
+      let any = false, totalOk = 0, totalFail = 0;
+      for (const l of logs) {
+        const t = Date.parse(l.timestamp);
+        if (Number.isNaN(t)) continue;
+        const age = now - t;
+        if (age < 0 || age >= SPAN_MS) continue;
+        const idx = BUCKETS - 1 - Math.floor(age / step);
+        if (idx < 0 || idx >= BUCKETS) continue;
+        any = true;
+        // pending shown as in-flight (optimistic); rare & transient
+        if (l.status === 'limit' || l.status === 'error') { buckets[idx].fail++; totalFail++; }
+        else { buckets[idx].ok++; totalOk++; }
+      }
+      // Range selector always renders (even when empty) so you can switch windows.
+      const ranges = Object.keys(CHART_RANGES).map(r => `
+        <button class="btn" style="padding:0.2rem 0.6rem; font-size:0.72rem; background:${r === chartRange ? 'var(--primary)' : 'rgba(255,255,255,0.05)'}; color:#fff;" onclick="setChartRange('${r}')">${r}</button>`).join('');
+      const label = { '30m': 'last 30 min', '1h': 'last hour', '6h': 'last 6 hours', '24h': 'last 24 hours' }[chartRange];
+      if (!any) {
+        el.innerHTML = `
+          <div class="glass-card" style="padding:1rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem; gap:0.5rem; flex-wrap:wrap;">
+              <div class="provider-name">Requests · ${label}</div>
+              <div style="display:flex; gap:0.35rem;">${ranges}</div>
+            </div>
+            <div class="empty-state" style="padding:2rem;">No requests in this window.</div>
+          </div>`;
+        return;
+      }
+      const W = 760, H = 170, padX = 22, padTop = 12, padBot = 26, bw = (W - padX * 2) / BUCKETS;
+      const peak = Math.max(1, ...buckets.map(b => b.ok + b.fail));
+      const plotH = H - padTop - padBot;
+      const fmtClock = (ms) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const bars = buckets.map((b, i) => {
+        const x = padX + i * bw;
+        const total = b.ok + b.fail;
+        const h = (total / peak) * plotH;
+        const okH = total ? (b.ok / total) * h : 0;
+        const failH = h - okH;
+        const yTop = H - padBot - h;
+        const gap = bw > 3 ? 1 : 0;
+        const tStart = now - (BUCKETS - i) * step;
+        const tip = `${fmtClock(tStart)} · ${b.ok} ok${b.fail ? `, ${b.fail} fail` : ''}`;
+        // A full-height transparent hit-rect makes even tiny/empty bars hoverable.
+        return `<g class="chart-bar" opacity="0.85">
+          <title>${tip}</title>
+          <rect x="${x}" y="${padTop}" width="${bw - gap}" height="${H - padTop - padBot}" fill="transparent"/>
+          ${failH > 0 ? `<rect x="${x}" y="${yTop}" width="${bw - gap}" height="${failH}" rx="1" fill="rgba(239,68,68,0.75)"/>` : ''}
+          <rect x="${x}" y="${yTop + failH}" width="${bw - gap}" height="${okH}" rx="1" fill="rgba(16,185,129,0.75)"/>
+        </g>`;
+      }).join('');
+      // Y gridline at the peak + X labels at start/mid/end of the window.
+      const axis = `
+        <line x1="${padX}" y1="${padTop}" x2="${W - padX}" y2="${padTop}" stroke="rgba(255,255,255,0.06)" stroke-dasharray="3 4"/>
+        <text x="${W - padX}" y="${padTop - 2}" text-anchor="end" font-size="9" fill="var(--text-muted)">peak ${peak}</text>
+        <line x1="${padX}" y1="${H - padBot}" x2="${W - padX}" y2="${H - padBot}" stroke="rgba(255,255,255,0.1)"/>
+        <text x="${padX}" y="${H - 8}" font-size="9" fill="var(--text-muted)">${fmtClock(now - SPAN_MS)}</text>
+        <text x="${W / 2}" y="${H - 8}" text-anchor="middle" font-size="9" fill="var(--text-muted)">${fmtClock(now - SPAN_MS / 2)}</text>
+        <text x="${W - padX}" y="${H - 8}" text-anchor="end" font-size="9" fill="var(--text-muted)">now</text>`;
+      el.innerHTML = `
+        <div class="glass-card" style="padding:1rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem; gap:0.5rem; flex-wrap:wrap;">
+            <div class="provider-name">Requests · ${label}</div>
+            <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+              <div style="font-size:0.75rem; color:var(--text-muted);"><span style="color:var(--success)">●</span> ${totalOk} ok &nbsp; <span style="color:var(--danger)">●</span> ${totalFail} fail</div>
+              <div style="display:flex; gap:0.35rem;">${ranges}</div>
+            </div>
+          </div>
+          <svg viewBox="0 0 ${W} ${H}" style="width:100%; height:auto;">
+            ${axis}
+            ${bars}
+          </svg>
+        </div>`;
     }
 
     // -- Observability: per-provider/model rollup from /api/metrics. Server does
     //    the math (rollupMetrics); we render. Latency + success-rate that survive
     //    a router restart, unlike the raw log list. --
     let metricsHash = '';
+    let lastMetrics = null;      // last payload, so the Tokens/Costs toggle re-renders without refetching
+    let metricsMode = 'tokens';  // 'tokens' | 'costs' — mirrors 9router's overview toggle
     async function loadMetrics() {
       try {
         const res = await fetch('/api/metrics');
         const text = await res.text();
         if (text === metricsHash) return; // unchanged — skip re-render (avoids flicker)
         metricsHash = text;
-        renderMetrics(JSON.parse(text));
+        lastMetrics = JSON.parse(text);
+        renderMetrics(lastMetrics);
       } catch (e) {}
+    }
+    function setMetricsMode(mode) {
+      metricsMode = mode;
+      if (lastMetrics) renderMetrics(lastMetrics);
+    }
+    // Cost = tokens x price. Pricing lives in config (bobbyConfig.pricing), keyed by
+    // model id, rates in USD per 1M tokens: { "<model>": { in, out } }. A model with
+    // no entry costs nothing here (shown as "—"), never a wrong guess.
+    function priceFor(model) { return (bobbyConfig && bobbyConfig.pricing && bobbyConfig.pricing[model]) || null; }
+    function rowCost(r) {
+      const p = priceFor(r.model);
+      if (!p) return null;
+      const inC = (r.inputTokens || 0) / 1e6 * (p.in || 0);
+      const outC = (r.outputTokens || 0) / 1e6 * (p.out || 0);
+      return inC + outC;
+    }
+    function fmtUsd(v) {
+      if (v === null || v === undefined) return '—';
+      if (v === 0) return '$0';
+      if (v < 0.01) return '<$0.01';
+      return '$' + v.toFixed(v < 1 ? 3 : 2);
     }
     function fmtRate(r) { return r === null || r === undefined ? '—' : `${r}%`; }
     function fmtLat(ms) { return ms === null || ms === undefined ? '—' : `${ms}ms`; }
+    // Compact token counts: 1234 -> 1.2K, 1250000 -> 1.3M. Keeps wide tables readable.
+    function fmtTok(n) {
+      if (n === null || n === undefined || n === 0) return '—';
+      if (n < 1000) return `${n}`;
+      if (n < 1_000_000) return `${(n / 1000).toFixed(1)}K`;
+      return `${(n / 1_000_000).toFixed(2)}M`;
+    }
     function renderMetrics(m) {
       const wrap = document.getElementById('stat-metrics');
       if (!m || !m.total) {
+        // No traffic yet: show a zeroed token strip (so the section isn't blank)
+        // and an empty-state under the tables.
+        renderCards('stat-tokens', [
+          { key: 'in', label: 'Input Tokens', value: '—', color: '#a5b4fc', sub: 'no requests yet' },
+          { key: 'out', label: 'Output Tokens', value: '—', color: 'var(--success)', sub: 'no requests yet' },
+          { key: 'cache', label: 'Cached Tokens', value: '—', color: 'var(--text-muted)', sub: 'no requests yet' },
+        ]);
         wrap.innerHTML = `<div class="empty-state">No requests logged yet. Metrics appear once the router handles traffic.</div>`;
         return;
       }
+      const costs = metricsMode === 'costs';
+      // Overall cost = sum of per-model costs that have a price set.
+      const totalCost = m.models.reduce((s, r) => { const c = rowCost(r); return c === null ? s : s + c; }, 0);
+      const anyPriced = m.models.some(r => rowCost(r) !== null);
+
+      // Tokens/Costs toggle — mirrors 9router's overview switch.
+      const toggle = `
+        <div style="display:flex; gap:0.5rem; margin-bottom:1rem;">
+          <button class="btn" style="padding:0.35rem 0.9rem; font-size:0.85rem; background:${costs ? 'rgba(255,255,255,0.05)' : 'var(--primary)'}; color:#fff;" onclick="setMetricsMode('tokens')">Tokens</button>
+          <button class="btn" style="padding:0.35rem 0.9rem; font-size:0.85rem; background:${costs ? 'var(--primary)' : 'rgba(255,255,255,0.05)'}; color:#fff;" onclick="setMetricsMode('costs')">Costs</button>
+        </div>`;
+
+      // Summary strip lives at the TOP of the Overview (stat-tokens), rendered via
+      // renderCards so live changes flash. Tokens mode: in/out/cached; costs mode:
+      // est. cost. Keyed so the flash only fires on the value that actually moved.
+      const summaryCards = costs
+        ? [{ key: 'cost', label: 'Est. Cost', value: anyPriced ? fmtUsd(totalCost) : '—', color: 'var(--success)', sub: anyPriced ? `across ${m.total} request(s)` : 'set model prices in Settings' }]
+        : [
+            { key: 'in', label: 'Input Tokens', value: fmtTok(m.inputTokens), color: '#a5b4fc', sub: `across ${m.total} request(s)` },
+            { key: 'out', label: 'Output Tokens', value: fmtTok(m.outputTokens), color: 'var(--success)', sub: `across ${m.total} request(s)` },
+            { key: 'cache', label: 'Cached Tokens', value: fmtTok(m.cachedTokens), color: 'var(--text-muted)', sub: `across ${m.total} request(s)` },
+          ];
+      renderCards('stat-tokens', summaryCards);
+
+      // Trailing columns differ by mode: tokens -> In/Out tok; costs -> Cost.
+      const metricCols = costs ? '<th>Cost</th>' : '<th>In tok</th><th>Out tok</th>';
+      const metricCells = (r) => costs
+        ? `<td title="estimated cost">${fmtUsd(rowCost(r))}</td>`
+        : `<td title="input tokens">${fmtTok(r.inputTokens)}</td><td title="output tokens">${fmtTok(r.outputTokens)}</td>`;
       const row = (r, label) => `
         <tr>
           <td><strong>${label}</strong></td>
@@ -1017,6 +1321,7 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
           <td style="color:var(--danger)">${r.limit + r.error}</td>
           <td>${fmtRate(r.successRate)}</td>
           <td>${fmtLat(r.avgLatencyMs)}</td>
+          ${metricCells(r)}
           <td>${r.lastMinute}/min</td>
         </tr>`;
       const table = (title, rows) => rows.length ? `
@@ -1024,13 +1329,16 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
           <div class="provider-name" style="margin-bottom:0.75rem;">${title}</div>
           <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
             <thead><tr style="text-align:left; color:var(--text-muted);">
-              <th>Name</th><th>Total</th><th>OK</th><th>Fail</th><th>Rate</th><th>Avg latency</th><th>Recent</th>
+              <th>Name</th><th>Total</th><th>OK</th><th>Fail</th><th>Rate</th><th>Avg latency</th>${metricCols}<th>Recent</th>
             </tr></thead>
             <tbody>${rows}</tbody>
           </table>
         </div>` : '';
+      // Per-provider cost can't be computed (pricing is per-model), so in costs mode
+      // the provider table stays token-free — only the per-model table shows cost.
       wrap.innerHTML =
-        table('By provider', m.providers.map(p => row(p, p.provider)).join('')) +
+        toggle +
+        (costs ? '' : table('By provider', m.providers.map(p => row(p, p.provider)).join(''))) +
         table('By model', m.models.map(p => row(p, p.model)).join(''));
     }
 
@@ -1050,9 +1358,11 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
         logsHash = logsText;
 
         const logs = JSON.parse(logsText);
+        lastLogs = logs;   // cache so the chart range toggle can re-render without refetch
+        renderChart(logs); // Overview activity chart rides the same poll (loadLogs runs every 3s regardless of tab)
         const tbody = document.getElementById('logs-tbody');
         if(logs.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="5" class="empty-state" style="padding: 2rem">Belum ada request yang masuk bro.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="7" class="empty-state" style="padding: 2rem">Belum ada request yang masuk bro.</td></tr>';
           return;
         }
         let html = '';
@@ -1065,12 +1375,17 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
           else if(l.status === 'limit') { badgeClass = 'limit'; badgeText = 'Limit (429)'; }
           else if(l.status === 'error') { badgeClass = 'error'; badgeText = 'Error'; }
 
+          // Tokens are only present on measured requests; show "—" (unmeasured),
+          // never a misleading 0, when the sniffer didn't recover a count.
+          const tok = (v) => (typeof v === 'number' ? v.toLocaleString() : '—');
           html += `
             <tr>
               <td style="color: var(--text-muted)">${timeStr}</td>
               <td style="font-weight: 500">${l.provider}</td>
               <td>${l.account}</td>
               <td><span class="badge" style="margin-left:0; background:rgba(255,255,255,0.05)">${l.model}</span></td>
+              <td style="text-align:right; font-variant-numeric: tabular-nums; color: var(--text-muted)">${tok(l.inputTokens)}</td>
+              <td style="text-align:right; font-variant-numeric: tabular-nums; color: var(--text-muted)">${tok(l.outputTokens)}</td>
               <td><span class="status-badge ${badgeClass}">${badgeText}</span></td>
             </tr>
           `;
@@ -1134,7 +1449,7 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
             accountsHtml += `
               <div class="account-item">
                 <div>
-                  <span class="status-dot ${dotClass}" title="Click to toggle status" onclick="toggleAccountStatus('${p.id}', '${a.id}')"></span>
+                  <button type="button" class="status-dot ${dotClass}" title="Click to toggle status" aria-label="Toggle status akun ${a.name} (skrg: ${a.status})" onclick="toggleAccountStatus('${p.id}', '${a.id}')"></button>
                   <strong>${a.name}</strong>
                   <span class="badge">Used: ${a.usageCount || 0}x</span>
                 </div>
@@ -1183,13 +1498,60 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
     }
 
     async function factoryReset() {
-      if(await bobbyConfirm("⚠️ BAHAYA: Ini bakal ngehapus SEMUA data API Key, Akun, dan Provider lu secara permanen. Yakin 100% mau ngereset?")) {
+      if(await bobbyConfirm("⚠️ BAHAYA: Ini bakal ngehapus SEMUA data API Key, Akun, dan Provider lo secara permanen. Yakin 100% mau ngereset?")) {
         bobbyConfig.providers = [];
         delete bobbyConfig.cliTools;
         delete bobbyConfig.settings;
         await saveConfig();
         renderDashboard();
       }
+    }
+
+    // -- Settings: model pricing editor (drives Overview → Costs). --
+    // Called whenever the Settings tab opens or config syncs (renderCliTools was a
+    // dangling reference before; it now paints the pricing rows). Each row is a
+    // model id + per-1M in/out USD rate. Empty rows are ignored on save.
+    function pricingRowHtml(model = '', inRate = '', outRate = '') {
+      const esc = (s) => String(s).replace(/"/g, '&quot;');
+      return `
+        <div class="pricing-row" style="display:flex; gap:0.5rem; margin-bottom:0.5rem; align-items:center;">
+          <input class="form-control pr-model" placeholder="model id (e.g. gpt-4o)" value="${esc(model)}" style="flex:2; margin:0;">
+          <input class="form-control pr-in" type="number" min="0" step="any" placeholder="$/1M in" value="${inRate}" style="flex:1; margin:0;">
+          <input class="form-control pr-out" type="number" min="0" step="any" placeholder="$/1M out" value="${outRate}" style="flex:1; margin:0;">
+          <button class="btn" style="background:rgba(239,68,68,0.1); color:var(--danger); padding:0.4rem 0.7rem;" onclick="this.closest('.pricing-row').remove()">✕</button>
+        </div>`;
+    }
+    function renderCliTools() {
+      const wrap = document.getElementById('pricing-rows');
+      if (!wrap) return;
+      const pricing = (bobbyConfig && bobbyConfig.pricing) || {};
+      const entries = Object.entries(pricing);
+      wrap.innerHTML = entries.length
+        ? entries.map(([model, p]) => pricingRowHtml(model, p.in ?? '', p.out ?? '')).join('')
+        : pricingRowHtml();
+    }
+    function addPricingRow() {
+      const wrap = document.getElementById('pricing-rows');
+      if (wrap) wrap.insertAdjacentHTML('beforeend', pricingRowHtml());
+    }
+    async function savePricing() {
+      const pricing = {};
+      document.querySelectorAll('#pricing-rows .pricing-row').forEach(row => {
+        const model = row.querySelector('.pr-model').value.trim();
+        if (!model) return; // skip blank rows
+        const inRate = parseFloat(row.querySelector('.pr-in').value);
+        const outRate = parseFloat(row.querySelector('.pr-out').value);
+        const entry = {};
+        if (!Number.isNaN(inRate)) entry.in = inRate;
+        if (!Number.isNaN(outRate)) entry.out = outRate;
+        // A model with no numeric rate at all costs nothing — don't persist it.
+        if (Object.keys(entry).length) pricing[model] = entry;
+      });
+      bobbyConfig.pricing = pricing;
+      await saveConfig();
+      // Re-render metrics so a Costs view reflects the new prices immediately.
+      metricsHash = '';
+      loadMetrics();
     }
 
     // -- App Logic --
@@ -1273,7 +1635,7 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
         if (!res.ok || !data.refreshToken) throw new Error(data.error || 'gagal ambil refresh token');
         const rt = document.getElementById('cred_refreshToken');
         if (rt) rt.value = data.refreshToken;
-        bobbyAlert('Berhasil login — refresh token kesimpen. Tinggal Save Account.', 'success');
+        bobbyAlert('Berhasil login. Refresh token kesimpen, tinggal Save Account.', 'success');
       } catch (err) {
         bobbyAlert('Login browser gagal: ' + err.message);
       }
@@ -1385,6 +1747,16 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
         document.getElementById(modalId).classList.remove('active');
       }
     }
+
+    // Esc closes whatever modal is open. confirmModal must resolve(false) so its
+    // awaiting promise doesn't hang; the rest just drop the .active class.
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      const open = document.querySelector('.modal-overlay.active');
+      if (!open) return;
+      if (open.id === 'confirmModal') resolveConfirm(false);
+      else closeModal(open.id);
+    });
 
     function addCustomProvField() {
       const container = document.getElementById('customProvFields');
@@ -1511,7 +1883,7 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
       box.innerHTML = editingModels.map((m, i) => `
         <span style="display:inline-flex; align-items:center; gap:6px; background: rgba(255,255,255,0.06); border:1px solid var(--glass-border); border-radius: 6px; padding: 3px 8px; font-size: 0.8rem;">
           ${escapeHtml(m)}
-          <span style="cursor:pointer; color:#ef4444; font-weight:700;" title="Remove" onclick="removeEditModel(${i})">×</span>
+          <button type="button" style="cursor:pointer; color:#ef4444; font-weight:700; background:none; border:none; padding:0; font-size:1rem; line-height:1;" title="Remove" aria-label="Hapus model ${escapeHtml(m)}" onclick="removeEditModel(${i})">×</button>
         </span>`).join('');
     }
 
@@ -1557,7 +1929,19 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
           }
         }
         renderEditModelList();
-        bobbyAlert(`${added} model baru ditambahin (${fetched.length} ke-fetch).`, 'success');
+        // Pricing the provider published (OpenRouter & co) auto-fills the cost view.
+        // It's a top-level config key, independent of whether this provider edit is
+        // saved, so persist it now (additive — never clobbers prices you set by hand).
+        let priced = 0;
+        if (data.pricing && Object.keys(data.pricing).length) {
+          bobbyConfig.pricing = bobbyConfig.pricing || {};
+          for (const [model, rate] of Object.entries(data.pricing)) {
+            bobbyConfig.pricing[model] = rate; priced++;
+          }
+          await saveConfig();
+          metricsHash = ''; loadMetrics(); // reflect new prices in Costs view now
+        }
+        bobbyAlert(`${added} model baru ditambahin (${fetched.length} ke-fetch)${priced ? `, ${priced} harga ke-auto-fill` : ''}.`, 'success');
       } catch (e) {
         bobbyAlert('Fetch gagal: ' + e.message);
       } finally {
@@ -1785,7 +2169,7 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
       const models = (provider && Array.isArray(provider.models)) ? provider.models : [];
       modelSel.innerHTML = models.length
         ? models.map(m => `<option value="${escapeAttr(m)}">${escapeHtml(m)}</option>`).join('')
-        : '<option value="">No known models — sync first</option>';
+        : '<option value="">No known models: sync first</option>';
     }
 
     function addComboStep() {

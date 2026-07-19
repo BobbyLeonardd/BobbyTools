@@ -13,7 +13,7 @@ export async function fetchModels(provider, account) {
   // list (prefixed again each time) — junk, not a real model list. Local providers
   // are manual-only: add models by hand in Edit Models.
   if (isLocalUrl(resolveBaseUrl(provider, account))) {
-    warn('Local base URL — models endpoint is disabled to avoid loops. Add models manually.');
+    warn('Local base URL: models endpoint is disabled to avoid loops. Add models manually.');
     return null;
   }
 
