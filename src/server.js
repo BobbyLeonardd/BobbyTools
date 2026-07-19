@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
 import { store } from './store.js';
 import { logStore } from './logstore.js';
-import { resolveBaseUrl, reviveLimitedAccounts, slugify, isLocalUrl, fetchWithConnectTimeout, computeStats, parseRetryAfter, rollupMetrics, resolveModelId, findFallbackProvider, isTrustedControlRequest, resolveComboSpecs, DEFAULT_ROUTER_PORT } from './helpers.js';
+import { resolveBaseUrl, reviveLimitedAccounts, slugify, isLocalUrl, fetchWithConnectTimeout, computeStats, parseRetryAfter, rollupMetrics, resolveModelId, findFallbackProvider, isTrustedControlRequest, resolveComboSpecs, normalizeFetchedModels, DEFAULT_ROUTER_PORT } from './helpers.js';
 import {
   translateRequest, translateResponse, translateStream, normalizeFormat,
 } from './translate.js';
@@ -119,6 +119,131 @@ export async function startRouterServer(port = DEFAULT_ROUTER_PORT, background =
       });
       return;
     }
+    // Fetch a provider's model list from its own /models endpoint, server-side.
+    // The browser can't do this itself (CORS + it never holds the real key); the
+    // router can, using the same helpers the CLI's "Fetch Models" uses. Body:
+    // { providerId }. Returns { models, aliases } — the client merges + saves via
+    // POST /api/config, exactly like the CLI does. Never touches disk here.
+    if (req.method === 'POST' && req.url === '/api/fetch-models') {
+      let body = '';
+      req.on('data', chunk => body += chunk.toString());
+      req.on('end', async () => {
+        try {
+          const { providerId } = JSON.parse(body || '{}');
+          store.reloadIfChanged();
+          const provider = store.get().providers.find(p => p.id === providerId);
+          if (!provider) { res.writeHead(404); res.end(JSON.stringify({ error: 'Provider not found' })); return; }
+          if (!provider.modelsEndpoint) { res.writeHead(400); res.end(JSON.stringify({ error: 'Provider has no models endpoint — add models manually' })); return; }
+          const account = (provider.accounts || [])[0];
+          if (!account) { res.writeHead(400); res.end(JSON.stringify({ error: 'Add an account first — fetching needs a key' })); return; }
+          const baseUrl = resolveBaseUrl(provider, account).replace(/\/+$/, '');
+          // Same self-loop guard as the CLI: a local provider points back at us.
+          if (isLocalUrl(baseUrl)) { res.writeHead(400); res.end(JSON.stringify({ error: 'Local provider is manual-only (fetch disabled to avoid a self-loop)' })); return; }
+          const apiKey = await resolveAccessToken(provider, account);
+          const headers = {};
+          if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+          const controller = new AbortController();
+          const upstream = await fetchWithConnectTimeout(`${baseUrl}${provider.modelsEndpoint}`, { method: 'GET', headers }, controller, CONNECT_TIMEOUT_MS);
+          if (!upstream.ok) { res.writeHead(502); res.end(JSON.stringify({ error: `Provider returned HTTP ${upstream.status}` })); return; }
+          const data = await upstream.json();
+          const raw = data.data || data.models || data.result || data;
+          const ids = (Array.isArray(raw) ? raw : []).map(m => (typeof m === 'string' ? m : m.id || m.name)).filter(Boolean);
+          const { models, aliases } = normalizeFetchedModels(provider, ids);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ models, aliases }));
+        } catch (err) {
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: err.message || 'fetch failed' }));
+        }
+      });
+      return;
+    }
+    // Test one account's connectivity server-side (the browser can't — it never
+    // holds the real key, and CORS blocks it). Mirrors the CLI's testAccount:
+    // resolve the credential (static key OR a minted OAuth token — a bad refresh
+    // token surfaces as a failure here, which is the point), then GET the
+    // provider's models endpoint. Body: { providerId, accountId }.
+    // Returns { ok, status, message }. Never touches disk.
+    if (req.method === 'POST' && req.url === '/api/test-account') {
+      let body = '';
+      req.on('data', chunk => body += chunk.toString());
+      req.on('end', async () => {
+        try {
+          const { providerId, accountId } = JSON.parse(body || '{}');
+          store.reloadIfChanged();
+          const provider = store.get().providers.find(p => p.id === providerId);
+          if (!provider) { res.writeHead(404); res.end(JSON.stringify({ error: 'Provider not found' })); return; }
+          const account = (provider.accounts || []).find(a => a.id === accountId);
+          if (!account) { res.writeHead(404); res.end(JSON.stringify({ error: 'Account not found' })); return; }
+          const baseUrl = resolveBaseUrl(provider, account).replace(/\/+$/, '');
+          const url = provider.modelsEndpoint ? `${baseUrl}${provider.modelsEndpoint}` : `${baseUrl}/models`;
+          let apiKey;
+          try {
+            apiKey = await resolveAccessToken(provider, account);
+          } catch (tokenErr) {
+            // A dead OAuth grant (bad/revoked refresh token) fails to mint — that's
+            // exactly the "is this account usable?" answer Test exists to give.
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, status: 0, message: `Token mint failed: ${tokenErr.message}` }));
+            return;
+          }
+          const headers = {};
+          if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+          const controller = new AbortController();
+          const upstream = await fetchWithConnectTimeout(url, { method: 'GET', headers }, controller, CONNECT_TIMEOUT_MS);
+          const message = upstream.ok
+            ? `Connection OK (HTTP ${upstream.status})`
+            : `HTTP ${upstream.status}: ${(await upstream.text().catch(() => '')).slice(0, 120) || upstream.statusText}`;
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: upstream.ok, status: upstream.status, message }));
+        } catch (err) {
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: err.message || 'test failed' }));
+        }
+      });
+      return;
+    }
+
+    // Run the browser OAuth consent flow server-side and return the refresh_token.
+    // The router is a local process on the same box as the browser, so it can do
+    // exactly what the CLI does (accounts.js): open the browser, catch the callback
+    // on a throwaway loopback port, exchange the code. The dashboard can't do this
+    // itself (no local socket, no client secret handling). Body:
+    // { providerId, clientId, clientSecret? }. Returns { refreshToken }.
+    // The client merges it into the account creds and saves via POST /api/config.
+    if (req.method === 'POST' && req.url === '/api/oauth-login') {
+      let body = '';
+      req.on('data', chunk => body += chunk.toString());
+      req.on('end', async () => {
+        try {
+          const { providerId, clientId, clientSecret } = JSON.parse(body || '{}');
+          store.reloadIfChanged();
+          const provider = store.get().providers.find(p => p.id === providerId);
+          if (!provider) { res.writeHead(404); res.end(JSON.stringify({ error: 'Provider not found' })); return; }
+          // Same preconditions the CLI checks before offering browser login.
+          if (normalizeAuthType(provider.authType) !== 'oauth2') { res.writeHead(400); res.end(JSON.stringify({ error: 'Provider is not OAuth (authType must be oauth2)' })); return; }
+          if ((provider.oauth?.grantType || 'refresh_token') !== 'refresh_token') { res.writeHead(400); res.end(JSON.stringify({ error: 'Browser login only applies to the refresh_token grant' })); return; }
+          if (!provider.oauth?.authUrl) { res.writeHead(400); res.end(JSON.stringify({ error: 'Provider has no oauth.authUrl — set it in Edit Provider first' })); return; }
+          if (!clientId) { res.writeHead(400); res.end(JSON.stringify({ error: 'OAuth Client ID is required to start browser login' })); return; }
+          const { runBrowserAuthFlow } = await import('./oauth-flow.js');
+          const tokens = await runBrowserAuthFlow({
+            authUrl: provider.oauth.authUrl,
+            tokenUrl: provider.oauth.tokenUrl,
+            clientId,
+            clientSecret: clientSecret || undefined,
+            scope: provider.oauth.scope || '',
+            extraAuthParams: provider.oauth.extraAuthParams || {},
+          });
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ refreshToken: tokens.refreshToken }));
+        } catch (err) {
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: err.message || 'browser login failed' }));
+        }
+      });
+      return;
+    }
+
     if (req.method === 'POST' && req.url === '/api/shutdown') {
       store.flush(); // persist any pending debounced write before exiting
       logStore.flush();
