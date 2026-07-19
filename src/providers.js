@@ -107,12 +107,12 @@ async function addFromTemplate() {
 
       if (matchedCloud.length > 0) {
         results.push(new Separator(chalk.gray('── Cloud Providers ──')));
-        matchedCloud.forEach(t => results.push({ name: `${t.name} ${chalk.gray('— ' + t.description)}`, value: t }));
+        matchedCloud.forEach(t => results.push({ name: `${t.name} ${chalk.gray('· ' + t.description)}`, value: t }));
       }
 
       if (matchedLocal.length > 0) {
         results.push(new Separator(chalk.gray('── Local Providers ──')));
-        matchedLocal.forEach(t => results.push({ name: `${t.name} ${chalk.gray('— ' + t.description)}`, value: t }));
+        matchedLocal.forEach(t => results.push({ name: `${t.name} ${chalk.gray('· ' + t.description)}`, value: t }));
       }
       
       return results;
@@ -455,10 +455,10 @@ async function editProvider() {
         const newFmt = await select({
           message: 'API format this provider speaks',
           choices: [
-            { name: 'openai — Chat Completions (Groq, OpenRouter, most)', value: 'openai' },
-            { name: 'anthropic — Messages API (api.anthropic.com)', value: 'anthropic' },
-            { name: 'gemini — Google Generative Language (generateContent)', value: 'gemini' },
-            { name: 'responses — OpenAI Responses API (/v1/responses)', value: 'responses' },
+            { name: 'openai: Chat Completions (Groq, OpenRouter, most)', value: 'openai' },
+            { name: 'anthropic: Messages API (api.anthropic.com)', value: 'anthropic' },
+            { name: 'gemini: Google Generative Language (generateContent)', value: 'gemini' },
+            { name: 'responses: OpenAI Responses API (/v1/responses)', value: 'responses' },
           ],
           default: provider.apiFormat || 'openai',
         });
@@ -479,8 +479,8 @@ async function editProvider() {
         const newType = await select({
           message: 'How do accounts authenticate?',
           choices: [
-            { name: 'apikey — static API key (default)', value: 'apikey' },
-            { name: 'oauth2 — minted access tokens (Google login / service account)', value: 'oauth2' },
+            { name: 'apikey: static API key (default)', value: 'apikey' },
+            { name: 'oauth2: minted access tokens (Google login / service account)', value: 'oauth2' },
           ],
           default: provider.authType === 'oauth2' ? 'oauth2' : 'apikey',
         });
@@ -496,8 +496,8 @@ async function editProvider() {
         const grantType = await select({
           message: 'OAuth grant type',
           choices: [
-            { name: 'refresh_token — browser login (user OAuth)', value: 'refresh_token' },
-            { name: 'jwt-bearer — service account key (no browser)', value: 'jwt-bearer' },
+            { name: 'refresh_token: browser login (user OAuth)', value: 'refresh_token' },
+            { name: 'jwt-bearer: service account key (no browser)', value: 'jwt-bearer' },
           ],
           default: provider.oauth?.grantType || 'refresh_token',
         });
@@ -592,10 +592,10 @@ async function editModels(config, provider) {
     const local = isLocalUrl(provider.baseUrlTemplate);
     info(`${count} model(s) cached`);
     dim(local
-      ? 'Local base URL — manual entry only (endpoint fetch disabled to avoid loops)'
+      ? 'Local base URL: manual entry only (endpoint fetch disabled to avoid loops)'
       : provider.modelsEndpoint
         ? `Endpoint: ${provider.baseUrlTemplate}${provider.modelsEndpoint}`
-        : 'No models endpoint — manual entry only');
+        : 'No models endpoint: manual entry only');
     console.log();
 
     const choices = [{ name: '➕  Add Model (manual)', value: 'add' }];
@@ -626,7 +626,7 @@ async function editModels(config, provider) {
       case 'list':
         clearScreen();
         showBanner();
-        console.log(chalk.bold(`  📋 Models — ${provider.name}\n`));
+        console.log(chalk.bold(`  📋 Models: ${provider.name}\n`));
         provider.models.forEach((m, i) => console.log(`  ${chalk.gray(`${i + 1}.`)} ${m}`));
         await pause();
         break;
@@ -723,7 +723,7 @@ async function fetchModelsInto(config, provider) {
   }
   saveConfig(config);
   const aliasNote = Object.keys(aliases).length ? `, ${Object.keys(aliases).length} auto-aliased` : '';
-  success(`Fetched ${fetched.length} model(s) — ${added} new, ${merged.length} total${aliasNote}.`);
+  success(`Fetched ${fetched.length} model(s): ${added} new, ${merged.length} total${aliasNote}.`);
   await pause();
 }
 

@@ -74,10 +74,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 {
   const now = 5_000_000;
   const logs = [
-    { provider: 'Groq', model: 'llama', status: 'success', latencyMs: 100, timestamp: new Date(now - 10_000).toISOString() },
-    { provider: 'Groq', model: 'llama', status: 'success', latencyMs: 300, timestamp: new Date(now - 20_000).toISOString() },
+    { provider: 'Groq', model: 'llama', status: 'success', latencyMs: 100, inputTokens: 10, outputTokens: 5, cachedTokens: 2, timestamp: new Date(now - 10_000).toISOString() },
+    { provider: 'Groq', model: 'llama', status: 'success', latencyMs: 300, inputTokens: 20, outputTokens: 7, timestamp: new Date(now - 20_000).toISOString() },
     { provider: 'Groq', model: 'llama', status: 'limit',   latencyMs: 50,  timestamp: new Date(now - 90_000).toISOString() }, // older than a minute
-    { provider: 'OpenRouter', model: 'gpt', status: 'error', timestamp: new Date(now - 5_000).toISOString() }, // no latency
+    { provider: 'OpenRouter', model: 'gpt', status: 'error', timestamp: new Date(now - 5_000).toISOString() }, // no latency, no tokens
     { provider: 'Groq', model: 'llama', status: 'pending', timestamp: new Date(now - 1_000).toISOString() },
   ];
   const m = rollupMetrics(logs, now);
@@ -103,6 +103,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const or = m.providers.find((p) => p.provider === 'OpenRouter');
   assert.strictEqual(or.error, 1, 'openrouter: one error');
   assert.strictEqual(or.avgLatencyMs, null, 'no latency samples -> null, not 0');
+
+  // Token totals: only measured entries contribute; missing fields add 0 (never
+  // inflate). Overall = sum across all; per-group scoped to that group.
+  assert.strictEqual(m.inputTokens, 30, 'overall input tokens = 10 + 20');
+  assert.strictEqual(m.outputTokens, 12, 'overall output tokens = 5 + 7');
+  assert.strictEqual(m.cachedTokens, 2, 'overall cached tokens = 2 (only one entry had it)');
+  assert.strictEqual(groq.inputTokens, 30, 'groq input tokens summed');
+  assert.strictEqual(or.outputTokens, 0, 'unmeasured provider sums to 0, not NaN');
 
   // Empty is safe.
   const empty = rollupMetrics([], now);

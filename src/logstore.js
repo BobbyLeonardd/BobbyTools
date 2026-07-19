@@ -18,7 +18,11 @@ const LOG_DIR = join(homedir(), '.bobbytools');
 const LOG_FILE = join(LOG_DIR, 'logs.json');
 const LOG_TMP = join(LOG_DIR, 'logs.tmp.json');
 
-export const MAX_LOGS = 100;
+// Wide enough to back a usage dashboard (summary cards + per-model rollup) with
+// real history, still bounded so the ring + its disk file stay small.
+// ponytail: newest-first cap; usage older than MAX_LOGS requests ages out. If the
+// dashboard ever needs long-range history, the upgrade path is a rollup on flush.
+export const MAX_LOGS = 1000;
 
 function diskLoad() {
   try {

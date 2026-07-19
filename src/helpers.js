@@ -326,6 +326,36 @@ export function normalizeFetchedModels(provider, rawIds = []) {
 }
 
 /**
+ * Pull per-model pricing out of a raw /models response, for the cost view. Only
+ * OpenRouter (and a couple of compatible aggregators) actually publish price in
+ * their model list: each entry carries `pricing: { prompt, completion }` in USD
+ * PER TOKEN, as strings. We convert to USD per 1M tokens (the unit the dashboard
+ * editor + rollup use) and key by the SAME id the router logs (the advertised id,
+ * i.e. what m.id / m.name is), so the numbers line up with metrics rows.
+ *
+ * A free model publishes "0" → we skip it (0 cost is the default anyway; storing
+ * it just clutters the editor). Anything without a numeric price is ignored — a
+ * provider that doesn't expose pricing simply yields {} and the manual editor
+ * stays the source of truth for it. Never throws on odd shapes.
+ */
+export function extractModelPricing(rawModels = []) {
+  const pricing = {};
+  const perM = (v) => { const n = parseFloat(v); return Number.isFinite(n) && n > 0 ? n * 1e6 : undefined; };
+  for (const m of Array.isArray(rawModels) ? rawModels : []) {
+    if (!m || typeof m !== 'object') continue;
+    const id = m.id || m.name;
+    if (!id || !m.pricing) continue;
+    const inRate = perM(m.pricing.prompt ?? m.pricing.input);
+    const outRate = perM(m.pricing.completion ?? m.pricing.output);
+    const entry = {};
+    if (inRate !== undefined) entry.in = inRate;
+    if (outRate !== undefined) entry.out = outRate;
+    if (Object.keys(entry).length) pricing[id] = entry;
+  }
+  return pricing;
+}
+
+/**
  * Resolve a "combo" — a user-defined, ordered list of `provider/model` specs the
  * router tries in turn, dropping to the NEXT model only when the current one has
  * no live account left anywhere. Combos live in `config.combos` as
@@ -468,7 +498,7 @@ export function computeStats(config, logs = [], cooldownMs = LIMIT_COOLDOWN_MS, 
  * upgrade path is an incremental tally updated on each push instead of a rescan.
  */
 export function rollupMetrics(logs = [], now = Date.now()) {
-  const blank = () => ({ total: 0, success: 0, limit: 0, error: 0, pending: 0, lastMinute: 0, latSum: 0, latN: 0 });
+  const blank = () => ({ total: 0, success: 0, limit: 0, error: 0, pending: 0, lastMinute: 0, latSum: 0, latN: 0, inTok: 0, outTok: 0, cacheTok: 0 });
   const overall = blank();
   const byProvider = new Map();
   const byModel = new Map();
@@ -476,6 +506,11 @@ export function rollupMetrics(logs = [], now = Date.now()) {
   const bump = (m, l) => {
     m.total++;
     if (m[l.status] !== undefined) m[l.status]++; else m.pending++;
+    // Token counts are only present on entries the sniffer could measure; a
+    // missing field adds 0, so unmeasured requests never inflate the totals.
+    if (typeof l.inputTokens === 'number') m.inTok += l.inputTokens;
+    if (typeof l.outputTokens === 'number') m.outTok += l.outputTokens;
+    if (typeof l.cachedTokens === 'number') m.cacheTok += l.cachedTokens;
     const t = Date.parse(l.timestamp);
     if (!Number.isNaN(t) && now - t < 60_000) m.lastMinute++;
     if (typeof l.latencyMs === 'number' && l.latencyMs >= 0) { m.latSum += l.latencyMs; m.latN++; }
@@ -499,6 +534,7 @@ export function rollupMetrics(logs = [], now = Date.now()) {
       lastMinute: m.lastMinute,
       successRate: done ? Math.round((m.success / done) * 100) : 0,
       avgLatencyMs: m.latN ? Math.round(m.latSum / m.latN) : null,
+      inputTokens: m.inTok, outputTokens: m.outTok, cachedTokens: m.cacheTok,
     };
     if (key) out[key] = keyName;
     return out;

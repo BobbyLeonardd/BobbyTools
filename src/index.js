@@ -1,6 +1,6 @@
 import { select, input } from '@inquirer/prompts';
 import chalk from 'chalk';
-import { showBanner, VERSION, dim, info, success, error, warn, divider, clearScreen, pause } from './ui.js';
+import { showBanner, VERSION, dim, info, success, error, warn, divider, clearScreen, pause, statusDot } from './ui.js';
 import { getConfig, saveConfig, getConfigPath } from './config.js';
 import path from 'path';
 import fs from 'fs';
@@ -243,7 +243,7 @@ function showQuickStatus() {
   if (pc > 0) {
     dim(`${pc} provider(s), ${ac} account(s) configured`);
   } else {
-    dim('No providers yet — add one to get started!');
+    dim('No providers yet, add one to get started!');
   }
   console.log();
 }
@@ -267,7 +267,7 @@ function showFullStatus() {
       dim('No accounts');
     } else {
       for (const a of p.accounts) {
-        const status = a.status === 'active' ? chalk.green('●') : chalk.red('●');
+        const status = statusDot(a.status);
         const current = p.lastAccountId === a.id ? chalk.yellow(' ← current') : '';
         console.log(`    ${status} ${a.name} (used ${a.usageCount}x)${current}`);
       }
@@ -373,7 +373,7 @@ async function showTutorial() {
   console.log(chalk.white.bold('\n  📦 INSTALL / UPDATE / UNINSTALL\n'));
   console.log(chalk.gray('  Butuh Node.js v18+ (cek: ') + chalk.yellow('node -v') + chalk.gray('). Gak ada = ambil LTS di nodejs.org. Sisanya npm yang urus.\n'));
   console.log(chalk.white('  Install   ') + chalk.gray(': ') + chalk.yellow('npm install -g bobbytools') + chalk.gray('   (sekali doang, langsung bisa dipanggil "bobby" di mana aja)'));
-  console.log(chalk.gray('              Cek berhasil: ') + chalk.yellow('bobby -v') + chalk.gray('. "command not found"? folder npm global belum masuk PATH — restart terminal.'));
+  console.log(chalk.gray('              Cek berhasil: ') + chalk.yellow('bobby -v') + chalk.gray('. "command not found"? folder npm global belum masuk PATH. Restart terminal dulu.'));
   console.log(chalk.white('  Update    ') + chalk.gray(': ') + chalk.yellow('bobby update') + chalk.gray('   (dia ngecek versi npm & nawarin update otomatis, tinggal Enter)'));
   console.log(chalk.white('  Uninstall ') + chalk.gray(': matiin dulu router yang jalan (menu ') + chalk.yellow('Stop Web Dashboard') + chalk.gray('), terus:'));
   console.log(chalk.gray('              ') + chalk.yellow('npm uninstall -g bobbytools'));
@@ -381,7 +381,7 @@ async function showTutorial() {
   console.log(chalk.gray('              Mac/Linux/GitBash : ') + chalk.yellow('rm -rf ~/.bobbytools'));
   console.log(chalk.gray('              Windows PowerShell: ') + chalk.yellow('Remove-Item -Recurse -Force "$env:USERPROFILE\\.bobbytools"'));
   console.log(chalk.gray('              Windows CMD       : ') + chalk.yellow('rmdir /s /q %USERPROFILE%\\.bobbytools'));
-  console.log(chalk.red('              ⚠  Langkah hapus config itu permanen — semua key ilang, gak ada undo. Cuma reinstall? Skip.\n'));
+  console.log(chalk.red('              ⚠  Langkah hapus config itu permanen: semua key ilang, gak ada undo. Cuma reinstall? Skip.\n'));
 
   divider();
   console.log(chalk.white.bold('\n  🔥 MODE 1: WEB / ROUTER\n'));
@@ -398,7 +398,7 @@ async function showTutorial() {
   console.log(chalk.gray('             Windows PowerShell: ') + chalk.yellow('$env:OPENAI_BASE_URL="http://127.0.0.1:13337/v1"'));
   console.log(chalk.gray('             Windows CMD       : ') + chalk.yellow('set OPENAI_BASE_URL=http://127.0.0.1:13337/v1'));
   console.log(chalk.gray('             Pake claude-code / CLI Anthropic-style? Ganti prefix jadi ') + chalk.yellow('ANTHROPIC_BASE_URL') + chalk.gray(', URL-nya sama.'));
-  console.log(chalk.gray('             API key-nya isi apa aja (') + chalk.yellow('sk-bobby') + chalk.gray('), Bobby gak peduli — yang asli dia yang pegang.'));
+  console.log(chalk.gray('             API key-nya isi apa aja (') + chalk.yellow('sk-bobby') + chalk.gray('), Bobby gak peduli, yang asli dia yang pegang.'));
   console.log(chalk.white('  Langkah 4. ') + chalk.gray('Panggil model pake format ') + chalk.yellow('<provider>/<model>') + chalk.gray(':'));
   console.log(chalk.gray('             ') + chalk.cyan('opencode -m groq/llama3-70b-8192'));
   console.log(chalk.gray('             ') + chalk.cyan('aider --model openrouter/anthropic/claude-3-haiku'));
@@ -418,22 +418,22 @@ async function showTutorial() {
   console.log(chalk.white('  Langkah 3. ') + chalk.gray('Buka provider itu -> ') + chalk.yellow('Manage Accounts') + chalk.gray(' -> masukin API key lo.'));
   console.log(chalk.white('  Langkah 4. ') + chalk.gray('Balik ke menu, ') + chalk.yellow('🚀 Start Session') + chalk.gray(' -> pilih Provider, Akun, Model.'));
   console.log(chalk.gray('             Bobby nutup dirinya sendiri, ngebuka CLI target dengan key udah kesuntik di memori.'));
-  console.log(chalk.gray('             Besoknya tinggal ') + chalk.yellow('bobby go') + chalk.gray(' — langsung lanjut sesi terakhir, tanpa klik-klik.\n'));
+  console.log(chalk.gray('             Besoknya tinggal ') + chalk.yellow('bobby go') + chalk.gray('. Langsung lanjut sesi terakhir, tanpa klik-klik.\n'));
 
   divider();
-  console.log(chalk.white.bold('\n  🔀 COMBOS (Manage Combos) — rantai model cadangan\n'));
+  console.log(chalk.white.bold('\n  🔀 COMBOS (Manage Combos): rantai model cadangan\n'));
   console.log(chalk.gray('  Combo = daftar ') + chalk.cyan('provider/model') + chalk.gray(' berurutan yang lo kasih satu nama. Bobby coba dari atas;'));
   console.log(chalk.gray('  begitu SATU model bener-bener abis (semua akunnya + fallback lintas-provider mentok), baru turun ke model berikutnya.\n'));
   console.log(chalk.white('  Bikin  : ') + chalk.gray('menu ') + chalk.yellow('🔀 Manage Combos') + chalk.gray(' -> Add Combo -> kasih nama (tanpa "/") -> susun langkahnya (urutannya bisa digeser).'));
   console.log(chalk.white('  Pake   : ') + chalk.gray('panggil nama combo-nya di posisi model: ') + chalk.cyan('opencode -m ngebut') + chalk.gray('  (kalo combo-nya bernama "ngebut").'));
-  console.log(chalk.gray('  Ini SATU-SATUNYA tempat Bobby ganti model di tengah request — dan cuma buat nama yang lo daftarin sebagai combo.'));
+  console.log(chalk.gray('  Ini SATU-SATUNYA tempat Bobby ganti model di tengah request, dan cuma buat nama yang lo daftarin sebagai combo.'));
   console.log(chalk.gray('  Request ') + chalk.cyan('provider/model') + chalk.gray(' biasa tetep dikunci ke model itu (kena 429 ya 429, gak diem-diem pindah model).\n'));
 
   divider();
   console.log(chalk.white.bold('\n  🌐 PENERJEMAH FORMAT (kenapa claude-code bisa nembak provider apa aja)\n'));
   console.log(chalk.gray('  Tiap CLI ngomong "bahasa" API sendiri: claude-code = ') + chalk.cyan('Anthropic Messages') + chalk.gray(', mayoritas provider = ') + chalk.cyan('OpenAI Chat'));
   console.log(chalk.gray('  Completions') + chalk.gray(', Google = ') + chalk.cyan('Gemini') + chalk.gray(', OpenAI baru = ') + chalk.cyan('Responses') + chalk.gray('. Bobby nerjemahin lewat "hub" tengah,'));
-  console.log(chalk.gray('  jadi kombinasi mana pun nyambung: teks, streaming, tool/function call, dan gambar/vision — dua arah.\n'));
+  console.log(chalk.gray('  jadi kombinasi mana pun nyambung: teks, streaming, tool/function call, dan gambar/vision, dua arah.\n'));
   console.log(chalk.white('  Setelan: ') + chalk.gray('Manage Providers -> Edit Provider -> ') + chalk.yellow('API Format') + chalk.gray(' -> pilih ') + chalk.cyan('openai / anthropic / gemini / responses') + chalk.gray('.'));
   console.log(chalk.gray('           Default = ') + chalk.cyan('openai') + chalk.gray(', jadi mayoritas provider gak usah disetel apa-apa. Set ini cuma kalo provider-nya beneran ngomong format lain.'));
   console.log(chalk.gray('           Kalo format CLI == format provider, Bobby lewat jalur cepat (diterusin apa adanya, nol overhead).\n'));
@@ -442,19 +442,19 @@ async function showTutorial() {
   console.log(chalk.white.bold('\n  🧠 NGATUR MODEL (Manage Providers -> Edit Provider -> Edit Models)\n'));
   console.log(chalk.gray('  Tiap provider punya daftar model sendiri. Di menu Edit Models lo bisa:'));
   console.log(chalk.gray('  • ') + chalk.white('Add/Rename/Delete') + chalk.gray(' model manual.'));
-  console.log(chalk.gray('  • ') + chalk.white('Fetch/Refresh') + chalk.gray(' — narik daftar model langsung dari API provider (kalo dia punya endpoint /models), hasilnya di-merge.'));
-  console.log(chalk.gray('  • ') + chalk.white('Set Models Endpoint') + chalk.gray(' — path buat nge-fetch tadi. Kosongin = provider jadi manual-only.\n'));
+  console.log(chalk.gray('  • ') + chalk.white('Fetch/Refresh') + chalk.gray(': narik daftar model langsung dari API provider (kalo dia punya endpoint /models), hasilnya di-merge.'));
+  console.log(chalk.gray('  • ') + chalk.white('Set Models Endpoint') + chalk.gray(': path buat nge-fetch tadi. Kosongin = provider jadi manual-only.\n'));
   console.log(chalk.yellow('  ⚠  Provider dengan Base URL lokal (localhost/127.0.0.1) = manual-only.'));
   console.log(chalk.gray('     Fetch-nya sengaja dimatiin biar gak nyerep model dari router sendiri (bikin loop & nama aneh).'));
   console.log(chalk.gray('     Jadi buat provider lokal, tambahin model-nya pake tangan aja.\n'));
 
   divider();
   console.log(chalk.white.bold('\n  🔑 LOGIN OAUTH (provider yang gak ngasih API key statis)\n'));
-  console.log(chalk.gray('  Sebagian provider (Google, dll) gak ngasih key yang tinggal copas — lo login pake akun.'));
+  console.log(chalk.gray('  Sebagian provider (Google, dll) gak ngasih key yang tinggal copas, lo login pake akun.'));
   console.log(chalk.gray('  Yang lo dapet cuma refresh token; access token-nya cuma idup ~1 jam. Bobby yang muterin'));
   console.log(chalk.gray('  otomatis di belakang layar, jadi lo gak pernah nyentuh token yang cepet basi itu.\n'));
   console.log(chalk.white('  Login browser  ') + chalk.gray('(refresh token): pilih template ') + chalk.yellow('Google Gemini (OAuth login)') + chalk.gray(', isi Client ID.'));
-  console.log(chalk.gray('                  Pas nambah akun, Bobby nawarin ') + chalk.yellow('"buka browser buat login sekarang?"') + chalk.gray(' — klik, izinin,'));
+  console.log(chalk.gray('                  Pas nambah akun, Bobby nawarin ') + chalk.yellow('"buka browser buat login sekarang?"') + chalk.gray('. Klik, izinin,'));
   console.log(chalk.gray('                  beres. Refresh token kesimpen sendiri, gak usah copas token manual.'));
   console.log(chalk.white('  Service account') + chalk.gray(' (JWT, tanpa browser): template ') + chalk.yellow('Google Vertex AI (service account)') + chalk.gray('.'));
   console.log(chalk.gray('                  Tempel Service Account Email + Private Key (PEM) dari JSON-nya, plus Project ID & Region.'));
@@ -467,14 +467,14 @@ async function showTutorial() {
   console.log(chalk.gray('  • ') + chalk.white('"Provider not found"? ') + chalk.gray('prefix model lo gak cocok sama nama provider. Samain (spasi -> strip).'));
   console.log(chalk.gray('  • ') + chalk.white('Model lokal gak muncul? ') + chalk.gray('emang gak diserep otomatis. Tambah manual di Edit Models.'));
   console.log(chalk.gray('  • ') + chalk.white('OAuth gagal / "no refresh_token"? ') + chalk.gray('login browser wajib offline-access + consent (Google: sekali consent doang). Cabut consent lama, login ulang.'));
-  console.log(chalk.gray('  • ') + chalk.white('Akun OAuth mati sendiri? ') + chalk.gray('refresh token dicabut/expired — sama kayak key kena 401. Login ulang buat token baru.'));
+  console.log(chalk.gray('  • ') + chalk.white('Akun OAuth mati sendiri? ') + chalk.gray('refresh token dicabut/expired, sama kayak key kena 401. Login ulang buat token baru.'));
   console.log(chalk.gray('  • ') + chalk.white('Mau mulai bersih? ') + chalk.gray('Settings -> Factory Reset. Config lama ada backup di ') + chalk.cyan('~/.bobbytools/config.backup.json') + chalk.gray('.\n'));
 
   divider();
   console.log(chalk.cyan.bold('\n  💤 TIPS MALAS:'));
-  console.log(chalk.gray('  • ') + chalk.yellow('bobby go') + chalk.gray('   — langsung buka sesi terakhir, tanpa klik-klik.'));
-  console.log(chalk.gray('  • ') + chalk.yellow('bobby list') + chalk.gray(' — intip semua provider + akun tanpa masuk menu.'));
-  console.log(chalk.gray('  • ') + chalk.yellow('bobby -h') + chalk.gray('   — daftar semua perintah.'));
+  console.log(chalk.gray('  • ') + chalk.yellow('bobby go') + chalk.gray('   : langsung buka sesi terakhir, tanpa klik-klik.'));
+  console.log(chalk.gray('  • ') + chalk.yellow('bobby list') + chalk.gray(' : intip semua provider + akun tanpa masuk menu.'));
+  console.log(chalk.gray('  • ') + chalk.yellow('bobby -h') + chalk.gray('   : daftar semua perintah.'));
   console.log(chalk.gray('  • Config lo polos di ') + chalk.cyan('~/.bobbytools/config.json') + chalk.gray('. Jangan commit ke git publik.\n'));
   await pause();
 }
@@ -489,22 +489,22 @@ function showHelp() {
   console.log(chalk.white('     Ngebuka menu utama interaktif (buat nambah akun, pilih model, dll).\n'));
   
   console.log(chalk.yellow('  2. 🚀 bobby go'));
-  console.log(chalk.white('     Jalan pintas orang malas. Langsung ngebuka sesi terakhir lu tanpa harus lewat menu klik-klik lagi.\n'));
+  console.log(chalk.white('     Jalan pintas orang malas. Langsung ngebuka sesi terakhir lo tanpa harus lewat menu klik-klik lagi.\n'));
   
   console.log(chalk.yellow('  3. 🌐 bobby serve'));
-  console.log(chalk.white('     Nyalain Local AI Router / Web Dashboard tapi di depan layar (foreground). Kalo terminalnya lu tutup, servernya ikut mati.\n'));
+  console.log(chalk.white('     Nyalain Local AI Router / Web Dashboard tapi di depan layar (foreground). Kalo terminalnya lo tutup, servernya ikut mati.\n'));
   
   console.log(chalk.yellow('  4. 👻 bobby serve-bg'));
-  console.log(chalk.white('     Nyalain Local AI Router / Web Dashboard di belakang layar (background). Terminal bebas lu tutup, server tetep jalan jadi setan/daemon, plus otomatis ngebukain browser ke http://127.0.0.1:13337.\n'));
+  console.log(chalk.white('     Nyalain Local AI Router / Web Dashboard di belakang layar (background). Terminal bebas lo tutup, server tetep jalan jadi setan/daemon, plus otomatis ngebukain browser ke http://127.0.0.1:13337.\n'));
   
   console.log(chalk.yellow('  5. 📜 bobby list'));
-  console.log(chalk.white('     Nampilin daftar lengkap semua Provider dan API Key (Akun) yang udah lu simpen, tanpa masuk ke menu.\n'));
+  console.log(chalk.white('     Nampilin daftar lengkap semua Provider dan API Key (Akun) yang udah lo simpen, tanpa masuk ke menu.\n'));
   
   console.log(chalk.yellow('  6. 🔄 bobby update'));
   console.log(chalk.white('     Ngecek versi terbaru di NPM. Kalo ada yang baru, langsung ditawarin update otomatis (tinggal Enter). Kalo udah paling baru, dia bilang.\n'));
   
   console.log(chalk.yellow('  7. ℹ️  bobby -v (atau --version)'));
-  console.log(chalk.white('     Ngecek versi BobbyTools yang lagi lu pake sekarang.\n'));
+  console.log(chalk.white('     Ngecek versi BobbyTools yang lagi lo pake sekarang.\n'));
   
   console.log(chalk.yellow('  8. ❓ bobby -h (atau --help)'));
   console.log(chalk.white('     Nampilin contekan/bantuan ini.\n'));
@@ -519,7 +519,7 @@ function showHelp() {
   console.log(chalk.white.bold('  📦 Install / Uninstall:'));
   console.log(chalk.gray('    Install   : ') + chalk.yellow('npm install -g bobbytools') + chalk.gray('   (butuh Node.js >= 18)'));
   console.log(chalk.gray('    Uninstall : ') + chalk.yellow('npm uninstall -g bobbytools'));
-  console.log(chalk.gray('    Hapus data: ') + chalk.yellow('~/.bobbytools') + chalk.gray(' (config + backup — hapus manual kalo mau bersih total).'));
+  console.log(chalk.gray('    Hapus data: ') + chalk.yellow('~/.bobbytools') + chalk.gray(' (config + backup, hapus manual kalo mau bersih total).'));
   console.log();
 
   console.log(chalk.gray('  Mau panduan lengkap (combos, penerjemah format, troubleshooting)? Ketik ') + chalk.yellow('bobby') + chalk.gray(' -> ') + chalk.yellow('📖 Cara Pakai (Tutorial)') + chalk.gray('.'));
@@ -558,7 +558,7 @@ async function updateBobbyTools() {
   }
 
   const cmp = compareVersions(latest, VERSION);
-  dim(`Versi kamu : v${VERSION}`);
+  dim(`Versi lo  : v${VERSION}`);
   dim(`Versi npm  : v${latest}`);
   console.log();
 

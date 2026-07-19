@@ -8,7 +8,7 @@ import { getConfig, saveConfig } from './config.js';
 import { selectProvider } from './providers.js';
 import { selectModel } from './models.js';
 import { buildEnvVars, resolveBaseUrl, timeAgo, getApiKey } from './helpers.js';
-import { success, error, info, warn, dim, label, divider, clearScreen, pause, showBanner } from './ui.js';
+import { success, error, info, warn, dim, label, divider, clearScreen, pause, showBanner, statusDot } from './ui.js';
 
 function syncOpencodeConfig(config, provider, account, model) {
   const configDir = path.join(os.homedir(), '.config', 'opencode');
@@ -162,7 +162,7 @@ async function doLaunch(config, provider, account, model, cli) {
   divider();
   info(chalk.bold('Launching Session'));
   label('Provider', provider.name);
-  label('Account', `${account.name} ${account.status === 'active' ? chalk.green('●') : chalk.red('●')}`);
+  label('Account', `${account.name} ${statusDot(account.status)}`);
   if (model) label('Model', model);
   label('CLI', cli);
   if (!provider.skipModelSelection) {
@@ -266,7 +266,7 @@ async function selectAccountForLaunch(provider) {
       }
       
       for (const acc of provider.accounts) {
-        const status = acc.status === 'active' ? chalk.green('●') : chalk.red('●');
+        const status = statusDot(acc.status);
         const current = acc.id === provider.lastAccountId ? chalk.yellow(' ← last used') : '';
         const lastUsed = acc.lastUsed ? chalk.gray(` (${timeAgo(acc.lastUsed)})`) : chalk.gray(' (never)');
         const displayName = `${status} ${acc.name}${lastUsed}${current}`;

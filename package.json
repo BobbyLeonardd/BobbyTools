@@ -1,7 +1,7 @@
 {
   "name": "bobbytools",
-  "version": "4.2.0",
-  "description": "AI Provider Manager, anti-429 Router & CLI Launcher — pool multiple AI accounts with auto-rotation, cross-provider fallback, and on-the-fly format translation (Anthropic / OpenAI / Gemini / Responses), then point any CLI tool at one local endpoint",
+  "version": "4.3.0",
+  "description": "AI Provider Manager, anti-429 Router & CLI Launcher. Pool multiple AI accounts with auto-rotation, cross-provider fallback, and on-the-fly format translation (Anthropic / OpenAI / Gemini / Responses), then point any CLI tool at one local endpoint",
   "type": "module",
   "bin": {
     "bobby": "bin/bobby.js"

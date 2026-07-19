@@ -26,6 +26,16 @@ export function showBanner() {
   console.log();
 }
 
+// Account status marker. Shape carries the meaning (filled ● = active, hollow
+// ○ = limited) so red/green colorblind users can still tell them apart — color
+// alone fails ~8% of men. `withText` appends the word for standalone lines.
+export function statusDot(status, withText = false) {
+  const active = status === 'active';
+  const glyph = active ? '●' : '○';
+  const tint = active ? chalk.green : chalk.red;
+  return tint(withText ? `${glyph} ${status}` : glyph);
+}
+
 export const success = (msg) => console.log(chalk.green('  ✔ ') + msg);
 export const error = (msg) => console.log(chalk.red('  ✖ ') + msg);
 export const warn = (msg) => console.log(chalk.yellow('  ⚠ ') + msg);
