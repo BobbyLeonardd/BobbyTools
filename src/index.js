@@ -10,7 +10,7 @@ import { manageProviders } from './providers.js';
 import { manageCombos } from './combos.js';
 import { launchSession, quickLaunch } from './launcher.js';
 import { PROVIDER_TEMPLATES } from './templates.js';
-import { compareVersions } from './helpers.js';
+import { compareVersions, parsePortArg, isPortInUse, getRouterPort, DEFAULT_ROUTER_PORT } from './helpers.js';
 
 export async function main() {
   // Handle CLI args
@@ -49,27 +49,27 @@ export async function main() {
     }
 
     if (args[0] === 'serve') {
-      const portIndex = args.indexOf('-p') !== -1 ? args.indexOf('-p') : args.indexOf('--port');
-      const port = portIndex !== -1 ? parseInt(args[portIndex + 1]) : 13337;
+      const port = parsePortArg(args);
       clearScreen();
       showBanner();
       const { startRouterServer } = await import('./server.js');
       await startRouterServer(port, false);
       return;
     }
-    
+
     if (args[0] === 'serve-bg') {
       // Two roles for one arg: the detached child (flagged) becomes the real
       // router; a user typing `bobby serve-bg` spawns that child, opens the
-      // browser, prints a message, and exits.
+      // browser, prints a message, and exits. The port flag rides through
+      // BOBBY_PORT (set on the child) so both roles agree on the same port.
       if (process.env.BOBBY_DAEMON === '1') {
         const { startRouterServer } = await import('./server.js');
-        await startRouterServer(13337, true);
+        await startRouterServer(parsePortArg([], parseInt(process.env.BOBBY_PORT, 10) || 13337), true);
         return;
       }
       clearScreen();
       showBanner();
-      startDashboardDaemon();
+      await startDashboardDaemon(parsePortArg(args));
       return;
     }
 
@@ -97,18 +97,40 @@ export async function main() {
   }
 }
 
+// ── Is a TCP port already accepting connections on loopback? ──
+// Moved to helpers.js (isPortInUse) so the test suite imports the real probe
+// instead of re-implementing it, and so serve/serve-bg share one definition.
+
 // ── Spawn the dashboard as a detached background daemon ──
 // Spawns THIS script again with `serve-bg` + BOBBY_DAEMON=1 so the child becomes
 // the real router, opens the browser, prints a note, and returns. Used by both
-// the `bobby serve-bg` command and the menu so behavior stays identical.
-function startDashboardDaemon() {
-  const url = 'http://127.0.0.1:13337';
+// the `bobby serve-bg` command and the menu so behavior stays identical. Port is
+// passed to the child via BOBBY_PORT so it binds where the browser is pointed,
+// AND recorded to config.routerPort so the CLI menu (a separate process) can
+// still reach it for Stop / View Logs / "is it running?" later.
+async function startDashboardDaemon(port = DEFAULT_ROUTER_PORT) {
+  const url = `http://127.0.0.1:${port}`;
+
+  // Bail loudly if the port is taken — don't spawn a daemon that will die silently
+  // and don't open a browser to a router that isn't ours (or isn't there).
+  if (await isPortInUse(port)) {
+    console.log(chalk.red(`\n  ✖ Port ${port} udah kepake.`));
+    console.log(chalk.gray('  Kemungkinan router lain (atau BobbyTools) udah jalan di situ.'));
+    console.log(chalk.gray('  Cek dengan ') + chalk.yellow('bobby list') + chalk.gray(', atau pakai port lain: ') + chalk.yellow(`bobby serve-bg -p ${port + 1}`) + chalk.gray('.\n'));
+    return;
+  }
+
   const child = spawn(process.argv[0], [process.argv[1], 'serve-bg'], {
     detached: true,
     stdio: 'ignore',
-    env: { ...process.env, BOBBY_DAEMON: '1' },
+    env: { ...process.env, BOBBY_DAEMON: '1', BOBBY_PORT: String(port) },
   });
   child.unref();
+
+  // Remember the port the daemon is on so the menu (separate process) can find it.
+  const config = getConfig();
+  config.routerPort = port;
+  saveConfig(config);
 
   // Auto-open the browser (best-effort — never block on it).
   const startCmd = process.platform === 'darwin' ? 'open'
@@ -175,12 +197,13 @@ async function mainMenu() {
         clearScreen();
         showBanner();
         console.log(chalk.cyan('  🚀 Memulai Web Dashboard di background...'));
-        startDashboardDaemon();
+        await startDashboardDaemon();
         await pause();
         break;
       case 'stop_serve':
         try {
-          await fetch('http://127.0.0.1:13337/api/shutdown', { method: 'POST' });
+          const port = getRouterPort(getConfig());
+          await fetch(`http://127.0.0.1:${port}/api/shutdown`, { method: 'POST' });
           success('Web Dashboard berhasil dimatikan.');
         } catch (e) {
           error('Gagal mematikan dashboard: ' + e.message);
@@ -260,7 +283,7 @@ async function viewRouterLogs() {
   showBanner();
   console.log(chalk.bold('  📜 Router Activity Logs\n'));
   try {
-    const res = await fetch('http://127.0.0.1:13337/api/logs');
+    const res = await fetch(`http://127.0.0.1:${getRouterPort(getConfig())}/api/logs`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const logs = await res.json();
     
@@ -426,10 +449,25 @@ async function showTutorial() {
   console.log(chalk.gray('     Jadi buat provider lokal, tambahin model-nya pake tangan aja.\n'));
 
   divider();
+  console.log(chalk.white.bold('\n  🔑 LOGIN OAUTH (provider yang gak ngasih API key statis)\n'));
+  console.log(chalk.gray('  Sebagian provider (Google, dll) gak ngasih key yang tinggal copas — lo login pake akun.'));
+  console.log(chalk.gray('  Yang lo dapet cuma refresh token; access token-nya cuma idup ~1 jam. Bobby yang muterin'));
+  console.log(chalk.gray('  otomatis di belakang layar, jadi lo gak pernah nyentuh token yang cepet basi itu.\n'));
+  console.log(chalk.white('  Login browser  ') + chalk.gray('(refresh token): pilih template ') + chalk.yellow('Google Gemini (OAuth login)') + chalk.gray(', isi Client ID.'));
+  console.log(chalk.gray('                  Pas nambah akun, Bobby nawarin ') + chalk.yellow('"buka browser buat login sekarang?"') + chalk.gray(' — klik, izinin,'));
+  console.log(chalk.gray('                  beres. Refresh token kesimpen sendiri, gak usah copas token manual.'));
+  console.log(chalk.white('  Service account') + chalk.gray(' (JWT, tanpa browser): template ') + chalk.yellow('Google Vertex AI (service account)') + chalk.gray('.'));
+  console.log(chalk.gray('                  Tempel Service Account Email + Private Key (PEM) dari JSON-nya, plus Project ID & Region.'));
+  console.log(chalk.white('  Ubah manual   ') + chalk.gray(': Edit Provider -> ') + chalk.yellow('Auth Type') + chalk.gray(' -> ') + chalk.cyan('oauth2') + chalk.gray(' -> pilih grant (') + chalk.cyan('refresh_token') + chalk.gray('/') + chalk.cyan('jwt-bearer') + chalk.gray(') + Token URL/Scope.'));
+  console.log(chalk.gray('  Jujur: login browser mint & refresh-nya jalan di ') + chalk.yellow('mode router') + chalk.gray('. Buat provider OAuth, pake router, bukan launcher.\n'));
+
+  divider();
   console.log(chalk.white.bold('\n  🔧 KALO MAMPET (Troubleshooting)\n'));
   console.log(chalk.gray('  • ') + chalk.white('401 terus?      ') + chalk.gray('key-nya salah/expired. Cek pake tombol Test di menu akun.'));
   console.log(chalk.gray('  • ') + chalk.white('"Provider not found"? ') + chalk.gray('prefix model lo gak cocok sama nama provider. Samain (spasi -> strip).'));
   console.log(chalk.gray('  • ') + chalk.white('Model lokal gak muncul? ') + chalk.gray('emang gak diserep otomatis. Tambah manual di Edit Models.'));
+  console.log(chalk.gray('  • ') + chalk.white('OAuth gagal / "no refresh_token"? ') + chalk.gray('login browser wajib offline-access + consent (Google: sekali consent doang). Cabut consent lama, login ulang.'));
+  console.log(chalk.gray('  • ') + chalk.white('Akun OAuth mati sendiri? ') + chalk.gray('refresh token dicabut/expired — sama kayak key kena 401. Login ulang buat token baru.'));
   console.log(chalk.gray('  • ') + chalk.white('Mau mulai bersih? ') + chalk.gray('Settings -> Factory Reset. Config lama ada backup di ') + chalk.cyan('~/.bobbytools/config.backup.json') + chalk.gray('.\n'));
 
   divider();
@@ -566,7 +604,7 @@ async function updateBobbyTools() {
 
 async function isRouterRunning() {
   try {
-    const res = await fetch('http://127.0.0.1:13337/api/ping', { method: 'GET' });
+    const res = await fetch(`http://127.0.0.1:${getRouterPort(getConfig())}/api/ping`, { method: 'GET' });
     if (res.ok) return true;
   } catch (e) {
     return false;

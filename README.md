@@ -30,8 +30,9 @@ Singkatnya, satu tempat buat semua urusan API key AI lo:
 - **Kumpulin banyak akun jadi satu.** Punya 5 key Groq gratisan + 2 OpenRouter + 1 Gemini? Masukin semua. Bobby yang muter giliran (round-robin), lo cukup panggil `groq/llama3-70b-8192`.
 - **Anti-limit 429 otomatis.** Satu key kena limit, Bobby diem-diem pindah ke key berikutnya dan retry. Yang kena limit dikasih cooldown, balik aktif sendiri. CLI lo gak pernah tau ada drama.
 - **Fallback lintas provider.** Semua key satu provider abis? Bobby nyari provider lain yang punya model sama, pindah mid-request.
-- **Penerjemah format.** claude-code (Anthropic) nembak provider OpenAI-style (Groq/OpenRouter), atau ke Gemini, atau ke Responses — Bobby nerjemahin di tengah jalan. Teks, streaming, tool calls, gambar. Semua arah.
+- **Penerjemah format.** claude-code (Anthropic) nembak provider OpenAI-style (Groq/OpenRouter), atau ke Gemini, atau ke Responses — Bobby nerjemahin di tengah jalan. Teks, streaming, tool calls, gambar masuk & keluar. Semua arah (gambar keluar: Gemini↔Responses).
 - **Combos.** Bikin rantai model cadangan bernama (`ngebut`, `murah-dulu`, dst). Bobby turun ke model berikut cuma kalo yang sekarang bener-bener abis.
+- **Login OAuth, bukan cuma API key.** Provider yang gak ngasih key statis (login Google, service account) juga kepake. Sekali klik login di browser, Bobby simpen refresh token-nya, terus dia sendiri yang muterin access token ~1 jam-an di belakang layar. Lo gak pernah pegang token yang cepet basi itu.
 - **Dua mode.** Router (server lokal, anti-limit, translator) **atau** launcher klasik (inject key ke env, spawn CLI langsung, tanpa proxy).
 - **Dashboard live.** Pantau key mana yang idup/kebakar, countdown cooldown, request per menit, log aktivitas — auto-refresh, gak usah pencet-pencet.
 - **Zero-trust, zero-cloud.** Gak masang cert, gak ada MITM, gak ada telemetry. Key lo cuma nyampe ke provider yang lo daftarin. Router cuma dengerin `127.0.0.1`.
@@ -145,6 +146,23 @@ Kalo provider lo gak punya endpoint model, ya gampang, tinggal Add manual.
 
 ---
 
+## 🔑 Login OAuth (buat provider yang gak ngasih API key)
+
+Sebagian provider gak ngasih API key statis yang tinggal copas. Google contohnya — lo login pake akun, bukan nempel key. Yang lo dapet cuma *refresh token*, dan itu mesti ditukerin jadi *access token* yang cuma idup ~1 jam, terus ditukerin lagi, terus-terusan. Ribet kalo dikerjain tangan.
+
+Bobby yang ngurus itu. Lo login sekali, dia simpen refresh token-nya, dan tiap kali router butuh nembak, dia diem-diem nukerin jadi access token baru sebelum yang lama basi. Lo gak pernah nyentuh token yang cepet expired itu.
+
+**Dua rasa, tergantung providernya:**
+
+- **Login browser (refresh token).** Buat login user biasa — kayak Google Gemini pake akun. Pilih template **Google Gemini (OAuth login)**, isi Client ID (+ Secret kalo ada), terus pas nambah akun Bobby bakal nawarin *"buka browser buat login sekarang?"*. Klik, izinin di halaman consent Google, tab-nya bilang beres, refresh token langsung kesimpen. Gak ada acara copas token manual.
+- **Service account (JWT, tanpa browser).** Buat akses server-to-server — kayak Google Vertex AI. Pilih template **Google Vertex AI (service account)**, tempel Service Account Email + Private Key (PEM) dari file JSON service account lo, plus Project ID & Region. Gak buka browser sama sekali; Bobby nandatanganin JWT pake private key itu dan nuker jadi access token sendiri.
+
+**Mau ngubah provider yang udah ada jadi OAuth?** Bisa. **Manage Providers → Edit Provider → Auth Type → oauth2**, pilih grant-nya (`refresh_token` buat browser, `jwt-bearer` buat service account), isi Token URL + Scope (+ Authorization URL kalo browser). Balik ke `apikey` juga tinggal sekali klik.
+
+**Catatan jujur:** login browser cuma jalan pas nambah akun lewat menu/dashboard (dia yang mbuka browser + nangkep hasilnya di `127.0.0.1`). OAuth di-mint & di-refresh di **mode router** — jadi buat provider OAuth, pake router, bukan launcher klasik. Kalo refresh token-nya dicabut/expired, Bobby nandain akunnya mati (sama kayak key statis kena 401) dan pindah ke akun berikutnya, bukan retry percuma.
+
+---
+
 ## 📚 Daftar Perintah
 
 | Perintah | Fungsi |
@@ -154,7 +172,7 @@ Kalo provider lo gak punya endpoint model, ya gampang, tinggal Add manual.
 | `bobby serve` | Router di foreground. Tutup terminal = mati. Enak buat ngintip log. |
 | `bobby serve-bg` | Router di background (daemon) + auto buka browser. Terminal bebas ditutup. |
 | `bobby list` | Liat semua provider & akun tanpa masuk menu. |
-| `bobby serve --port <n>` | Router di port lain (default `13337`). Bisa `-p` juga. |
+| `bobby serve --port <n>` | Router di port lain (default `13337`). Bisa `-p` juga, jalan buat `serve` maupun `serve-bg`. |
 | `bobby update` | Cek versi terbaru di npm, langsung tawarin update otomatis kalo ada yang baru. |
 | `bobby -v` | Cek versi. |
 | `bobby -h` | Contekan bantuan. |
@@ -199,13 +217,17 @@ BobbyTools nutup jurang itu. Router deteksi format dari path yang ditembak CLI-m
 
 Nambah format ke-N cuma butuh 6 fungsi (satu per arah × 3 tahap), bukan N penerjemah pasangan — linear, bukan kuadratik.
 
-Yang diterjemahin: teks, **streaming** (SSE di-reframe on the fly, jawaban ngalir normal), **tool/function calling** penuh (`tool_use`/`tool_result` ↔ `tool_calls` ↔ `functionCall`/`functionResponse` ↔ `function_call`, skema tool, tool_choice — semua arah), dan **gambar/vision** (blok `image` base64/URL ↔ `image_url` ↔ `inlineData` ↔ `input_image`). Ini yang bikin claude-code beneran kepake, bukan cuma "nyambung tapi tumpul".
+Yang diterjemahin: teks, **streaming** (SSE di-reframe on the fly, jawaban ngalir normal), **tool/function calling** penuh (`tool_use`/`tool_result` ↔ `tool_calls` ↔ `functionCall`/`functionResponse` ↔ `function_call`, skema tool, tool_choice — semua arah), **gambar masuk/vision** (kirim gambar ke model: blok `image` base64/URL ↔ `image_url` ↔ `inlineData` ↔ `input_image`), dan **gambar keluar** (model yang *bikin* gambar). Ini yang bikin claude-code beneran kepake, bukan cuma "nyambung tapi tumpul".
+
+Soal **gambar keluar** ada catatan jujur: cuma **Gemini** (`inlineData`) sama **OpenAI Responses** (`image_generation_call`) yang emang bisa ngeluarin gambar — format OpenAI Chat sama Anthropic gak punya tempat buat itu di kabelnya. Jadi round-trip gambar beneran cuma jalan **Gemini ↔ Responses** (non-stream + streaming, preview progresif digabung jadi gambar final). Kalo tujuannya format yang gak bisa bawa gambar, teksnya tetep jalan dan gambarnya diganti penanda `[image omitted]` — gak diem-diem ilang, gak bikin crash.
 
 **Kapan aktif?** Cuma pas format beda. Kalo CLI dan provider udah sama format (kasus paling umum sekarang), router lewat jalur cepat — diterusin apa adanya, nol overhead, nol risiko. Penerjemah nyala cuma pas dibutuhin.
 
 **Setelannya di mana?** Provider default dianggap format OpenAI (jadi semua provider lama jalan tanpa diubah). Kalo provider-mu ngomong format lain, set lewat **Edit Provider → API Format → openai / anthropic / gemini / responses**. Buat kasus utama (claude-code → provider OpenAI), lo gak usah setel apa-apa — jalan langsung.
 
-*Catatan jujur:* teks, streaming, tool calls, dan gambar semua udah diterjemahin lintas keempat format lewat hub — dan udah diuji langsung ke provider asli (termasuk kirim gambar ke model vision lewat jalur terjemahan). Yang belum ketutup: format-format langka di luar text/tool/image (misal audio input), dan tool ter-hosting khusus Gemini/Responses (web_search dll) yang gak punya padanan di hub.
+*Catatan jujur:* teks, streaming, tool calls, gambar masuk, dan gambar keluar semua udah diterjemahin lintas keempat format lewat hub. Gambar masuk (vision) **dan** gambar keluar dua-duanya udah diuji langsung ke provider asli — gambar keluar diverifikasi live: gambar PNG asli (~810 KB base64) dari model image-gen format Gemini didorong lewat dispatcher yang sama kayak router, base64-nya nyampe utuh byte-for-byte ke Responses, round-trip balik ke Gemini tetep utuh, dan degrade ke OpenAI/Anthropic tanpa bocorin base64 (diganti penanda `[image omitted]`). Selain live, ini juga ketutup unit test (non-stream + stream). Yang belum ketutup: gambar keluar cuma bisa Gemini↔Responses (batasan bentuk API-nya, bukan kodenya kurang), format langka di luar text/tool/image (misal audio input), dan tool ter-hosting khusus Gemini/Responses (web_search dll) yang gak punya padanan di hub.
+
+**Buat pengguna claude-code (pertanyaan paling sering):** claude-code ngomong format Anthropic. Kalo base URL-nya diarahin ke router BobbyTools lokal, lo dapet teks, streaming, tool calls, dan **gambar masuk (vision — kirim screenshot ke model)** — semua jalan, **asal model tujuannya emang model vision**. Yang *gak* bisa: nerima **gambar hasil generate**, karena format Anthropic gak punya slot buat gambar keluar (bukan kodenya kurang — kabelnya emang gak ada tempatnya), jadi bakal diganti penanda `[image omitted]`. Ringkasnya: **bisa liat gambar, gak bisa dikasih gambar bikinan.** Inget juga, router cuma jamin blok gambarnya diterjemahin — bisa-enggaknya model "ngeliat" itu tergantung modelnya.
 
 ---
 
@@ -226,7 +248,8 @@ Bukan berarti alat lain jelek — buat kebutuhan enterprise/tim, mereka mungkin 
 
 1. **Config disimpen polos.** Semua ada di `~/.bobbytools/config.json`, gak dienkripsi. Jangan sekali-kali commit file ini ke repo publik. API key bocor gara-gara lo sendiri ceroboh, ya salahin cermin.
 2. **Router cuma dengerin localhost — dan beneran dikunci.** Server bind ke `127.0.0.1`, jadi gak keekspos ke jaringan. Tapi bind doang gak cukup: browser lo juga proses lokal, jadi situs jahat yang lo buka bisa nembak `127.0.0.1:13337`. Makanya panel kontrol (dashboard + `/api/*`, yang bisa baca/nimpa config berisi API key) cuma nerima request dari loopback — Origin lintas-situs ditolak (anti-CSRF, gak bisa ngehapus provider lo), Host asing ditolak (anti DNS-rebinding, gak bisa nyuri key lo). Semua ini **tanpa perlu login/password**. Jalur proxy `/v1/*` dikecualiin — itu ditembak CLI lokal yang bawa key sendiri, bukan browser.
-3. **Terjemahan format nutup teks, streaming, tool calls, dan gambar** — lintas empat format (OpenAI, Anthropic, Gemini, Responses) lewat hub, udah diuji ke provider asli. Format di luar itu (misal audio input) belum ditangani; kalo CLI-mu ngirimnya, bagian itu di-drop, bukan bikin error.
+3. **Terjemahan format nutup teks, streaming, tool calls, gambar masuk, dan gambar keluar** — lintas empat format (OpenAI, Anthropic, Gemini, Responses) lewat hub. Gambar keluar cuma bisa round-trip Gemini↔Responses (cuma dua format itu yang bisa ngeluarin gambar); ke tujuan lain teksnya jalan, gambarnya diganti penanda `[image omitted]`. Format di luar itu (misal audio input) belum ditangani; kalo CLI-mu ngirimnya, bagian itu di-drop, bukan bikin error.
+4. **OpenAI Images API (`/v1/images/generations` & `/edits`) udah diterusin** — model image-gen (misal `gpt-image-2`, `dall-e-3`) yang dipajang aggregator lewat endpoint ini sekarang nyalur: router muter key-nya sama kayak chat (429 = pindah akun), `model`-nya di-split dari format `provider/model` jadi bare id buat upstream. Tidak ada penerjemah format di sini — Images API bentuknya sama kedua sisi (OpenAI↔OpenAI). Kalo CLI-mu pake cmd `image generation`, tinggal arahin base URL-nya ke router.
 
 ---
 *Dibuat karena males. Dirawat karena kepalang.*

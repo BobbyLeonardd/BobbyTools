@@ -140,6 +140,58 @@ export const PROVIDER_TEMPLATES = [
     ],
   },
   {
+    // OAuth LOGIN provider (no static API key): a one-time browser consent yields a
+    // refresh_token, which the router silently exchanges for ~1h access tokens.
+    // "Manage Accounts → Add" runs the browser flow and stores the refresh token.
+    name: 'Google Gemini (OAuth login)',
+    description: 'Gemini via Google login — browser consent, no API key',
+    category: 'cloud',
+    baseUrlTemplate: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    modelsEndpoint: null,
+    baseUrlEnvVar: 'OPENAI_BASE_URL',
+    apiFormat: 'openai',
+    authType: 'oauth2',
+    oauth: {
+      grantType: 'refresh_token',
+      authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+      tokenUrl: 'https://oauth2.googleapis.com/token',
+      scope: 'https://www.googleapis.com/auth/generative-language.retriever openid',
+      // Google only returns a refresh_token when BOTH of these are set (offline +
+      // forced consent). Without them silent refresh is impossible.
+      extraAuthParams: { access_type: 'offline', prompt: 'consent' },
+    },
+    credentials: [
+      { label: 'OAuth Client ID', key: 'clientId', secret: false, required: true },
+      { label: 'OAuth Client Secret', key: 'clientSecret', secret: true, required: false },
+      // Filled automatically by the browser flow; also editable by hand.
+      { label: 'Refresh Token', key: 'refreshToken', secret: true, required: false },
+    ],
+  },
+  {
+    // Service-account (server-to-server) OAuth: no browser. The account's private
+    // key signs a JWT that the token endpoint exchanges for an access token.
+    // Paste the clientEmail + privateKey from a Google service-account JSON.
+    name: 'Google Vertex AI (service account)',
+    description: 'Vertex via service-account key — JWT bearer, no browser',
+    category: 'cloud',
+    baseUrlTemplate: 'https://{region}-aiplatform.googleapis.com/v1/projects/{projectId}/locations/{region}/endpoints/openapi',
+    modelsEndpoint: null,
+    baseUrlEnvVar: 'OPENAI_BASE_URL',
+    apiFormat: 'openai',
+    authType: 'oauth2',
+    oauth: {
+      grantType: 'jwt-bearer',
+      tokenUrl: 'https://oauth2.googleapis.com/token',
+      scope: 'https://www.googleapis.com/auth/cloud-platform',
+    },
+    credentials: [
+      { label: 'Service Account Email', key: 'clientEmail', secret: false, required: true },
+      { label: 'Private Key (PEM)', key: 'privateKey', secret: true, required: true },
+      { label: 'Project ID', key: 'projectId', secret: false, required: true },
+      { label: 'Region', key: 'region', secret: false, required: true },
+    ],
+  },
+  {
     name: 'xAI (Grok)',
     description: 'Grok models from xAI',
     category: 'cloud',

@@ -1,5 +1,7 @@
 // Shared helper functions used across modules.
 
+import net from 'node:net';
+
 /**
  * fetch() with a CONNECT timeout only — not a total timeout.
  *
@@ -188,6 +190,43 @@ export function isTrustedControlRequest(headers = {}) {
   return true;
 }
 
+// Default loopback port the router binds when no `-p`/`--port` is passed.
+// Single source of truth — every code path that hardcodes the port number
+// (CLI menu's Stop/Logs/running-detect, the daemon, error hints) reads this.
+export const DEFAULT_ROUTER_PORT = 13337;
+
+/**
+ * The port the running router is expected on. The user picks a port via
+ * `bobby serve-bg -p N`; startDashboardDaemon() records it as `config.routerPort`
+ * so the CLI menu (a SEPARATE process) can still reach it for Stop / View Logs /
+ * "is it running?" — without that, the menu hardcoded 13337 and broke the moment
+ * someone ran the daemon on a different port. Falls back to the default when no
+ * port has been recorded yet.
+ */
+export function getRouterPort(config) {
+  const n = config?.routerPort;
+  return Number.isInteger(n) && n >= 1 && n <= 65535 ? n : DEFAULT_ROUTER_PORT;
+}
+
+/**
+ * True when something is already accepting TCP connections on the loopback port.
+ * Used by the daemon spawner to bail loudly BEFORE spawning a child that would
+ * silently die on EADDRINUSE — the child runs with stdio ignored, so without this
+ * probe the parent would print "success" and open a browser to a dead router.
+ *
+ * connect → in use; error/timeout → free. Resolves true/false (never rejects).
+ */
+export function isPortInUse(port) {
+  return new Promise((resolve) => {
+    const socket = net.connect({ port, host: '127.0.0.1' });
+    const done = (inUse) => { socket.destroy(); resolve(inUse); };
+    socket.setTimeout(500);
+    socket.once('connect', () => done(true));
+    socket.once('timeout', () => done(false));
+    socket.once('error', () => done(false)); // ECONNREFUSED = nothing there = free
+  });
+}
+
 /**
  * Compare two semver-ish version strings ("3.9.0" vs "3.10.0").
  * Returns 1 if a > b, -1 if a < b, 0 if equal. Compares numerically per
@@ -205,6 +244,22 @@ export function compareVersions(a, b) {
     if (na < nb) return -1;
   }
   return 0;
+}
+
+/**
+ * Pull a port from CLI args (`-p <n>` or `--port <n>`), falling back to `fallback`.
+ *
+ * Validated, not just parsed: a missing value, non-numeric, or out-of-range
+ * (1–65535) input returns the fallback rather than a NaN/garbage port. Both
+ * `serve` and `serve-bg` share this so the two commands can't drift apart —
+ * previously `serve` did a bare `parseInt` (so `serve -p abc` bound a NaN port)
+ * and `serve-bg` ignored the flag entirely.
+ */
+export function parsePortArg(args = [], fallback = DEFAULT_ROUTER_PORT) {
+  const i = args.indexOf('-p') !== -1 ? args.indexOf('-p') : args.indexOf('--port');
+  if (i === -1) return fallback;
+  const n = parseInt(args[i + 1], 10);
+  return Number.isInteger(n) && n >= 1 && n <= 65535 ? n : fallback;
 }
 
 /**

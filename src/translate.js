@@ -288,7 +288,13 @@ export function anthropicRespToOpenai(body) {
 // Client expects Anthropic (it sent Anthropic), provider returned OpenAI.
 export function openaiRespToAnthropic(body) {
   const choice = body.choices?.[0] || {};
-  const text = typeof choice.message?.content === 'string' ? choice.message.content : anthropicContentToText(choice.message?.content);
+  let text = typeof choice.message?.content === 'string' ? choice.message.content : anthropicContentToText(choice.message?.content);
+  // Anthropic assistant messages can't carry images (Claude never emits one), so a
+  // model that returned an image can't be represented. Rather than drop it silently,
+  // leave a visible marker so the client sees SOMETHING happened.
+  if (Array.isArray(choice.message?.content) && choice.message.content.some((b) => b?.type === 'image_url')) {
+    text = (text ? text + '\n\n' : '') + '[image omitted: target format cannot carry image output]';
+  }
   const promptTok = body.usage?.prompt_tokens ?? 0;
   const compTok = body.usage?.completion_tokens ?? 0;
   // OpenAI assistant.tool_calls -> Anthropic tool_use blocks. Text (if any) leads.
@@ -325,8 +331,16 @@ export function openaiRespToAnthropic(body) {
 // fragments <-> Anthropic input_json_delta). Blocks are opened/closed lazily and
 // index-mapped across the two schemes (OpenAI: independent tool_calls index +
 // argument string fragments; Anthropic: sequential content-block index +
-// partial_json). ponytail: image blocks in a stream are still dropped (rare in
-// coding CLIs); upgrade path is a base64 image-block passthrough.
+// partial_json).
+//
+// IMAGE OUTPUT (stage 9): the two formats that emit images (Gemini inlineData,
+// Responses image_generation_call) carry them across the hub as a hub-internal
+// `delta.images: [{ mime, data }]` field on an OpenAI chunk (base64). ONLY the
+// gemini/responses spokes read/write it. Formats that can't represent image
+// output (openai chat, anthropic) strip it and leave a one-time "[image omitted]"
+// marker rather than leaking non-standard frames — see openaiStreamFromHub and
+// the anthropic spoke. Anthropic input images in a *request* are already handled
+// elsewhere; only streamed image OUTPUT is the concern here.
 // ══════════════════════════════════════════════════════════════════════════
 
 // Pull `data:` payloads out of an SSE byte/string stream, one at a time. Buffers
@@ -359,7 +373,7 @@ const anthFrame = (type, obj) => `event: ${type}\ndata: ${JSON.stringify(obj)}\n
 // the first text) and close it (content_block_stop/message_delta/message_stop)
 // when the OpenAI stream signals finish_reason or ends.
 export async function* openaiStreamToAnthropic(source, { model = 'unknown', id = 'msg_stream' } = {}) {
-  let started = false, finish = null, outTokens = 0;
+  let started = false, finish = null, outTokens = 0, markedImage = false;
   // Anthropic blocks are sequential — only one open at a time, indexed 0,1,2…
   // We open lazily and close the current before opening the next. `openBlock`
   // tracks the live one; `toolMap` remembers which Anthropic block a given
@@ -384,13 +398,20 @@ export async function* openaiStreamToAnthropic(source, { model = 'unknown', id =
         message: { id: f.id || id, type: 'message', role: 'assistant', model: f.model || model, content: [], stop_reason: null, usage: { input_tokens: f.usage?.prompt_tokens ?? 0, output_tokens: 0 } },
       });
     }
-    if (typeof delta.content === 'string' && delta.content.length) {
+    // Anthropic can't carry image output. If the hub is streaming one, don't leak
+    // it — emit a one-time text marker (mirrors the non-stream openaiRespToAnthropic).
+    let textDelta = typeof delta.content === 'string' ? delta.content : '';
+    if (Array.isArray(delta.images) && delta.images.length && !markedImage) {
+      markedImage = true;
+      textDelta += (textDelta ? '\n\n' : '') + '[image omitted: Anthropic format cannot carry image output]';
+    }
+    if (textDelta.length) {
       if (openBlock?.kind !== 'text') {
         yield* closeOpen();
         openBlock = { kind: 'text', index: nextIndex++ };
         yield anthFrame('content_block_start', { type: 'content_block_start', index: openBlock.index, content_block: { type: 'text', text: '' } });
       }
-      yield anthFrame('content_block_delta', { type: 'content_block_delta', index: openBlock.index, delta: { type: 'text_delta', text: delta.content } });
+      yield anthFrame('content_block_delta', { type: 'content_block_delta', index: openBlock.index, delta: { type: 'text_delta', text: textDelta } });
     }
     // Streamed tool calls: OpenAI sends id+name on the first fragment for a tool
     // index, then argument string fragments on later ones.
@@ -631,9 +652,12 @@ function geminiPartsToOpenaiContent(parts) {
 function geminiRespToOpenai(body) {
   const cand = body.candidates?.[0] || {};
   const parts = cand.content?.parts || [];
-  const text = geminiPartsToText(parts);
+  // Preserve image output: geminiPartsToOpenaiContent maps inlineData/fileData ->
+  // image_url parts (collapsing to a plain string only when it's text-only), so a
+  // model that RETURNS an image survives the hop instead of being flattened to text.
+  const content = geminiPartsToOpenaiContent(parts);
   const funcCalls = parts.filter((p) => p?.functionCall);
-  const message = { role: 'assistant', content: text || null };
+  const message = { role: 'assistant', content: (Array.isArray(content) ? content.length : content) ? content : null };
   if (funcCalls.length) {
     message.tool_calls = funcCalls.map((p, i) => ({ id: `call_${i}`, type: 'function', function: { name: p.functionCall.name, arguments: argsObjectToString(p.functionCall.args) } }));
   }
@@ -651,9 +675,12 @@ function geminiRespToOpenai(body) {
 // ── RESPONSE: OpenAI hub -> Gemini ──
 function openaiRespToGemini(body) {
   const choice = body.choices?.[0] || {};
-  const parts = [];
-  const text = typeof choice.message?.content === 'string' ? choice.message.content : geminiPartsToText(openaiContentToGeminiParts(choice.message?.content));
-  if (text) parts.push({ text });
+  // openaiContentToGeminiParts preserves image_url -> inlineData/fileData, so an
+  // image the hub is carrying (e.g. relayed from a Responses image_generation_call)
+  // comes back out as a real Gemini image part, not just its text.
+  const parts = typeof choice.message?.content === 'string'
+    ? (choice.message.content ? [{ text: choice.message.content }] : [])
+    : openaiContentToGeminiParts(choice.message?.content);
   for (const tc of choice.message?.tool_calls || []) parts.push({ functionCall: { name: tc.function?.name, args: argsStringToObject(tc.function?.arguments) } });
   const promptTok = body.usage?.prompt_tokens ?? 0;
   const compTok = body.usage?.completion_tokens ?? 0;
@@ -679,6 +706,11 @@ async function* geminiStreamToOpenai(source, { model = 'unknown', id = 'chatcmpl
     if (!started) { started = true; yield chunk({ role: 'assistant' }); }
     const text = geminiPartsToText(parts);
     if (text) yield chunk({ content: text });
+    // Image parts (inlineData) -> hub image delta. `delta.images` is a hub-internal
+    // convention (see the streaming header note): only the gemini/responses spokes
+    // read it, and it's stripped before any OpenAI/Anthropic client sees a frame.
+    const images = geminiImagePartsToHub(parts);
+    if (images.length) yield chunk({ images });
     let slot = 0;
     for (const p of parts) {
       if (p?.functionCall) yield chunk({ tool_calls: [{ index: slot, id: `call_${slot}`, type: 'function', function: { name: p.functionCall.name, arguments: argsObjectToString(p.functionCall.args) } }] }), slot++;
@@ -688,6 +720,18 @@ async function* geminiStreamToOpenai(source, { model = 'unknown', id = 'chatcmpl
   if (!started) yield chunk({ role: 'assistant' });
   yield chunk({}, GEMINI_FINISH_TO_OAI[finish] ?? 'stop');
   yield 'data: [DONE]\n\n';
+}
+
+// Pull image parts out of a Gemini parts[] as hub image deltas { mime, data }
+// (base64). Shared by the stream + could be reused; keeps the inlineData/inline_data
+// spelling tolerance in one place.
+function geminiImagePartsToHub(parts) {
+  const out = [];
+  for (const p of parts || []) {
+    const d = p?.inlineData || p?.inline_data;
+    if (d?.data) out.push({ mime: d.mimeType || d.mime_type || 'image/png', data: d.data });
+  }
+  return out;
 }
 
 // ── STREAM: OpenAI SSE -> Gemini SSE ──
@@ -703,6 +747,8 @@ async function* openaiStreamToGemini(source, { model = 'unknown' } = {}) {
     const delta = f.choices?.[0]?.delta || {};
     if (f.usage) { promptTok = f.usage.prompt_tokens ?? promptTok; compTok = f.usage.completion_tokens ?? compTok; }
     if (typeof delta.content === 'string' && delta.content.length) yield frame([{ text: delta.content }], '');
+    // Hub image deltas -> Gemini inlineData parts, streamed as they arrive.
+    for (const img of delta.images || []) yield frame([{ inlineData: { mimeType: img.mime || 'image/png', data: img.data } }], '');
     for (const tc of delta.tool_calls || []) {
       const idx = tc.index ?? 0;
       const acc = toolAccum.get(idx) || { name: '', args: '' };
@@ -847,17 +893,28 @@ function openaiReqToResponses(payload) {
 function responsesRespToOpenai(body) {
   let text = '';
   const toolCalls = [];
+  const images = []; // image_generation_call results -> hub image_url parts
   for (const item of body.output || []) {
     if (item?.type === 'message') {
       for (const c of item.content || []) if (c?.type === 'output_text' && typeof c.text === 'string') text += c.text;
     } else if (item?.type === 'function_call') {
       toolCalls.push({ id: item.call_id, type: 'function', function: { name: item.name, arguments: typeof item.arguments === 'string' ? item.arguments : argsObjectToString(item.arguments) } });
+    } else if (item?.type === 'image_generation_call' && typeof item.result === 'string' && item.result) {
+      // result is a bare base64 image (no data: prefix). Wrap it as a data URI so
+      // it rides the hub as a normal image_url part.
+      const mt = item.output_format ? `image/${item.output_format}` : 'image/png';
+      images.push({ type: 'image_url', image_url: { url: `data:${mt};base64,${item.result}` } });
     }
   }
   // Responses also exposes a convenience `output_text` aggregate; use it if the
   // structured walk found nothing (some minimal responses only set that).
   if (!text && typeof body.output_text === 'string') text = body.output_text;
-  const message = { role: 'assistant', content: text || null };
+  // Text-only stays a plain string (common path unchanged); an image present makes
+  // content a parts array so the picture survives to the client's format.
+  let content;
+  if (images.length) { content = []; if (text) content.push({ type: 'text', text }); content.push(...images); }
+  else content = text || null;
+  const message = { role: 'assistant', content };
   if (toolCalls.length) message.tool_calls = toolCalls;
   const inTok = body.usage?.input_tokens ?? 0;
   const outTok = body.usage?.output_tokens ?? 0;
@@ -876,6 +933,17 @@ function openaiRespToResponses(body) {
   const output = [];
   const text = typeof choice.message?.content === 'string' ? choice.message.content : responsesContentToText(openaiContentToResponsesParts(choice.message?.content));
   if (text) output.push({ type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text, annotations: [] }] });
+  // Hub image parts (base64 data URIs) -> Responses image_generation_call items,
+  // carrying the bare base64 in `result` (the shape a Responses client reads back).
+  if (Array.isArray(choice.message?.content)) {
+    let n = 0;
+    for (const b of choice.message.content) {
+      if (b?.type !== 'image_url') continue;
+      const url = typeof b.image_url === 'string' ? b.image_url : b.image_url?.url;
+      const m = url && /^data:([^;,]+);base64,(.*)$/s.exec(url);
+      if (m) output.push({ type: 'image_generation_call', id: `ig_${n++}`, status: 'completed', result: m[2], output_format: (m[1].split('/')[1] || 'png') });
+    }
+  }
   for (const tc of choice.message?.tool_calls || []) output.push({ type: 'function_call', call_id: tc.id, name: tc.function?.name, arguments: tc.function?.arguments ?? '{}', status: 'completed' });
   const inTok = body.usage?.prompt_tokens ?? 0;
   const outTok = body.usage?.completion_tokens ?? 0;
@@ -898,6 +966,12 @@ async function* responsesStreamToOpenai(source, { model = 'unknown', id = 'chatc
   let started = false, sawTool = false;
   // Map a Responses output_index for a function_call to an OpenAI tool_calls slot.
   const toolSlot = new Map();
+  // ponytail: partial_image events are progressive previews of ONE final image,
+  // so we collapse them — keep the latest b64 and emit a single image delta at the
+  // end, instead of streaming N previews the destination would render as N pictures.
+  // Upgrade path: pass partials through with a `partial:true` flag if a client wants
+  // live previews.
+  let lastImageB64 = null, imageMime = 'image/png';
   for await (const data of sseData(source)) {
     if (data === '[DONE]') break; // Responses omits this, but tolerate it.
     let ev; try { ev = JSON.parse(data); } catch { continue; }
@@ -905,6 +979,19 @@ async function* responsesStreamToOpenai(source, { model = 'unknown', id = 'chatc
     switch (ev.type) {
       case 'response.output_text.delta':
         if (ev.delta) yield chunk({ content: ev.delta });
+        break;
+      case 'response.image_generation_call.partial_image':
+        // Progressive preview: remember it as the current best, don't emit yet.
+        if (ev.partial_image_b64) { lastImageB64 = ev.partial_image_b64; if (ev.output_format) imageMime = `image/${ev.output_format}`; }
+        break;
+      case 'response.completed':
+        // Final image (if any) lives in the assembled output as an image_generation_call.
+        for (const item of ev.response?.output || []) {
+          if (item?.type === 'image_generation_call' && typeof item.result === 'string' && item.result) {
+            lastImageB64 = item.result;
+            if (item.output_format) imageMime = `image/${item.output_format}`;
+          }
+        }
         break;
       case 'response.output_item.added':
         if (ev.item?.type === 'function_call') {
@@ -926,6 +1013,8 @@ async function* responsesStreamToOpenai(source, { model = 'unknown', id = 'chatc
     }
   }
   if (!started) yield chunk({ role: 'assistant' });
+  // Emit the collapsed final image (hub image delta) before closing.
+  if (lastImageB64) yield chunk({ images: [{ mime: imageMime, data: lastImageB64 }] });
   yield chunk({}, sawTool ? 'tool_calls' : 'stop');
   yield 'data: [DONE]\n\n';
 }
@@ -940,6 +1029,8 @@ async function* openaiStreamToResponses(source, { model = 'unknown', id = 'resp_
   let promptTok = 0, compTok = 0;
   const tools = new Map(); // oaiIdx -> { call_id, name, args, outputIndex }
   let outputIndex = 0;
+  const images = []; // { data, mime } collected from hub image deltas
+  let partialIdx = 0;
   for await (const data of sseData(source)) {
     if (data === '[DONE]') break;
     let f; try { f = JSON.parse(data); } catch { continue; }
@@ -956,6 +1047,13 @@ async function* openaiStreamToResponses(source, { model = 'unknown', id = 'resp_
       }
       fullText += delta.content;
       yield ev('response.output_text.delta', { output_index: outputIndex, delta: delta.content });
+    }
+    // Hub image deltas -> Responses partial_image events (the shape a Responses
+    // client reads incrementally); the final image_generation_call item is added
+    // to response.output below.
+    for (const img of delta.images || []) {
+      images.push({ data: img.data, mime: img.mime || 'image/png' });
+      yield ev('response.image_generation_call.partial_image', { partial_image_index: partialIdx++, partial_image_b64: img.data });
     }
     for (const tc of delta.tool_calls || []) {
       const oaiIdx = tc.index ?? 0;
@@ -981,6 +1079,9 @@ async function* openaiStreamToResponses(source, { model = 'unknown', id = 'resp_
     yield ev('response.function_call_arguments.done', { output_index: rec.outputIndex, arguments: rec.args });
     output.push({ type: 'function_call', call_id: rec.call_id, name: rec.name, arguments: rec.args, status: 'completed' });
   }
+  // Each collected image -> a completed image_generation_call item (bare base64 in
+  // `result`, matching the non-stream shape a Responses client expects).
+  images.forEach((img, i) => output.push({ type: 'image_generation_call', id: `ig_${i}`, status: 'completed', result: img.data, output_format: (img.mime.split('/')[1] || 'png') }));
   yield ev('response.completed', { response: { id, object: 'response', model, status: 'completed', output, output_text: fullText, usage: { input_tokens: promptTok, output_tokens: compTok, total_tokens: promptTok + compTok } } });
 }
 
@@ -1009,14 +1110,52 @@ async function* openaiStreamToResponses(source, { model = 'unknown', id = 'resp_
 const identity = (x) => x;
 async function* identityStream(source) { yield* source; }
 
+// OpenAI Chat Completions can't represent image OUTPUT (assistant content is a
+// string). When translating TO openai from a spoke that produced an image, degrade
+// gracefully instead of leaking a non-standard content array: keep the text, drop
+// the image, leave a marker. These run ONLY on a real cross-format pivot to openai
+// (from !== to); the byte-passthrough fast path in server.js never calls them, and
+// openai->openai is skipped by the dispatcher — so existing paths are untouched.
+function openaiRespFromHub(body) {
+  const choice = body?.choices?.[0];
+  const c = choice?.message?.content;
+  if (Array.isArray(c)) {
+    const text = c.filter((p) => p?.type === 'text' && typeof p.text === 'string').map((p) => p.text).join('');
+    const hasImg = c.some((p) => p?.type === 'image_url');
+    let out = text;
+    if (hasImg) out = (text ? text + '\n\n' : '') + '[image omitted: OpenAI chat format cannot carry image output]';
+    choice.message.content = out || null;
+  }
+  return body;
+}
+// Strip the hub-internal `delta.images` from OpenAI stream frames; surface a
+// one-time text marker so an OpenAI client at least sees that an image was produced.
+// Only rewrites frames that actually carry images — every other frame passes untouched.
+async function* openaiStreamFromHub(source) {
+  let noted = false;
+  for await (const frame of source) {
+    if (typeof frame !== 'string' || !frame.includes('"images"')) { yield frame; continue; }
+    const m = /^data: ([\s\S]*)\n\n$/.exec(frame);
+    if (!m) { yield frame; continue; }
+    let obj; try { obj = JSON.parse(m[1]); } catch { yield frame; continue; }
+    const delta = obj.choices?.[0]?.delta;
+    if (delta?.images) {
+      delete delta.images;
+      if (!noted) { noted = true; delta.content = (delta.content || '') + '[image omitted: OpenAI chat format cannot carry image output]'; }
+      if (Object.keys(delta).length === 0) continue; // nothing left to emit
+    }
+    yield oaiFrame(obj);
+  }
+}
+
 export const FORMATS = {
   openai: {
     reqToHub: identity,
     reqFromHub: identity,
     respToHub: identity,
-    respFromHub: identity,
+    respFromHub: openaiRespFromHub,
     streamToHub: identityStream,
-    streamFromHub: identityStream,
+    streamFromHub: openaiStreamFromHub,
   },
   anthropic: {
     reqToHub: anthropicReqToOpenai,

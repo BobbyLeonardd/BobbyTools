@@ -5,10 +5,11 @@ import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
 import { store } from './store.js';
 import { logStore } from './logstore.js';
-import { resolveBaseUrl, reviveLimitedAccounts, slugify, isLocalUrl, fetchWithConnectTimeout, computeStats, parseRetryAfter, rollupMetrics, resolveModelId, findFallbackProvider, isTrustedControlRequest, resolveComboSpecs } from './helpers.js';
+import { resolveBaseUrl, reviveLimitedAccounts, slugify, isLocalUrl, fetchWithConnectTimeout, computeStats, parseRetryAfter, rollupMetrics, resolveModelId, findFallbackProvider, isTrustedControlRequest, resolveComboSpecs, DEFAULT_ROUTER_PORT } from './helpers.js';
 import {
   translateRequest, translateResponse, translateStream, normalizeFormat,
 } from './translate.js';
+import { resolveAccessToken, normalizeAuthType, invalidateToken } from './oauth.js';
 import { PROVIDER_TEMPLATES } from './templates.js';
 import { VERSION } from './ui.js';
 import chalk from 'chalk';
@@ -18,7 +19,7 @@ import chalk from 'chalk';
 // stream is flowing this timer is cleared, so long LLM answers are never cut off.
 const CONNECT_TIMEOUT_MS = 30_000;
 
-export async function startRouterServer(port = 13337, background = false) {
+export async function startRouterServer(port = DEFAULT_ROUTER_PORT, background = false) {
   // Best-effort flush on process teardown (Ctrl+C, SIGTERM) so the last stat
   // bumps aren't lost. 'exit' can only run sync work — store.flush() is sync.
   // SIGINT/SIGTERM don't fire 'exit' on their own, so bounce them through exit().
@@ -160,6 +161,157 @@ export async function startRouterServer(port = 13337, background = false) {
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ object: 'list', data: aggregatedModels }));
+      return;
+    }
+
+    // --- 1b. ENDPOINT POST /v1/images/generations | /v1/images/edits ---
+    // OpenAI Images API (image-generation models like gpt-image live here on most
+    // aggregators). No hub translation: this is an OpenAI-shaped endpoint both sides,
+    // so we just key-rotate + fail over across accounts like chat/completions does,
+    // then byte-passthrough the upstream's JSON (image data + b64_json).
+    //
+    // ponytail: no cross-format pivot and no combos here — a client asking for
+    // images pins the model it asked for, and the Images wire format has no hub
+    // equivalent in Anthropic/Gemini/Responses. If a provider ever returns a
+    // non-OpenAI shape here we'd need a translator; none observed so far.
+    if (req.method === 'POST' && /\/v1\/images\/(generations|edits)$/.test(req.url)) {
+      let chunks = [];
+      req.on('data', (c) => chunks.push(c));
+      req.on('end', async () => {
+        try {
+          const raw = Buffer.concat(chunks).toString('utf8');
+          // A form-data(edits) body isn't JSON; only generations is. edits may be
+          // multipart — pass it through untouched (can't read model from JSON).
+          let payload = {};
+          const isJson = !req.headers['content-type']?.includes('multipart/form-data');
+          if (isJson) { try { payload = JSON.parse(raw); } catch { payload = {}; } }
+
+          store.reloadIfChanged();
+          const config = store.get();
+          if (reviveLimitedAccounts(config)) store.scheduleWrite();
+
+          // Resolve provider from the requested model id (format groq/dall-e-3),
+          // same rule as chat: match by slug or raw id.
+          const modelStr = payload.model || '';
+          const slash = modelStr.indexOf('/');
+          if (!slash || slash < 1) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Image generation needs a model in provider/model form' }));
+            return;
+          }
+          const providerQuery = modelStr.slice(0, slash).toLowerCase();
+          let provider = config.providers.find((p) => p.id.toLowerCase() === providerQuery || slugify(p.name) === providerQuery);
+          if (!provider) { res.writeHead(404); res.end(JSON.stringify({ error: `Provider '${providerQuery}' not found` })); return; }
+
+          let active = provider.accounts.filter((a) => a.status === 'active');
+          if (active.length === 0) {
+            const fb = findFallbackProvider(config, provider.id, modelStr.slice(slash + 1));
+            if (!fb) { res.writeHead(429); res.end(JSON.stringify({ error: `No active accounts for '${provider.name}'` })); return; }
+            provider = fb;
+            active = provider.accounts.filter((a) => a.status === 'active');
+          }
+          active.sort((a, b) => (a.lastUsed || 0) - (b.lastUsed || 0));
+
+          // Rewrite model to THIS provider's upstream id (alias map, same as chat),
+          // so the upstream receives "dall-e-3", not "groq/dall-e-3".
+          const actualModel = resolveModelId(provider, modelStr.slice(slash + 1));
+          let outRaw = raw;
+          if (isJson) {
+            payload.model = actualModel;
+            outRaw = JSON.stringify(payload);
+          }
+          let attempt = 0;
+          const maxAttempts = active.length;
+          let sent = false;
+          while (!sent && attempt < maxAttempts) {
+            const account = active[attempt];
+            account.lastUsed = Date.now();
+            store.scheduleWrite();
+
+            const baseUrl = resolveBaseUrl(provider, account).replace(/\/+$/, '');
+            // The client hit /v1/images/... — strip the /v1 prefix the router mounts
+            // and forward the trailing path. Most providers expect /v1/images/... too.
+            const pathTail = req.url.startsWith('/v1/') ? req.url.slice(3) : req.url;
+            const targetUrl = baseUrl + pathTail;
+
+            const headers = { ...req.headers };
+            delete headers.host;
+            delete headers['transfer-encoding'];
+            delete headers['connection'];
+            delete headers['keep-alive'];
+            delete headers['content-length']; // recompute below
+            const body = isJson ? outRaw : Buffer.concat(chunks);
+            headers['content-length'] = Buffer.byteLength(body);
+            // Static key, or a minted OAuth access token. A dead grant is turned
+            // into a synthetic 401 so the rotate-on-limit branch below handles it,
+            // same as the chat path.
+            let apiKey = null, oauthAuthFailed = false;
+            try {
+              apiKey = await resolveAccessToken(provider, account);
+            } catch (tokenErr) {
+              if (!tokenErr?.invalidGrant) throw tokenErr;
+              oauthAuthFailed = true;
+            }
+            const isOauth = normalizeAuthType(provider.authType) === 'oauth2';
+            // Images providers all use Bearer or x-api-key; reuse the openai-side auth
+            // logic (Bearer default, x-api-key if the client sent one). OAuth always
+            // Bearer, replacing whatever bogus auth the client sent.
+            if (apiKey) {
+              if (isOauth) { delete headers['x-api-key']; headers['authorization'] = `Bearer ${apiKey}`; }
+              else if (headers['x-api-key']) headers['x-api-key'] = apiKey;
+              else headers['authorization'] = `Bearer ${apiKey}`;
+            }
+
+            const controller = new AbortController();
+            const onClose = () => { if (!res.writableEnded) controller.abort(); };
+            res.on('close', onClose);
+
+            const logEntry = logStore.push({ id: randomUUID(), timestamp: new Date().toISOString(), provider: provider.name, account: account.name, model: modelStr, status: 'pending' });
+            const t0 = Date.now();
+            const response = oauthAuthFailed
+              ? { status: 401, ok: false, headers: { get: () => null }, body: null }
+              : await fetchWithConnectTimeout(targetUrl, { method: 'POST', headers, body }, controller, CONNECT_TIMEOUT_MS);
+            logEntry.latencyMs = Date.now() - t0;
+
+            if (response.status === 429 || response.status === 401 || response.status === 403 || response.status === 402) {
+              logEntry.status = 'limit';
+              logStore.touch();
+              if (isOauth) invalidateToken(account.id); // drop the rejected/limited token
+              const permanent = response.status === 401 || response.status === 403;
+              const p = config.providers.find((x) => x.id === provider.id);
+              const a = p?.accounts.find((x) => x.id === account.id);
+              if (a) {
+                a.status = 'limited';
+                if (permanent) { a.authFailed = true; delete a.limitedAt; delete a.retryAfterMs; }
+                else { a.limitedAt = Date.now(); delete a.authFailed; const ra = parseRetryAfter(response.headers.get('retry-after')); if (ra != null) a.retryAfterMs = ra; else delete a.retryAfterMs; }
+              }
+              store.scheduleWrite();
+              attempt++;
+              continue;
+            }
+
+            logEntry.status = response.ok ? 'success' : 'error';
+            logStore.touch();
+            if (response.ok) { const a = config.providers.find((x) => x.id === provider.id)?.accounts.find((x) => x.id === account.id); if (a) { a.usageCount = (a.usageCount || 0) + 1; store.scheduleWrite(); } }
+
+            sent = true;
+            const respHeaders = Object.fromEntries(response.headers.entries());
+            delete respHeaders['content-encoding'];
+            delete respHeaders['content-length'];
+            res.writeHead(response.status, respHeaders);
+            for await (const c of response.body || []) res.write(c);
+            res.end();
+          }
+          if (!sent) { res.writeHead(429); res.end(JSON.stringify({ error: `All accounts for '${provider.name}' hit limits (images)` })); }
+        } catch (err) {
+          if (err?.name !== 'AbortError') {
+            logStore.push({ id: randomUUID(), timestamp: new Date().toISOString(), provider: 'Unknown', account: 'Unknown', model: 'Unknown', status: 'error', error: err.message });
+            process.stdout.write('\x1b[2K\r' + chalk.red('[ROUTER] Image error: ') + (err.message || err));
+          }
+          if (res.headersSent) res.end();
+          else { res.writeHead(err?.name === 'AbortError' ? 504 : 500); res.end(err?.name === 'AbortError' ? 'aborted' : 'Router Internal Error'); }
+        }
+      });
       return;
     }
 
@@ -353,10 +505,20 @@ export async function startRouterServer(port = 13337, background = false) {
             : baseUrl;
           const targetUrl = effectiveBase + endpointPath;
 
-          const primaryCred = provider.credentials.find(c => c.secret) || provider.credentials[0];
+          // Resolve the outbound credential. For apikey providers this is the
+          // stored secret (unchanged). For oauth2 providers it mints/refreshes a
+          // short-lived access token. A permanently-bad grant (revoked refresh
+          // token) throws invalidGrant — we translate that into the SAME path a
+          // 401 on a static key takes below (disable the account, rotate/fallback),
+          // instead of duplicating that logic here. A transient token error
+          // (network/5xx) rethrows to the outer catch.
           let apiKey = null;
-          if (primaryCred) {
-            apiKey = currentAccount.credentials[primaryCred.key];
+          let oauthAuthFailed = false;
+          try {
+            apiKey = await resolveAccessToken(provider, currentAccount);
+          } catch (tokenErr) {
+            if (!tokenErr?.invalidGrant) throw tokenErr;
+            oauthAuthFailed = true;
           }
 
           const headers = { ...req.headers };
@@ -376,13 +538,24 @@ export async function startRouterServer(port = 13337, background = false) {
           // must be replaced by the scheme the provider expects — otherwise a
           // stale/wrong-scheme credential leaks through. Strip all known auth
           // headers first, then set the right one for the provider.
-          if (inboundFmt !== providerFmt) {
+          // OAuth providers authenticate with a Bearer access token regardless of
+          // wire format — even Gemini, which uses x-goog-api-key for a STATIC key,
+          // takes an OAuth token as `Authorization: Bearer`. So for oauth2 we always
+          // strip the client's auth and set Bearer, skipping the format-specific
+          // placement below (which is only right for provider-issued static keys).
+          const isOauth = normalizeAuthType(provider.authType) === 'oauth2';
+          if (inboundFmt !== providerFmt || isOauth) {
             delete headers['x-api-key'];
             delete headers['api-key'];
             delete headers['x-goog-api-key'];
             delete headers['authorization'];
           }
-          if (apiKey) {
+          if (apiKey && isOauth) {
+            headers['authorization'] = `Bearer ${apiKey}`;
+            if (providerFmt === 'anthropic' && !headers['anthropic-version']) {
+              headers['anthropic-version'] = '2023-06-01';
+            }
+          } else if (apiKey) {
             if (providerFmt === 'gemini') {
               headers['x-goog-api-key'] = apiKey; // Gemini: key in x-goog-api-key header
             } else if (providerFmt === 'anthropic') {
@@ -415,14 +588,20 @@ export async function startRouterServer(port = 13337, background = false) {
           // Connect-timeout only (see fetchWithConnectTimeout): a dead provider
           // can't hang forever, but a long stream is never cut off. The shared
           // controller also lets onClientClose abort this fetch mid-stream.
+          //
+          // A dead OAuth grant never reaches the network: we synthesize a 401 so
+          // the auth-failure branch below disables the account and rotates, exactly
+          // as if the provider had rejected the token. No Retry-After (permanent).
           activeController = new AbortController();
           const t0 = Date.now();
-          const response = await fetchWithConnectTimeout(
-            targetUrl,
-            { method: 'POST', headers, body: outBody },
-            activeController,
-            CONNECT_TIMEOUT_MS,
-          );
+          const response = oauthAuthFailed
+            ? { status: 401, ok: false, headers: { get: () => null }, body: null }
+            : await fetchWithConnectTimeout(
+                targetUrl,
+                { method: 'POST', headers, body: outBody },
+                activeController,
+                CONNECT_TIMEOUT_MS,
+              );
           logEntry.latencyMs = Date.now() - t0; // upstream time-to-headers (routing latency, not stream duration)
 
           if (response.status === 429 || response.status === 401 || response.status === 403 || response.status === 402) {
@@ -436,6 +615,11 @@ export async function startRouterServer(port = 13337, background = false) {
             logStore.touch(); // persist the finalized 'limit' status + latency
             const kind = permanent ? 'auth failed (key rejected)' : 'hit limit';
             process.stdout.write('\x1b[2K\r' + chalk.yellow(`[ROUTER] Account "${currentAccount.name}" ${kind} (${response.status}). Auto-rotating...`));
+
+            // Drop any cached OAuth token for this account: it was either rejected
+            // (401/403) or the account is going limited, so the next attempt must
+            // mint a fresh one rather than resend a token the provider refused.
+            if (normalizeAuthType(provider.authType) === 'oauth2') invalidateToken(currentAccount.id);
 
             const p = config.providers.find(x => x.id === provider.id);
             const a = p?.accounts.find(x => x.id === currentAccount.id);
@@ -659,7 +843,7 @@ export async function startRouterServer(port = 13337, background = false) {
       process.stdin.resume();
       process.stdin.on('data', onData);
     } else {
-      resolve(); // if background, resolve immediately to not block anything (though it runs in detached process anyway)
+      resolve(server); // surface the server so background callers can close it
     }
   });
 }

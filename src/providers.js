@@ -157,6 +157,12 @@ async function addFromTemplate() {
     baseUrlTemplate: template.baseUrlTemplate,
     modelsEndpoint: template.modelsEndpoint,
     baseUrlEnvVar: template.baseUrlEnvVar,
+    // Carry the wire format + auth model from the template. Most templates omit
+    // these (openai / static key), so the router's own defaults apply; OAuth and
+    // non-openai templates set them explicitly.
+    apiFormat: template.apiFormat || undefined,
+    authType: template.authType || undefined,
+    oauth: template.oauth ? structuredClone(template.oauth) : undefined,
     credentials: structuredClone(template.credentials),
     defaultCli: cli,
     accounts: [],
@@ -417,6 +423,7 @@ async function editProvider() {
       choices.push(
         { name: `Opencode Plugin: ${provider.opencodeNpm || '@ai-sdk/openai-compatible'}`, value: 'opencodeNpm' },
         { name: `API Format: ${{ anthropic: 'anthropic (Messages API)', gemini: 'gemini (generateContent)', responses: 'responses (Responses API)' }[provider.apiFormat] || 'openai (Chat Completions)'}`, value: 'apiFormat' },
+        { name: `Auth Type: ${provider.authType === 'oauth2' ? `oauth2 (${provider.oauth?.grantType || 'refresh_token'})` : 'apikey (static key)'}`, value: 'authType' },
         { name: `Default CLI: ${provider.defaultCli || '(none)'}`, value: 'defaultCli' },
         { name: chalk.gray('↩️  Back'), value: 'back' }
       );
@@ -458,6 +465,64 @@ async function editProvider() {
         provider.apiFormat = newFmt;
         saveConfig(config);
         success('Provider updated!');
+        await pause();
+        continue;
+      }
+
+      // How accounts of this provider authenticate. 'apikey' = a static secret in
+      // the credential fields (the default, unchanged). 'oauth2' = the router mints
+      // short-lived access tokens from a refresh_token (browser login) or a
+      // service-account key (JWT). Switching to oauth2 collects the token endpoint
+      // + grant so the router knows how to mint; account credentials are entered
+      // per-account under "Manage Accounts".
+      if (field === 'authType') {
+        const newType = await select({
+          message: 'How do accounts authenticate?',
+          choices: [
+            { name: 'apikey — static API key (default)', value: 'apikey' },
+            { name: 'oauth2 — minted access tokens (Google login / service account)', value: 'oauth2' },
+          ],
+          default: provider.authType === 'oauth2' ? 'oauth2' : 'apikey',
+        });
+        if (newType === 'apikey') {
+          delete provider.authType;
+          delete provider.oauth;
+          saveConfig(config);
+          success('Provider updated (static API key).');
+          await pause();
+          continue;
+        }
+        // oauth2: pick a grant and collect its endpoints.
+        const grantType = await select({
+          message: 'OAuth grant type',
+          choices: [
+            { name: 'refresh_token — browser login (user OAuth)', value: 'refresh_token' },
+            { name: 'jwt-bearer — service account key (no browser)', value: 'jwt-bearer' },
+          ],
+          default: provider.oauth?.grantType || 'refresh_token',
+        });
+        const oauth = { ...(provider.oauth || {}), grantType };
+        const tokenUrl = await input({ message: 'Token URL (type "<" to cancel):', default: oauth.tokenUrl || 'https://oauth2.googleapis.com/token' });
+        if (tokenUrl === '<') continue;
+        oauth.tokenUrl = tokenUrl;
+        const scope = await input({ message: 'Scope (space-separated, type "<" to cancel):', default: oauth.scope || '' });
+        if (scope === '<') continue;
+        oauth.scope = scope;
+        if (grantType === 'refresh_token') {
+          const authUrl = await input({ message: 'Authorization URL (browser consent, type "<" to cancel):', default: oauth.authUrl || 'https://accounts.google.com/o/oauth2/v2/auth' });
+          if (authUrl === '<') continue;
+          oauth.authUrl = authUrl;
+          // Google needs these for a refresh_token; harmless for other providers.
+          if (!oauth.extraAuthParams) oauth.extraAuthParams = { access_type: 'offline', prompt: 'consent' };
+        } else {
+          // jwt-bearer never uses a browser; drop any stale auth params.
+          delete oauth.authUrl;
+          delete oauth.extraAuthParams;
+        }
+        provider.authType = 'oauth2';
+        provider.oauth = oauth;
+        saveConfig(config);
+        success('Provider updated (oauth2). Re-add accounts to enter OAuth credentials.');
         await pause();
         continue;
       }

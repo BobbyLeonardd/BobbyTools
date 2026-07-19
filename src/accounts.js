@@ -1,8 +1,9 @@
 import { select, input, confirm, password } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { getConfig, saveConfig } from './config.js';
-import { resolveBaseUrl, getApiKey, maskValue, timeAgo } from './helpers.js';
-import { success, error, info, dim, divider, clearScreen, pause, showBanner } from './ui.js';
+import { resolveBaseUrl, maskValue, timeAgo } from './helpers.js';
+import { resolveAccessToken, normalizeAuthType } from './oauth.js';
+import { success, error, warn, info, dim, divider, clearScreen, pause, showBanner } from './ui.js';
 import { randomUUID } from 'crypto';
 
 export async function manageAccounts(providerId) {
@@ -99,6 +100,45 @@ async function addAccount(config, provider) {
       step++;
     } else {
       break; // Completed all fields
+    }
+  }
+
+  // OAuth login providers (browser consent flow): if this is a refresh_token grant
+  // and the user didn't paste a refresh token by hand, run the browser flow now to
+  // obtain one. The clientId/clientSecret they just entered feed straight into it.
+  const isOauthLogin = normalizeAuthType(provider.authType) === 'oauth2'
+    && (provider.oauth?.grantType || 'refresh_token') === 'refresh_token'
+    && provider.oauth?.authUrl;
+  if (isOauthLogin && !credentials.refreshToken) {
+    if (!credentials.clientId) {
+      error('OAuth Client ID is required to start the browser login. Add it and retry.');
+      await pause();
+      return;
+    }
+    const ok = await confirm({ message: 'Open your browser to sign in and authorize now?', default: true });
+    if (ok) {
+      try {
+        const { runBrowserAuthFlow } = await import('./oauth-flow.js');
+        info('Opening browser… complete the consent, then return here.');
+        const tokens = await runBrowserAuthFlow({
+          authUrl: provider.oauth.authUrl,
+          tokenUrl: provider.oauth.tokenUrl,
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret || undefined,
+          scope: provider.oauth.scope || '',
+          extraAuthParams: provider.oauth.extraAuthParams || {},
+          onPrompt: (url) => dim(`If the browser didn't open, visit:\n  ${url}`),
+        });
+        credentials.refreshToken = tokens.refreshToken;
+        success('Authorized — refresh token stored.');
+      } catch (err) {
+        error(`Browser login failed: ${err.message}`);
+        dim('You can paste a Refresh Token manually instead, or retry.');
+        await pause();
+        return;
+      }
+    } else {
+      warn('Skipped browser login. This account has no refresh token and will fail until you add one.');
     }
   }
 
@@ -249,7 +289,10 @@ async function testAccount(provider) {
   info('Testing connection...');
   try {
     const baseUrl = resolveBaseUrl(provider, account);
-    const apiKey = getApiKey(provider, account);
+    // Static key for apikey providers, a minted OAuth token for oauth2 ones — a
+    // failed token mint (bad refresh token) surfaces as a caught "Connection
+    // failed" below, which is exactly what "Test Account" is for.
+    const apiKey = await resolveAccessToken(provider, account);
     const url = provider.modelsEndpoint
       ? `${baseUrl}${provider.modelsEndpoint}`
       : `${baseUrl}/models`;
