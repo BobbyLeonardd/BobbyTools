@@ -161,6 +161,33 @@ assert.strictEqual(normalizeAuthType('weird'), 'apikey', 'unknown -> apikey');
   assert.match(f.state.lastBody, /assertion=/, 'assertion sent');
 }
 
+// ── Concurrent cache misses coalesce: N parallel calls mint ONE token ──
+// A slow token endpoint (resolves on a deferred promise) guarantees all three
+// calls overlap on the same miss. Without dedup each would fire its own fetch.
+{
+  _clearTokenCache();
+  const provider = { authType: 'oauth2', oauth: { grantType: 'refresh_token', tokenUrl: 'u' }, credentials: [] };
+  const account = { id: 'race1', credentials: { refreshToken: 'rt' } };
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  let n = 0;
+  const f = async (url, opts) => {
+    f.state.calls++;
+    await gate; // hold every in-flight fetch until we let them go
+    return { ok: true, status: 200, text: async () => JSON.stringify({ access_token: `at-${++n}`, expires_in: 3600 }) };
+  };
+  f.state = { calls: 0 };
+  const p = [
+    resolveAccessToken(provider, account, f, 1_000_000),
+    resolveAccessToken(provider, account, f, 1_000_000),
+    resolveAccessToken(provider, account, f, 1_000_000),
+  ];
+  release();
+  const toks = await Promise.all(p);
+  assert.strictEqual(f.state.calls, 1, 'concurrent misses mint exactly one token');
+  assert.deepStrictEqual(toks, ['at-1', 'at-1', 'at-1'], 'all callers get the same token');
+}
+
 // ── invalidateToken: forces a re-mint on the next call ──
 {
   _clearTokenCache();

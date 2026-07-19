@@ -555,11 +555,13 @@ aider --model openrouter/anthropic/claude-3-haiku</code></pre>
           <li><strong>Pro tip:</strong> besoknya tinggal <code>bobby go</code> — langsung buka sesi terakhir lo, tanpa klik-klik lagi.</li>
         </ul>
 
-        <h3 style="margin-top: 2rem;">3. Ngatur Model tiap Provider 🧠</h3>
-        <p>Buka provider → <strong>Edit Provider</strong> → <strong>Edit Models</strong>. Di situ lo bisa CRUD daftar model: tambah manual, list, rename, hapus.</p>
+        <h3 style="margin-top: 2rem;">3. Ngatur Provider &amp; Model 🧠</h3>
+        <p>Tiap kartu provider punya tombol <strong>Edit</strong>. Di situ (langsung dari web, gak usah balik ke CLI) lo bisa ganti nama, Base URL, <strong>API Format</strong>, <strong>Auth Type</strong>, <strong>Model Aliases</strong>, dan daftar <strong>Model</strong>-nya.</p>
         <ul style="padding-left: 1.5rem; color: var(--text-muted);">
-          <li><strong>Punya endpoint /models?</strong> Ada tombol <strong>Fetch/Refresh</strong> buat narik daftar model otomatis dari API-nya. Hasilnya digabung, gak nimpa yang udah ada.</li>
-          <li><strong>Gak punya endpoint?</strong> Santai — tinggal ketik nama model manual. Sama aja.</li>
+          <li><strong>Nambah model:</strong> ketik nama di kotak Models → <strong>Add</strong> (atau Enter). Hapus tinggal klik <code>×</code> di chip-nya.</li>
+          <li><strong>Punya endpoint /models?</strong> Pencet <strong>Fetch</strong> — Bobby narik daftar model langsung dari API provider (lewat router, pake key asli lo) dan nggabungin ke list. Gak nimpa yang udah ada.</li>
+          <li><strong>Gak punya endpoint?</strong> Santai — ketik manual aja. Sama aja.</li>
+          <li><em>Rename model belum ada di web — buat itu pake mode CLI (<code>bobby</code> → Manage Providers → Edit Models). Di web tinggal hapus + tambah lagi.</em></li>
         </ul>
 
         <div style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.25); padding: 1rem; border-radius: 8px; margin-top: 1rem;">
@@ -612,11 +614,11 @@ aider --model openrouter/anthropic/claude-3-haiku</code></pre>
 
         <h3 style="margin-top: 2rem;">🔧 Kalo Mampet (Troubleshooting)</h3>
         <ul style="padding-left: 1.5rem; color: var(--text-muted);">
-          <li style="margin-bottom: 0.5rem"><strong>401 Unauthorized terus?</strong> API key di akunnya salah/expired, atau format model-nya kebalik. Cek pake tombol Test di menu akun (mode CLI).</li>
+          <li style="margin-bottom: 0.5rem"><strong>401 Unauthorized terus?</strong> API key di akunnya salah/expired, atau format model-nya kebalik. Cek pake tombol <strong>Test</strong> di kartu akun (ada di web sini & menu CLI).</li>
           <li style="margin-bottom: 0.5rem"><strong>"Provider not found"?</strong> Prefix model lo gak cocok sama nama provider. Samain dengan nama di list (spasi → strip).</li>
           <li style="margin-bottom: 0.5rem"><strong>Model lokal gak muncul?</strong> Emang gak diserep otomatis (baca kotak kuning di atas). Tambah manual di Edit Models.</li>
           <li style="margin-bottom: 0.5rem"><strong>Jawaban aneh / request ditolak provider padahal key bener?</strong> Kemungkinan format-nya kebalik. Cek <strong>API Format</strong> provider itu (Edit Provider) — mayoritas <code>openai</code>, tapi kalo endpoint-nya Anthropic/Gemini asli ya harus disamain.</li>
-          <li style="margin-bottom: 0.5rem"><strong>Semua kacau, mau mulai bersih?</strong> Menu Settings → Factory Reset (mode CLI). Config lama ada backup-nya di <code>~/.bobbytools/config.backup.json</code>.</li>
+          <li style="margin-bottom: 0.5rem"><strong>Semua kacau, mau mulai bersih?</strong> Tab <strong>Settings → Factory Reset</strong> (di dashboard ini, atau menu Settings mode CLI). Config lama ada backup-nya di <code>~/.bobbytools/config.backup.json</code>.</li>
         </ul>
 
         <h3 style="margin-top: 2rem;">🗑️ Cara Uninstall (Kalo Udah Bosen)</h3>
@@ -634,13 +636,23 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
   <!-- MODALS -->
   <div class="modal-overlay" id="addAccountModal" onclick="if(event.target===this) closeModal('addAccountModal')">
     <div class="modal">
-      <h2 style="margin-bottom: 1.5rem">Add New Account</h2>
+      <h2 style="margin-bottom: 1.5rem" id="accModalTitle">Add New Account</h2>
       <input type="hidden" id="providerIdInput">
+      <input type="hidden" id="editingAccountId">
       <div class="form-group">
         <label>Account Name (Alias)</label>
         <input type="text" id="accNameInput" class="form-control" placeholder="e.g. Free Tier 1">
       </div>
       <div id="dynamicCreds"></div>
+      <!-- Browser OAuth login: shown only for oauth2/refresh_token providers. Runs
+           the consent flow server-side (POST /api/oauth-login) and fills the
+           Refresh Token field for you — no manual token paste. -->
+      <div id="oauthLoginArea" style="display: none; margin-top: 0.5rem;">
+        <button type="button" class="btn" style="background: rgba(59,130,246,0.15); color: #60a5fa; width: 100%;" onclick="oauthBrowserLogin()">
+          🔑 Login pakai browser (ambil refresh token otomatis)
+        </button>
+        <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.4rem;">Isi Client ID (+ Secret kalo ada) dulu, klik ini, izinin di halaman consent. Refresh token langsung kesimpen — gak usah copas manual.</p>
+      </div>
       <div style="display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 2rem;">
         <button class="btn" style="background: rgba(255,255,255,0.1); color: white; flex: 1;" onclick="closeModal('addAccountModal')">Cancel</button>
         <button class="btn btn-primary" style="flex: 1;" onclick="saveNewAccount()">Save Account</button>
@@ -696,6 +708,87 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
       <div style="display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1.5rem;">
         <button class="btn" style="background: rgba(255,255,255,0.1); color: white; flex: 1;" onclick="closeModal('addProviderModal')">Cancel</button>
         <button class="btn btn-primary" style="flex: 1;" onclick="saveNewProvider()">Add Provider</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Provider Modal -->
+  <div class="modal-overlay" id="editProviderModal" onclick="if(event.target===this) closeModal('editProviderModal')">
+    <div class="modal" style="max-width: 560px">
+      <h2 style="margin-bottom: 1.5rem">Edit Provider</h2>
+
+      <div class="form-group">
+        <label>Provider Name</label>
+        <input type="text" id="editProvName" class="form-control">
+      </div>
+      <div class="form-group" style="margin-top: 1rem;">
+        <label>Base URL Template</label>
+        <input type="text" id="editProvUrl" class="form-control">
+      </div>
+
+      <div class="form-group" style="margin-top: 1rem;">
+        <label>API Format</label>
+        <select id="editProvApiFormat" class="form-control">
+          <option value="openai">openai — Chat Completions (Groq, OpenRouter, most)</option>
+          <option value="anthropic">anthropic — Messages API (api.anthropic.com)</option>
+          <option value="gemini">gemini — Google Generative Language (generateContent)</option>
+          <option value="responses">responses — OpenAI Responses API (/v1/responses)</option>
+        </select>
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px;">Wire format this provider speaks. The router translates when it differs from the format your CLI sent. Most providers are <code>openai</code>.</div>
+      </div>
+
+      <div class="form-group" style="margin-top: 1rem;">
+        <label>Auth Type</label>
+        <select id="editProvAuthType" class="form-control" onchange="onEditAuthTypeChange()">
+          <option value="apikey">apikey — static API key (default)</option>
+          <option value="oauth2">oauth2 — minted access tokens (Google login / service account)</option>
+        </select>
+      </div>
+
+      <!-- OAuth2 sub-fields: shown only when authType=oauth2 -->
+      <div id="editProvOauthFields" style="display: none; border-left: 2px solid var(--glass-border); padding-left: 1rem; margin-top: 0.5rem;">
+        <div class="form-group">
+          <label>Grant Type</label>
+          <select id="editProvGrantType" class="form-control" onchange="onEditGrantTypeChange()">
+            <option value="refresh_token">refresh_token — browser login (user OAuth)</option>
+            <option value="jwt-bearer">jwt-bearer — service account key (no browser)</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-top: 0.75rem;">
+          <label>Token URL</label>
+          <input type="text" id="editProvTokenUrl" class="form-control" placeholder="https://oauth2.googleapis.com/token">
+        </div>
+        <div class="form-group" style="margin-top: 0.75rem;">
+          <label>Scope <span style="color: var(--text-muted); font-weight: 400;">(space-separated)</span></label>
+          <input type="text" id="editProvScope" class="form-control" placeholder="https://www.googleapis.com/auth/...">
+        </div>
+        <div class="form-group" id="editProvAuthUrlRow" style="margin-top: 0.75rem;">
+          <label>Authorization URL <span style="color: var(--text-muted); font-weight: 400;">(browser consent)</span></label>
+          <input type="text" id="editProvAuthUrl" class="form-control" placeholder="https://accounts.google.com/o/oauth2/v2/auth">
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-top: 1.5rem; border-top: 1px solid var(--glass-border); padding-top: 1.5rem;">
+        <label>Models <span style="color: var(--text-muted); font-weight: 400;">(what you call with <code>provider/model</code>)</span></label>
+        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">The model list this provider serves. Add by hand, or pull from the provider's <code>/models</code> endpoint if it has one. Local providers (localhost) are manual-only — fetch is disabled to avoid a self-loop.</div>
+        <div style="display: flex; gap: 0.5rem; margin-bottom: 8px;">
+          <input type="text" id="editProvModelInput" class="form-control" placeholder="e.g. llama-3.3-70b" style="flex:1;" onkeydown="if(event.key==='Enter'){event.preventDefault();addEditModelFromInput();}">
+          <button type="button" class="btn btn-primary" style="padding: 0.3rem 0.9rem;" onclick="addEditModelFromInput()">Add</button>
+          <button type="button" class="btn" id="editProvFetchModelsBtn" style="background: rgba(255,255,255,0.1); color: white; padding: 0.3rem 0.9rem;" onclick="fetchEditProviderModels()">Fetch</button>
+        </div>
+        <div id="editProvModelList" style="display:flex; flex-wrap: wrap; gap: 6px;"></div>
+      </div>
+
+      <div class="form-group" style="margin-top: 1.5rem;">
+        <label>Model Aliases <span style="color: var(--text-muted); font-weight: 400;">(optional)</span></label>
+        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">Map a friendly name your CLI calls (left) to the exact id this provider expects upstream (right). Lets one name route across providers that spell a model differently.</div>
+        <div id="editProvAliasFields" style="display:flex; flex-direction: column; gap: 8px; margin-bottom: 8px;"></div>
+        <button type="button" class="btn" style="background: rgba(255,255,255,0.1); color: white; padding: 0.3rem 0.8rem; font-size: 0.8rem;" onclick="addEditAliasRow()">+ Add Alias</button>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1.5rem;">
+        <button class="btn" style="background: rgba(255,255,255,0.1); color: white; flex: 1;" onclick="closeModal('editProviderModal')">Cancel</button>
+        <button class="btn btn-primary" style="flex: 1;" onclick="saveEditProvider()">Save Changes</button>
       </div>
     </div>
   </div>
@@ -1045,7 +1138,9 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
                   <strong>${a.name}</strong>
                   <span class="badge">Used: ${a.usageCount || 0}x</span>
                 </div>
-                <div>
+                <div style="display: flex; gap: 0.4rem;">
+                  <button class="btn" style="background: rgba(255,255,255,0.08); color: var(--text-muted); padding: 0.3rem 0.6rem; font-size: 0.8rem" onclick="testAccount('${p.id}', '${a.id}')">Test</button>
+                  <button class="btn" style="background: rgba(255,255,255,0.08); color: var(--text-muted); padding: 0.3rem 0.6rem; font-size: 0.8rem" onclick="openEditAccountModal('${p.id}', '${a.id}')">Edit</button>
                   <button class="btn" style="background: rgba(239,68,68,0.1); color: var(--danger); padding: 0.3rem 0.6rem; font-size: 0.8rem" onclick="deleteAccount('${p.id}', '${a.id}')">Delete</button>
                 </div>
               </div>
@@ -1064,6 +1159,14 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
                 <button class="btn btn-primary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem" onclick="openAddAccountModal('${p.id}')">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                   Account
+                </button>
+                ${p.accounts.length > 1 ? `
+                <button class="btn" style="background: rgba(16,185,129,0.12); color: #34d399; padding: 0.4rem 0.8rem; font-size: 0.85rem" title="Aktifin semua akun provider ini" onclick="setAllAccounts('${p.id}', 'active')">Aktifin semua</button>
+                <button class="btn" style="background: rgba(239,68,68,0.1); color: var(--danger); padding: 0.4rem 0.8rem; font-size: 0.85rem" title="Limitin semua akun provider ini" onclick="setAllAccounts('${p.id}', 'limited')">Limitin semua</button>
+                ` : ''}
+                <button class="btn" style="background: rgba(255,255,255,0.1); color: white; padding: 0.4rem 0.8rem; font-size: 0.85rem" onclick="openEditProviderModal('${p.id}')">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                  Edit
                 </button>
                 <button class="btn btn-danger" style="padding: 0.4rem 0.8rem; font-size: 0.85rem" onclick="deleteProvider('${p.id}')">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
@@ -1103,24 +1206,95 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
       } catch(e) {}
     }
 
-    function openAddAccountModal(providerId) {
-      const p = bobbyConfig.providers.find(x => x.id === providerId);
-      if(!p) return;
-      
-      document.getElementById('providerIdInput').value = providerId;
-      document.getElementById('accNameInput').value = '';
-      
+    // Render the account modal's credential inputs for a provider. When `account`
+    // is given (edit mode), prefill non-secret values; leave secret fields blank
+    // with a "leave empty to keep" placeholder (mirrors the CLI's blank=keep).
+    function renderAccountModal(p, account) {
+      const isEdit = !!account;
+      document.getElementById('providerIdInput').value = p.id;
+      document.getElementById('editingAccountId').value = isEdit ? account.id : '';
+      document.getElementById('accModalTitle').innerText = isEdit ? 'Edit Account' : 'Add New Account';
+      document.getElementById('accNameInput').value = isEdit ? account.name : '';
+
       let credsHtml = '';
       p.credentials.forEach(c => {
+        const cur = isEdit ? (account.credentials?.[c.key] || '') : '';
+        // Secret fields never echo the stored value; a blank on save keeps it.
+        const val = c.secret ? '' : cur;
+        const ph = c.secret && isEdit && cur ? 'biarin kosong kalo gak diganti' : '';
         credsHtml += `
           <div class="form-group">
             <label>${c.label}</label>
-            <input type="${c.secret ? 'password' : 'text'}" id="cred_${c.key}" class="form-control credential-input" data-key="${c.key}">
+            <input type="${c.secret ? 'password' : 'text'}" id="cred_${c.key}" class="form-control credential-input" data-key="${c.key}" value="${val.replace(/"/g, '&quot;')}" placeholder="${ph}">
           </div>
         `;
       });
       document.getElementById('dynamicCreds').innerHTML = credsHtml;
+
+      // Browser OAuth login only makes sense for an oauth2/refresh_token provider.
+      const isOauthLogin = p.authType === 'oauth2'
+        && (p.oauth?.grantType || 'refresh_token') === 'refresh_token'
+        && p.oauth?.authUrl;
+      document.getElementById('oauthLoginArea').style.display = isOauthLogin ? 'block' : 'none';
+
       document.getElementById('addAccountModal').classList.add('active');
+    }
+
+    function openAddAccountModal(providerId) {
+      const p = bobbyConfig.providers.find(x => x.id === providerId);
+      if(!p) return;
+      renderAccountModal(p, null);
+    }
+
+    function openEditAccountModal(providerId, accountId) {
+      const p = bobbyConfig.providers.find(x => x.id === providerId);
+      if(!p) return;
+      const a = p.accounts.find(x => x.id === accountId);
+      if(!a) return;
+      renderAccountModal(p, a);
+    }
+
+    // Run the browser consent flow via the router, then drop the refresh token into
+    // the modal's field. The router (same box as the browser) opens the consent
+    // page and catches the loopback callback — the browser here just waits.
+    async function oauthBrowserLogin() {
+      const providerId = document.getElementById('providerIdInput').value;
+      const clientId = (document.getElementById('cred_clientId')?.value || '').trim();
+      const clientSecret = (document.getElementById('cred_clientSecret')?.value || '').trim();
+      if (!clientId) return bobbyAlert('Isi Client ID dulu bro, itu yang dipake buat login.');
+      bobbyAlert('Browser kebuka buat login… izinin di halaman consent, terus balik ke sini.', 'success');
+      try {
+        const res = await fetch('/api/oauth-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ providerId, clientId, clientSecret }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.refreshToken) throw new Error(data.error || 'gagal ambil refresh token');
+        const rt = document.getElementById('cred_refreshToken');
+        if (rt) rt.value = data.refreshToken;
+        bobbyAlert('Berhasil login — refresh token kesimpen. Tinggal Save Account.', 'success');
+      } catch (err) {
+        bobbyAlert('Login browser gagal: ' + err.message);
+      }
+    }
+
+    // Test one account's connectivity via the router (POST /api/test-account) — it
+    // holds the real key/token and can reach the provider; the browser can't.
+    async function testAccount(providerId, accountId) {
+      bobbyAlert('Testing koneksi…', 'success');
+      try {
+        const res = await fetch('/api/test-account', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ providerId, accountId }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'test gagal');
+        bobbyAlert(data.message, data.ok ? 'success' : 'danger');
+      } catch (err) {
+        bobbyAlert('Test gagal: ' + err.message);
+      }
     }
 
     let templatesCache = [];
@@ -1228,25 +1402,41 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
     async function saveNewAccount() {
       const providerId = document.getElementById('providerIdInput').value;
       const p = bobbyConfig.providers.find(x => x.id === providerId);
-      
+      if(!p) return;
+
       const name = document.getElementById('accNameInput').value.trim();
       if(!name) return bobbyAlert("Isi nama akunnya bro");
 
-      const creds = {};
+      const editingId = document.getElementById('editingAccountId').value;
+      const existing = editingId ? p.accounts.find(a => a.id === editingId) : null;
+
+      // Which credential fields are optional (required === false). A blank on an
+      // optional field is fine; a blank on a required one is only OK when editing
+      // AND the account already has a value there (blank = keep, mirrors the CLI).
+      const optional = new Set((p.credentials || []).filter(c => c.required === false).map(c => c.key));
+
+      const creds = existing ? { ...existing.credentials } : {};
       for(const inp of document.querySelectorAll('.credential-input')) {
-        if(!inp.value.trim()) return bobbyAlert("Semua credential wajib diisi");
-        creds[inp.dataset.key] = inp.value.trim();
+        const key = inp.dataset.key;
+        const val = inp.value.trim();
+        if(val) { creds[key] = val; continue; }
+        // Blank: keep the stored value when editing; otherwise it must be optional.
+        if(existing && creds[key] !== undefined) continue;
+        if(!optional.has(key)) return bobbyAlert(`"${key}" wajib diisi`);
       }
 
-      const newAccount = {
-        id: 'acc_' + crypto.randomUUID(),
-        name: name,
-        credentials: creds,
-        status: 'active',
-        usageCount: 0
-      };
-
-      p.accounts.push(newAccount);
+      if(existing) {
+        existing.name = name;
+        existing.credentials = creds;
+      } else {
+        p.accounts.push({
+          id: 'acc_' + crypto.randomUUID(),
+          name,
+          credentials: creds,
+          status: 'active',
+          usageCount: 0,
+        });
+      }
       await saveConfig();
       closeModal('addAccountModal');
     }
@@ -1303,6 +1493,187 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
       closeModal('addProviderModal');
     }
 
+    // ── Edit Provider ──
+    // Mirrors the CLI editProvider (src/providers.js): rename, base URL, apiFormat,
+    // authType (+oauth grant/token/scope/authUrl), and modelAliases. Reads the live
+    // provider into the form, writes back on save via the same whole-config POST.
+    let editingProviderId = null;
+    let editingModels = []; // working copy of the provider's model list, committed on save
+
+    // Render the working model list as removable chips. Kept separate from the
+    // provider object so Cancel discards edits (we only write back on save).
+    function renderEditModelList() {
+      const box = document.getElementById('editProvModelList');
+      if (!editingModels.length) {
+        box.innerHTML = `<span style="color: var(--text-muted); font-size: 0.85rem;">No models yet. Add one above, or Fetch from the provider.</span>`;
+        return;
+      }
+      box.innerHTML = editingModels.map((m, i) => `
+        <span style="display:inline-flex; align-items:center; gap:6px; background: rgba(255,255,255,0.06); border:1px solid var(--glass-border); border-radius: 6px; padding: 3px 8px; font-size: 0.8rem;">
+          ${escapeHtml(m)}
+          <span style="cursor:pointer; color:#ef4444; font-weight:700;" title="Remove" onclick="removeEditModel(${i})">×</span>
+        </span>`).join('');
+    }
+
+    function addEditModelFromInput() {
+      const input = document.getElementById('editProvModelInput');
+      const v = input.value.trim();
+      if (!v) return;
+      if (!editingModels.includes(v)) editingModels.push(v);
+      input.value = '';
+      renderEditModelList();
+    }
+
+    function removeEditModel(i) {
+      editingModels.splice(i, 1);
+      renderEditModelList();
+    }
+
+    // Pull the model list from the provider's /models endpoint. Must go through the
+    // router (POST /api/fetch-models) — the browser can't reach the provider directly
+    // (CORS) and doesn't hold the real key. Merges into the working list, never nukes.
+    async function fetchEditProviderModels() {
+      const btn = document.getElementById('editProvFetchModelsBtn');
+      const original = btn.textContent;
+      btn.disabled = true; btn.textContent = 'Fetching…';
+      try {
+        const res = await fetch('/api/fetch-models', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ providerId: editingProviderId }),
+        });
+        const data = await res.json();
+        if (!res.ok) { bobbyAlert(data.error || `Fetch gagal (HTTP ${res.status})`); return; }
+        const fetched = data.models || [];
+        if (!fetched.length) { bobbyAlert('Provider gak ngasih daftar model (atau endpoint-nya kosong).', 'danger'); return; }
+        let added = 0;
+        for (const m of fetched) if (!editingModels.includes(m)) { editingModels.push(m); added++; }
+        // Aliases the fetch derived (self-prefixed ids) ride along on the provider so
+        // save keeps them; merge into the visible alias rows too.
+        if (data.aliases && Object.keys(data.aliases).length) {
+          for (const [f, u] of Object.entries(data.aliases)) {
+            const exists = [...document.querySelectorAll('#editProvAliasFields .alias-friendly')].some(el => el.value.trim() === f);
+            if (!exists) addEditAliasRow(f, u);
+          }
+        }
+        renderEditModelList();
+        bobbyAlert(`${added} model baru ditambahin (${fetched.length} ke-fetch).`, 'success');
+      } catch (e) {
+        bobbyAlert('Fetch gagal: ' + e.message);
+      } finally {
+        btn.disabled = false; btn.textContent = original;
+      }
+    }
+
+    function addEditAliasRow(friendly = '', upstream = '') {
+      const container = document.getElementById('editProvAliasFields');
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.gap = '8px';
+      row.innerHTML = `
+        <input type="text" class="form-control alias-friendly" placeholder="friendly (e.g. glm-5.2)" style="flex:1;">
+        <span style="align-self:center; color: var(--text-muted);">→</span>
+        <input type="text" class="form-control alias-upstream" placeholder="upstream id" style="flex:1;">
+        <button type="button" class="btn" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; padding: 0 0.8rem;" onclick="this.parentElement.remove()">X</button>
+      `;
+      row.querySelector('.alias-friendly').value = friendly;
+      row.querySelector('.alias-upstream').value = upstream;
+      container.appendChild(row);
+    }
+
+    function onEditAuthTypeChange() {
+      const isOauth = document.getElementById('editProvAuthType').value === 'oauth2';
+      document.getElementById('editProvOauthFields').style.display = isOauth ? 'block' : 'none';
+    }
+
+    function onEditGrantTypeChange() {
+      // authUrl only matters for the browser (refresh_token) grant; jwt-bearer never
+      // opens a browser, so hide it to match the CLI's field set.
+      const isRefresh = document.getElementById('editProvGrantType').value === 'refresh_token';
+      document.getElementById('editProvAuthUrlRow').style.display = isRefresh ? 'block' : 'none';
+    }
+
+    function openEditProviderModal(providerId) {
+      const p = (bobbyConfig.providers || []).find(x => x.id === providerId);
+      if (!p) return;
+      editingProviderId = providerId;
+
+      document.getElementById('editProvName').value = p.name || '';
+      document.getElementById('editProvUrl').value = p.baseUrlTemplate || '';
+      document.getElementById('editProvApiFormat').value = ['openai','anthropic','gemini','responses'].includes(p.apiFormat) ? p.apiFormat : 'openai';
+
+      const authType = p.authType === 'oauth2' ? 'oauth2' : 'apikey';
+      document.getElementById('editProvAuthType').value = authType;
+      const oauth = p.oauth || {};
+      document.getElementById('editProvGrantType').value = oauth.grantType === 'jwt-bearer' ? 'jwt-bearer' : 'refresh_token';
+      document.getElementById('editProvTokenUrl').value = oauth.tokenUrl || '';
+      document.getElementById('editProvScope').value = oauth.scope || '';
+      document.getElementById('editProvAuthUrl').value = oauth.authUrl || '';
+      onEditAuthTypeChange();
+      onEditGrantTypeChange();
+
+      // Working copy of the model list — committed to the provider only on save.
+      editingModels = Array.isArray(p.models) ? [...p.models] : [];
+      document.getElementById('editProvModelInput').value = '';
+      renderEditModelList();
+
+      // Rebuild alias rows from the existing map.
+      document.getElementById('editProvAliasFields').innerHTML = '';
+      for (const [friendly, upstream] of Object.entries(p.modelAliases || {})) addEditAliasRow(friendly, upstream);
+
+      document.getElementById('editProviderModal').classList.add('active');
+    }
+
+    async function saveEditProvider() {
+      const p = (bobbyConfig.providers || []).find(x => x.id === editingProviderId);
+      if (!p) return closeModal('editProviderModal');
+
+      const name = document.getElementById('editProvName').value.trim();
+      if (!name) return bobbyAlert("Nama provider nggak boleh kosong bro!");
+      const baseUrl = document.getElementById('editProvUrl').value.trim();
+      if (!baseUrl) return bobbyAlert("Base URL nggak boleh kosong bro!");
+
+      p.name = name;
+      p.baseUrlTemplate = baseUrl;
+      p.apiFormat = document.getElementById('editProvApiFormat').value;
+
+      // Auth type: apikey drops the oauth block entirely (matches CLI); oauth2
+      // collects the grant + endpoints.
+      if (document.getElementById('editProvAuthType').value === 'oauth2') {
+        const grantType = document.getElementById('editProvGrantType').value;
+        const oauth = { ...(p.oauth || {}), grantType };
+        oauth.tokenUrl = document.getElementById('editProvTokenUrl').value.trim();
+        oauth.scope = document.getElementById('editProvScope').value.trim();
+        if (grantType === 'refresh_token') {
+          oauth.authUrl = document.getElementById('editProvAuthUrl').value.trim();
+          if (!oauth.extraAuthParams) oauth.extraAuthParams = { access_type: 'offline', prompt: 'consent' };
+        } else {
+          delete oauth.authUrl;
+          delete oauth.extraAuthParams;
+        }
+        p.authType = 'oauth2';
+        p.oauth = oauth;
+      } else {
+        delete p.authType;
+        delete p.oauth;
+      }
+
+      // Rebuild modelAliases from the rows; only keep rows where both sides are filled.
+      const aliases = {};
+      document.querySelectorAll('#editProvAliasFields > div').forEach(r => {
+        const f = r.querySelector('.alias-friendly').value.trim();
+        const u = r.querySelector('.alias-upstream').value.trim();
+        if (f && u) aliases[f] = u;
+      });
+      if (Object.keys(aliases).length) p.modelAliases = aliases; else delete p.modelAliases;
+
+      // Commit the working model list (dedup, drop blanks).
+      p.models = [...new Set(editingModels.map(m => (m || '').trim()).filter(Boolean))];
+
+      await saveConfig();
+      closeModal('editProviderModal');
+    }
+
     async function deleteAccount(providerId, accountId) {
       if(!(await bobbyConfirm("Yakin mau hapus akun ini?"))) return;
       const p = bobbyConfig.providers.find(x => x.id === providerId);
@@ -1324,6 +1695,19 @@ Windows PowerShell: Remove-Item -Recurse -Force $HOME\.bobbytools</code></pre>
           await saveConfig();
         }
       }
+    }
+
+    // Bulk set every account of one provider to a status (mirrors the CLI's
+    // multi-select toggle). Reviving to active clears the router's limit
+    // bookkeeping per account, same as the single toggle above.
+    async function setAllAccounts(providerId, status) {
+      const p = bobbyConfig.providers.find(x => x.id === providerId);
+      if(!p || !p.accounts.length) return;
+      p.accounts.forEach(a => {
+        a.status = status;
+        if(status === 'active') { delete a.limitedAt; delete a.retryAfterMs; delete a.authFailed; }
+      });
+      await saveConfig();
     }
 
     async function deleteProvider(providerId) {

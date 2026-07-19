@@ -32,6 +32,13 @@ const DEFAULT_EXPIRES_IN_S = 3600;
 // one cache. Not persisted — see file header.
 const tokenCache = new Map();
 
+// account.id -> in-flight refresh Promise. Without this, N concurrent requests
+// arriving while a token is stale each mint their OWN token (idempotent but wasteful
+// — burns N-1 extra token calls, and on a rate-limited token endpoint that itself
+// can 429). Collapsing them onto one shared promise means only the first mints; the
+// rest await the same result. Cleared in a finally so a failed mint never wedges.
+const inflightRefresh = new Map();
+
 // Normalize an arbitrary authType to a known key (default: apikey), mirroring
 // normalizeFormat() in translate.js — an unknown value behaves like the old
 // static-key path rather than throwing.
@@ -136,9 +143,20 @@ export async function resolveAccessToken(provider, account, fetchImpl = fetch, n
   const cached = tokenCache.get(account.id);
   if (cached && cached.expiresAt - now > EXPIRY_BUFFER_MS) return cached.accessToken;
 
-  const fresh = await refreshAccessToken(provider, account, fetchImpl, now);
-  tokenCache.set(account.id, fresh);
-  return fresh.accessToken;
+  // Coalesce concurrent misses: if a refresh for this account is already running,
+  // await it instead of starting a second one.
+  const pending = inflightRefresh.get(account.id);
+  if (pending) return (await pending).accessToken;
+
+  const promise = refreshAccessToken(provider, account, fetchImpl, now);
+  inflightRefresh.set(account.id, promise);
+  try {
+    const fresh = await promise;
+    tokenCache.set(account.id, fresh);
+    return fresh.accessToken;
+  } finally {
+    inflightRefresh.delete(account.id);
+  }
 }
 
 // Drop a cached token (e.g. after the upstream rejects it mid-flight, so the next
@@ -150,4 +168,5 @@ export function invalidateToken(accountId) {
 // Test seam: clear the whole cache between test cases.
 export function _clearTokenCache() {
   tokenCache.clear();
+  inflightRefresh.clear();
 }

@@ -69,6 +69,7 @@ Ini jalanin router di background (daemon) dan langsung bukain browser ke `http:/
 
 1. Klik **Add Provider**. Pilih dari template (Groq, OpenAI, Gemini, dll udah ada) atau bikin custom.
 2. Masuk ke provider itu, tambahin **Akun** sebanyak API key yang lo punya. Punya 5 key Groq gratisan? Masukin semua lima.
+3. Mau ngerapiin? Tombol **Edit** di kartu provider bukain semua setelan langsung dari web — nama, Base URL, **API Format** (openai/anthropic/gemini/responses), **Auth Type** (apikey/oauth2), daftar **Model** (tambah manual atau **Fetch** dari endpoint provider), plus **Model Alias**. Gak perlu balik ke CLI cuma buat ngubah setelan.
 
 **Pantau dari tab Overview.** Begitu router nyala, buka tab **Overview** (langsung kebuka pas masuk dashboard). Di situ keliatan sekilas: berapa key yang masih idup, berapa yang lagi kebakar kena 429, dan — ini yang penting — key yang limit itu **balik dalam berapa detik** (ada hitung mundurnya). Ada juga request per menit biar lo yakin router-nya beneran kerja. Auto-refresh tiap 3 detik, gak usah pencet-pencet.
 
@@ -134,11 +135,10 @@ Combo itu **satu-satunya** tempat Bobby ganti model di tengah request — dan cu
 
 ## 🧠 Ngatur Model per Provider
 
-Masuk **Manage Providers → Edit Provider → (pilih) → Edit Models**. Di sini lo bisa CRUD daftar model:
+Dua jalan, datanya sama:
 
-- **Add** — ketik nama model manual.
-- **List / Rename / Delete** — rapiin daftarnya.
-- **Fetch/Refresh** — tarik otomatis dari endpoint provider (buat yang support `/models`), hasilnya di-merge, bukan nimpa.
+- **CLI:** **Manage Providers → Edit Provider → (pilih) → Edit Models** — CRUD penuh: **Add** (ketik manual), **List / Rename / Delete**, **Fetch/Refresh** (tarik dari `/models`, di-merge bukan nimpa).
+- **Web:** kartu provider → **Edit** → bagian **Models** — Add / hapus (klik `×`) / **Fetch**. Rename belum ada di web; buat itu pake CLI, atau di web tinggal hapus + tambah lagi.
 
 Kalo provider lo gak punya endpoint model, ya gampang, tinggal Add manual.
 
@@ -157,7 +157,7 @@ Bobby yang ngurus itu. Lo login sekali, dia simpen refresh token-nya, dan tiap k
 - **Login browser (refresh token).** Buat login user biasa — kayak Google Gemini pake akun. Pilih template **Google Gemini (OAuth login)**, isi Client ID (+ Secret kalo ada), terus pas nambah akun Bobby bakal nawarin *"buka browser buat login sekarang?"*. Klik, izinin di halaman consent Google, tab-nya bilang beres, refresh token langsung kesimpen. Gak ada acara copas token manual.
 - **Service account (JWT, tanpa browser).** Buat akses server-to-server — kayak Google Vertex AI. Pilih template **Google Vertex AI (service account)**, tempel Service Account Email + Private Key (PEM) dari file JSON service account lo, plus Project ID & Region. Gak buka browser sama sekali; Bobby nandatanganin JWT pake private key itu dan nuker jadi access token sendiri.
 
-**Mau ngubah provider yang udah ada jadi OAuth?** Bisa. **Manage Providers → Edit Provider → Auth Type → oauth2**, pilih grant-nya (`refresh_token` buat browser, `jwt-bearer` buat service account), isi Token URL + Scope (+ Authorization URL kalo browser). Balik ke `apikey` juga tinggal sekali klik.
+**Mau ngubah provider yang udah ada jadi OAuth?** Bisa, dari CLI **atau** web. CLI: **Manage Providers → Edit Provider → Auth Type → oauth2**. Web: kartu provider → **Edit** → **Auth Type → oauth2**. Dua-duanya minta grant-nya (`refresh_token` buat browser, `jwt-bearer` buat service account), Token URL + Scope (+ Authorization URL kalo browser). Balik ke `apikey` tinggal sekali klik. Catatan: *login browser*-nya sendiri (nangkep refresh token) jalan pas nambah akun lewat menu/dashboard — bagian Edit Provider ini cuma nyetel cara provider-nya autentikasi.
 
 **Catatan jujur:** login browser cuma jalan pas nambah akun lewat menu/dashboard (dia yang mbuka browser + nangkep hasilnya di `127.0.0.1`). OAuth di-mint & di-refresh di **mode router** — jadi buat provider OAuth, pake router, bukan launcher klasik. Kalo refresh token-nya dicabut/expired, Bobby nandain akunnya mati (sama kayak key statis kena 401) dan pindah ke akun berikutnya, bukan retry percuma.
 
@@ -249,7 +249,7 @@ Bukan berarti alat lain jelek — buat kebutuhan enterprise/tim, mereka mungkin 
 1. **Config disimpen polos.** Semua ada di `~/.bobbytools/config.json`, gak dienkripsi. Jangan sekali-kali commit file ini ke repo publik. API key bocor gara-gara lo sendiri ceroboh, ya salahin cermin.
 2. **Router cuma dengerin localhost — dan beneran dikunci.** Server bind ke `127.0.0.1`, jadi gak keekspos ke jaringan. Tapi bind doang gak cukup: browser lo juga proses lokal, jadi situs jahat yang lo buka bisa nembak `127.0.0.1:13337`. Makanya panel kontrol (dashboard + `/api/*`, yang bisa baca/nimpa config berisi API key) cuma nerima request dari loopback — Origin lintas-situs ditolak (anti-CSRF, gak bisa ngehapus provider lo), Host asing ditolak (anti DNS-rebinding, gak bisa nyuri key lo). Semua ini **tanpa perlu login/password**. Jalur proxy `/v1/*` dikecualiin — itu ditembak CLI lokal yang bawa key sendiri, bukan browser.
 3. **Terjemahan format nutup teks, streaming, tool calls, gambar masuk, dan gambar keluar** — lintas empat format (OpenAI, Anthropic, Gemini, Responses) lewat hub. Gambar keluar cuma bisa round-trip Gemini↔Responses (cuma dua format itu yang bisa ngeluarin gambar); ke tujuan lain teksnya jalan, gambarnya diganti penanda `[image omitted]`. Format di luar itu (misal audio input) belum ditangani; kalo CLI-mu ngirimnya, bagian itu di-drop, bukan bikin error.
-4. **OpenAI Images API (`/v1/images/generations` & `/edits`) udah diterusin** — model image-gen (misal `gpt-image-2`, `dall-e-3`) yang dipajang aggregator lewat endpoint ini sekarang nyalur: router muter key-nya sama kayak chat (429 = pindah akun), `model`-nya di-split dari format `provider/model` jadi bare id buat upstream. Tidak ada penerjemah format di sini — Images API bentuknya sama kedua sisi (OpenAI↔OpenAI). Kalo CLI-mu pake cmd `image generation`, tinggal arahin base URL-nya ke router.
+4. **OpenAI Images API (`/v1/images/generations` & `/edits`) udah diterusin** — model image-gen (misal `gpt-image-2`, `dall-e-3`) yang dipajang aggregator lewat endpoint ini sekarang nyalur: router muter key-nya sama kayak chat (429 = pindah akun), `model`-nya di-split dari format `provider/model` jadi bare id buat upstream. Tidak ada penerjemah format di sini — Images API bentuknya sama kedua sisi (OpenAI↔OpenAI). Kalo CLI-mu pake cmd `image generation`, tinggal arahin base URL-nya ke router. Catatan: `/generations` (body JSON) dapet rewrite `model` + rotasi key penuh; `/edits` yang dikirim sebagai `multipart/form-data` diterusin apa adanya (body-nya bukan JSON, jadi alias model gak bisa dibaca dari situ) — key tetep dirotasi, cuma nama model gak di-rewrite.
 
 ---
 *Dibuat karena males. Dirawat karena kepalang.*
