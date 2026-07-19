@@ -806,4 +806,168 @@ async function openaiToResponsesStreamCheck() {
 }
 await openaiToResponsesStreamCheck();
 
-console.log('✔ translate self-check passed (stage 8: + responses spoke & cross-pivot)');
+// ══════════════════════════════════════════════════════════════════════════
+// STAGE 9 — image OUTPUT translation (Gemini <-> Responses, the two formats that
+// can emit images). Covers non-stream + stream, cross-pivot, and graceful
+// degradation for formats that can't carry image output (openai/anthropic).
+// ══════════════════════════════════════════════════════════════════════════
+
+const B64 = 'aGVsbG8='; // "hello" — stands in for image bytes.
+
+// NON-STREAM: gemini provider returns an image -> responses client sees an
+// image_generation_call item carrying the bare base64 in `result`.
+{
+  const gemini = {
+    candidates: [{ content: { role: 'model', parts: [{ text: 'here you go' }, { inlineData: { mimeType: 'image/png', data: B64 } }] }, finishReason: 'STOP', index: 0 }],
+    usageMetadata: { promptTokenCount: 3, candidatesTokenCount: 5, totalTokenCount: 8 },
+  };
+  const r = translateResponse(gemini, 'gemini', 'responses');
+  const img = r.output.find((o) => o.type === 'image_generation_call');
+  assert.ok(img, 'gemini image -> responses image_generation_call item');
+  assert.strictEqual(img.result, B64, 'bare base64 preserved in result');
+  assert.strictEqual(img.output_format, 'png', 'mime -> output_format');
+  const msg = r.output.find((o) => o.type === 'message');
+  assert.strictEqual(msg.content[0].text, 'here you go', 'accompanying text preserved');
+}
+
+// NON-STREAM: responses provider returns an image -> gemini client sees inlineData.
+{
+  const responses = {
+    id: 'resp_1', model: 'gpt-x',
+    output: [{ type: 'image_generation_call', id: 'ig_0', status: 'completed', result: B64, output_format: 'jpeg' }],
+    usage: { input_tokens: 2, output_tokens: 9, total_tokens: 11 },
+  };
+  const g = translateResponse(responses, 'responses', 'gemini');
+  const part = g.candidates[0].content.parts.find((p) => p.inlineData);
+  assert.ok(part, 'responses image -> gemini inlineData part');
+  assert.strictEqual(part.inlineData.data, B64, 'base64 preserved');
+  assert.strictEqual(part.inlineData.mimeType, 'image/jpeg', 'output_format -> mimeType');
+}
+
+// NON-STREAM round-trip: gemini -> responses -> gemini keeps the image intact.
+{
+  const gemini = {
+    candidates: [{ content: { role: 'model', parts: [{ inlineData: { mimeType: 'image/png', data: B64 } }] }, finishReason: 'STOP', index: 0 }],
+    usageMetadata: {},
+  };
+  const back = translateResponse(translateResponse(gemini, 'gemini', 'responses'), 'responses', 'gemini');
+  const part = back.candidates[0].content.parts.find((p) => p.inlineData);
+  assert.strictEqual(part?.inlineData?.data, B64, 'image survives gemini->responses->gemini round-trip');
+}
+
+// NON-STREAM degradation: gemini image -> openai client drops the image but keeps
+// text and leaves a visible marker (OpenAI chat can't carry image output).
+{
+  const gemini = {
+    candidates: [{ content: { role: 'model', parts: [{ text: 'text part' }, { inlineData: { mimeType: 'image/png', data: B64 } }] }, finishReason: 'STOP' }],
+    usageMetadata: {},
+  };
+  const oai = translateResponse(gemini, 'gemini', 'openai');
+  assert.strictEqual(typeof oai.choices[0].message.content, 'string', 'openai content is a string, never an array');
+  assert.ok(oai.choices[0].message.content.includes('text part'), 'text kept');
+  assert.ok(/image omitted/i.test(oai.choices[0].message.content), 'image drop is marked, not silent');
+}
+
+// NON-STREAM degradation: responses image -> anthropic client marks the omission.
+{
+  const responses = { model: 'm', output: [{ type: 'image_generation_call', result: B64, output_format: 'png', status: 'completed' }], usage: {} };
+  const anth = translateResponse(responses, 'responses', 'anthropic');
+  const textBlock = anth.content.find((b) => b.type === 'text');
+  assert.ok(textBlock && /image omitted/i.test(textBlock.text), 'anthropic marks the dropped image');
+  assert.ok(!anth.content.some((b) => b.type === 'image'), 'no bogus image block emitted');
+}
+
+// STREAM: gemini provider streams an image -> responses client gets a
+// partial_image event and a final image_generation_call item in response.completed.
+async function geminiImageStreamToResponses() {
+  const geminiFrames = [
+    'data: ' + JSON.stringify({ candidates: [{ content: { parts: [{ text: 'drawing' }] } }] }) + '\n\n',
+    'data: ' + JSON.stringify({ candidates: [{ content: { parts: [{ inlineData: { mimeType: 'image/png', data: B64 } }] } }] }) + '\n\n',
+    'data: ' + JSON.stringify({ candidates: [{ content: { parts: [] }, finishReason: 'STOP' }] }) + '\n\n',
+  ];
+  async function* src() { for (const f of geminiFrames) yield f; }
+  const events = [];
+  for await (const frame of translateStream(src(), 'gemini', 'responses', { model: 'm' })) {
+    for (const line of frame.split('\n')) {
+      const t = line.trimStart();
+      if (t.startsWith('data:')) { const d = t.slice(5).trim(); if (d) { try { events.push(JSON.parse(d)); } catch {} } }
+    }
+  }
+  assert.ok(events.some((e) => e.type === 'response.image_generation_call.partial_image' && e.partial_image_b64 === B64), 'streams a partial_image event with the base64');
+  const completed = events.at(-1);
+  assert.strictEqual(completed.type, 'response.completed', 'closes with response.completed');
+  const img = completed.response.output.find((o) => o.type === 'image_generation_call');
+  assert.strictEqual(img?.result, B64, 'final image_generation_call item carries the image');
+}
+await geminiImageStreamToResponses();
+
+// STREAM: responses provider streams an image -> gemini client gets an inlineData
+// part. Responses collapses progressive partials to the final image (see ponytail).
+async function responsesImageStreamToGemini() {
+  const respFrames = [
+    'data: ' + JSON.stringify({ type: 'response.created', response: { output: [] } }) + '\n\n',
+    'data: ' + JSON.stringify({ type: 'response.image_generation_call.partial_image', partial_image_index: 0, partial_image_b64: 'cGFydGlhbA==' }) + '\n\n',
+    'data: ' + JSON.stringify({ type: 'response.completed', response: { output: [{ type: 'image_generation_call', result: B64, output_format: 'png', status: 'completed' }] } }) + '\n\n',
+  ];
+  async function* src() { for (const f of respFrames) yield f; }
+  const parts = [];
+  for await (const frame of translateStream(src(), 'responses', 'gemini', { model: 'm' })) {
+    for (const line of frame.split('\n')) {
+      const t = line.trimStart();
+      if (t.startsWith('data:')) { const d = t.slice(5).trim(); if (d && d !== '[DONE]') { try { const f = JSON.parse(d); for (const p of f.candidates?.[0]?.content?.parts || []) parts.push(p); } catch {} } }
+    }
+  }
+  const img = parts.find((p) => p.inlineData);
+  assert.strictEqual(img?.inlineData?.data, B64, 'final (not partial) image reaches gemini as inlineData');
+}
+await responsesImageStreamToGemini();
+
+// STREAM degradation: gemini image stream -> openai client. The base64 must NOT
+// leak into a delta; the omission is marked once, and text still flows.
+async function geminiImageStreamToOpenaiDegrades() {
+  const geminiFrames = [
+    'data: ' + JSON.stringify({ candidates: [{ content: { parts: [{ text: 'hi' }] } }] }) + '\n\n',
+    'data: ' + JSON.stringify({ candidates: [{ content: { parts: [{ inlineData: { mimeType: 'image/png', data: B64 } }] } }] }) + '\n\n',
+    'data: ' + JSON.stringify({ candidates: [{ content: { parts: [] }, finishReason: 'STOP' }] }) + '\n\n',
+  ];
+  async function* src() { for (const f of geminiFrames) yield f; }
+  let raw = '';
+  const chunks = [];
+  for await (const frame of translateStream(src(), 'gemini', 'openai', { model: 'm' })) {
+    raw += frame;
+    for (const line of frame.split('\n')) {
+      const t = line.trimStart();
+      if (t.startsWith('data:')) { const d = t.slice(5).trim(); if (d && d !== '[DONE]') { try { chunks.push(JSON.parse(d)); } catch {} } }
+    }
+  }
+  assert.ok(!raw.includes(B64), 'image base64 never leaks to an openai client');
+  assert.ok(!chunks.some((c) => c.choices?.[0]?.delta?.images), 'hub-internal delta.images is stripped');
+  const text = chunks.map((c) => c.choices?.[0]?.delta?.content || '').join('');
+  assert.ok(text.includes('hi'), 'text still flows');
+  assert.ok(/image omitted/i.test(text), 'omission marked once in the stream');
+}
+await geminiImageStreamToOpenaiDegrades();
+
+// STREAM degradation: gemini image stream -> anthropic client. No image leaks;
+// the omission surfaces as a text_delta marker.
+async function geminiImageStreamToAnthropicDegrades() {
+  const geminiFrames = [
+    'data: ' + JSON.stringify({ candidates: [{ content: { parts: [{ inlineData: { mimeType: 'image/png', data: B64 } }] } }] }) + '\n\n',
+    'data: ' + JSON.stringify({ candidates: [{ content: { parts: [] }, finishReason: 'STOP' }] }) + '\n\n',
+  ];
+  async function* src() { for (const f of geminiFrames) yield f; }
+  let raw = '';
+  let markerText = '';
+  for await (const frame of translateStream(src(), 'gemini', 'anthropic', { model: 'm' })) {
+    raw += frame;
+    for (const line of frame.split('\n')) {
+      const t = line.trimStart();
+      if (t.startsWith('data:')) { const d = t.slice(5).trim(); try { const ev = JSON.parse(d); if (ev.delta?.type === 'text_delta') markerText += ev.delta.text; } catch {} }
+    }
+  }
+  assert.ok(!raw.includes(B64), 'image base64 never leaks to an anthropic client');
+  assert.ok(/image omitted/i.test(markerText), 'anthropic stream marks the dropped image');
+}
+await geminiImageStreamToAnthropicDegrades();
+
+console.log('✔ translate self-check passed (stage 9: + image output translation & graceful degradation)');

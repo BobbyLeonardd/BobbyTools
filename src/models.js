@@ -1,7 +1,8 @@
 import { search, input } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { getConfig, saveConfig } from './config.js';
-import { resolveBaseUrl, getApiKey, isLocalUrl, normalizeFetchedModels } from './helpers.js';
+import { resolveBaseUrl, isLocalUrl, normalizeFetchedModels } from './helpers.js';
+import { resolveAccessToken } from './oauth.js';
 import { success, warn, info, dim } from './ui.js';
 
 export async function fetchModels(provider, account) {
@@ -18,7 +19,10 @@ export async function fetchModels(provider, account) {
 
   try {
     const baseUrl = resolveBaseUrl(provider, account);
-    const apiKey = getApiKey(provider, account);
+    // resolveAccessToken returns the static key unchanged for apikey providers,
+    // or mints/refreshes an OAuth access token for oauth2 ones. Either way it's a
+    // Bearer credential here.
+    const apiKey = await resolveAccessToken(provider, account);
     const url = `${baseUrl}${provider.modelsEndpoint}`;
 
     info(`Fetching models from ${chalk.dim(url)}...`);

@@ -586,6 +586,17 @@ aider --model openrouter/anthropic/claude-3-haiku</code></pre>
           <li>Kalo format CLI == format provider, Bobby lewat <strong>jalur cepat</strong> — diterusin apa adanya, nol overhead. Translator nyala cuma pas dibutuhin.</li>
         </ul>
 
+        <h3 style="margin-top: 2rem;">6. Login OAuth — buat provider yang gak ngasih API key 🔑</h3>
+        <p>Sebagian provider gak ngasih API key statis yang tinggal copas. Google contohnya — lo login pake akun, bukan nempel key. Yang lo dapet cuma <em>refresh token</em>, dan itu mesti ditukerin jadi <em>access token</em> yang cuma idup ~1 jam, terus-terusan. Bobby yang ngurus: lo login sekali, dia simpen refresh token-nya, dan tiap router butuh nembak dia diem-diem nukerin jadi access token baru sebelum yang lama basi. Lo gak pernah nyentuh token yang cepet expired itu.</p>
+        <ul style="padding-left: 1.5rem; color: var(--text-muted);">
+          <li style="margin-bottom: 0.5rem"><strong>Login browser (refresh token)</strong> — buat login user biasa kayak Google Gemini. Pilih template <strong>Google Gemini (OAuth login)</strong>, isi Client ID (+ Secret kalo ada). Pas <strong>Add Account</strong>, Bobby nawarin <em>"buka browser buat login sekarang?"</em> — klik, izinin di halaman consent Google, tab-nya bilang beres, refresh token langsung kesimpen. Gak ada copas token manual.</li>
+          <li style="margin-bottom: 0.5rem"><strong>Service account (JWT, tanpa browser)</strong> — buat akses server-to-server kayak Google Vertex AI. Pilih template <strong>Google Vertex AI (service account)</strong>, tempel Service Account Email + Private Key (PEM) dari file JSON service account, plus Project ID & Region. Bobby nandatanganin JWT pake private key itu dan nuker jadi access token sendiri.</li>
+          <li><strong>Ubah provider yang udah ada:</strong> Edit Provider → <strong>Auth Type</strong> → <code>oauth2</code> → pilih grant (<code>refresh_token</code> buat browser, <code>jwt-bearer</code> buat service account) + isi Token URL &amp; Scope. Balik ke <code>apikey</code> tinggal sekali klik.</li>
+        </ul>
+        <div style="background: rgba(129, 140, 248, 0.08); border: 1px solid rgba(129, 140, 248, 0.25); padding: 1rem; border-radius: 8px; margin-top: 1rem;">
+          <p style="margin-bottom: 0;"><strong>Jujur ya:</strong> login browser (mbuka browser + nangkep hasilnya di <code>127.0.0.1</code>) jalan pas nambah akun lewat menu/dashboard, dan token-nya di-mint &amp; di-refresh di <strong>mode router</strong> — jadi buat provider OAuth, pake router, bukan launcher klasik. Kalo refresh token dicabut/expired, Bobby nandain akunnya mati (sama kayak key statis kena 401) dan pindah ke akun berikutnya, bukan retry percuma.</p>
+        </div>
+
         <h3 style="margin-top: 2rem;">📚 Daftar Perintah (Commands) BobbyTools</h3>
         <ul style="padding-left: 1.5rem; color: var(--text-muted);">
           <li style="margin-bottom: 0.5rem"><strong><code>bobby</code></strong><br/>Buka menu utama interaktif (nambah akun, pilih model, atur provider, dll).</li>
