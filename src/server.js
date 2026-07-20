@@ -999,6 +999,9 @@ export async function startRouterServer(port = DEFAULT_ROUTER_PORT, background =
       console.log(chalk.yellow(`     export GEMINI_BASE_URL="http://127.0.0.1:${port}/v1"   export GEMINI_API_KEY="sk-bobby"`));
       console.log(chalk.yellow(`     export GROQ_BASE_URL="http://127.0.0.1:${port}/v1"     export GROQ_API_KEY="sk-bobby"`));
 
+      console.log(chalk.green(`\n     ✅ Base URL-nya sama buat semua CLI — Bobby beda-in format (openai/anthropic/gemini/responses) dari path-nya sendiri.`));
+      console.log(chalk.green(`        API key ("sk-bobby") isi bebas — gak ada generate, gak divalidasi (router cuma loopback).`));
+
       console.log(chalk.white(`\n  3. Panggil CLI favorit lo, gabungin provider + model:`));
       console.log(chalk.yellow(`     <nama-cli> -m <nama-provider>/<nama-model>`));
       console.log(chalk.gray(`     Contoh 1: opencode -m groq/llama3-70b-8192`));

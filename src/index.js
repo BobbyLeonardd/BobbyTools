@@ -406,7 +406,8 @@ async function showTutorial() {
   console.log(chalk.gray('             Mac/Linux/GitBash : ') + chalk.yellow('export OPENAI_BASE_URL="http://127.0.0.1:13337/v1"'));
   console.log(chalk.gray('             Windows PowerShell: ') + chalk.yellow('$env:OPENAI_BASE_URL="http://127.0.0.1:13337/v1"'));
   console.log(chalk.gray('             Windows CMD       : ') + chalk.yellow('set OPENAI_BASE_URL=http://127.0.0.1:13337/v1'));
-  console.log(chalk.gray('             Pake claude-code / CLI Anthropic-style? Ganti prefix jadi ') + chalk.yellow('ANTHROPIC_BASE_URL') + chalk.gray(', URL-nya sama.'));
+  console.log(chalk.gray('             Pake claude-code / CLI Anthropic-style? Ganti prefix jadi ') + chalk.yellow('ANTHROPIC_BASE_URL') + chalk.gray(' (atau ') + chalk.yellow('GEMINI_BASE_URL') + chalk.gray('), URL-nya sama.'));
+  console.log(chalk.gray('             Satu URL ini nampung 4 format sekaligus (') + chalk.cyan('openai/anthropic/gemini/responses') + chalk.gray('); Bobby beda-in dari path yang di-hit CLI lo.'));
   console.log(chalk.gray('             API key-nya isi apa aja (') + chalk.yellow('sk-bobby') + chalk.gray('), Bobby gak peduli, yang asli dia yang pegang.'));
   console.log(chalk.white('  Langkah 4. ') + chalk.gray('Panggil model pake format ') + chalk.yellow('<provider>/<model>') + chalk.gray(':'));
   console.log(chalk.gray('             ') + chalk.cyan('opencode -m groq/llama3-70b-8192'));
