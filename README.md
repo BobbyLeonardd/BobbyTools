@@ -23,6 +23,27 @@ Dua cara pake, tinggal pilih sesuai tingkat kemalasan lo hari ini.
 
 ---
 
+## ⏱️ Buru-buru? 30 detik jadi
+
+Belum mau baca panjang-panjang, cuma pengen liat ini jalan? Tiga baris:
+
+```bash
+npm install -g bobbytools     # 1. pasang (butuh Node 18+)
+bobby serve-bg                # 2. nyalain router + browser kebuka sendiri
+```
+
+Di browser yang kebuka: **Add Provider** (misal Groq), tambahin API key lo. Terus di terminal ngoding:
+
+```bash
+export OPENAI_BASE_URL="http://127.0.0.1:13337/v1"   # Windows PowerShell: $env:OPENAI_BASE_URL="..."
+export OPENAI_API_KEY="sk-bobby"                     # diisi apa aja bebas, Bobby yang pegang key asli
+opencode -m groq/llama3-70b-8192                     # panggil pake format provider/model
+```
+
+Udah. Kena limit 429 di tengah jalan? Bobby muter ke key berikutnya sendiri, lo gak bakal tau. Sisanya di bawah ini kalo lo penasaran. Masih keder? Buka tab **Panduan Lengkap** di dashboard, atau ketik `bobby` terus pilih **Cara Pakai (Tutorial)**.
+
+---
+
 ## 🧩 Bobby bisa apa aja
 
 Singkatnya, satu tempat buat semua urusan API key AI lo:

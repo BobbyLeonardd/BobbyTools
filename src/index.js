@@ -370,6 +370,15 @@ async function showTutorial() {
   console.log(chalk.white('    2. Mode Klasik      ') + chalk.gray('- launcher interaktif, sekali jalan satu sesi.\n'));
 
   divider();
+  console.log(chalk.white.bold('\n  ⏱️  BURU-BURU? 30 DETIK JADI\n'));
+  console.log(chalk.gray('  Males baca semua? Ikutin ini aja, sisanya skip:'));
+  console.log(chalk.gray('    1. ') + chalk.yellow('bobby serve-bg') + chalk.gray('  (router nyala, browser kebuka sendiri ke 127.0.0.1:13337)'));
+  console.log(chalk.gray('    2. Di web: ') + chalk.yellow('Add Provider') + chalk.gray(' (misal Groq) -> tambahin API key lo.'));
+  console.log(chalk.gray('    3. Di terminal ngoding, colok base URL-nya ke Bobby:'));
+  console.log(chalk.gray('       ') + chalk.yellow('export OPENAI_BASE_URL="http://127.0.0.1:13337/v1"') + chalk.gray('  (PowerShell: ') + chalk.yellow('$env:OPENAI_BASE_URL="..."') + chalk.gray(')'));
+  console.log(chalk.gray('    4. ') + chalk.cyan('opencode -m groq/llama3-70b-8192') + chalk.gray('  (panggil pake format ') + chalk.yellow('provider/model') + chalk.gray(').'));
+  console.log(chalk.gray('  Kena 429? Bobby muter ke key berikutnya sendiri. Detail lengkapnya di bawah.\n'));
+
   console.log(chalk.white.bold('\n  📦 INSTALL / UPDATE / UNINSTALL\n'));
   console.log(chalk.gray('  Butuh Node.js v18+ (cek: ') + chalk.yellow('node -v') + chalk.gray('). Gak ada = ambil LTS di nodejs.org. Sisanya npm yang urus.\n'));
   console.log(chalk.white('  Install   ') + chalk.gray(': ') + chalk.yellow('npm install -g bobbytools') + chalk.gray('   (sekali doang, langsung bisa dipanggil "bobby" di mana aja)'));

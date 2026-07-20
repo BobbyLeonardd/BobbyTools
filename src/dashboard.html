@@ -584,6 +584,17 @@
       <div class="glass-card prose">
         <p style="color: var(--text-muted); font-style: italic; margin-bottom: 1.5rem;">Baca bentar doang, janji. Gue nulis ini karena gue juga males jawabin pertanyaan yang sama berulang-ulang. Abis baca ini lo bakal ngerti semua isi BobbyTools.</p>
 
+        <div style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.25); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+          <h4 style="color: #a5b4fc; margin-bottom: 0.5rem;">⏱️ Buru-buru? 30 detik jadi</h4>
+          <p style="margin-bottom: 0.5rem;">Router-nya udah nyala (lo lagi baca ini di dashboard-nya, kan). Tinggal:</p>
+          <ol style="padding-left: 1.5rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+            <li><strong>Add Provider</strong> (misal Groq) di menu Providers, tambahin API key lo.</li>
+            <li>Di terminal ngoding, colok base URL-nya ke Bobby:<br><code>export OPENAI_BASE_URL="http://127.0.0.1:13337/v1"</code> <em>(PowerShell: <code>$env:OPENAI_BASE_URL="..."</code>)</em></li>
+            <li>Panggil pake format <code>provider/model</code>: <code>opencode -m groq/llama3-70b-8192</code></li>
+          </ol>
+          <p style="margin-bottom: 0;">Kena limit 429? Bobby muter ke key berikutnya sendiri, lo gak bakal tau. Sisanya di bawah kalo penasaran.</p>
+        </div>
+
         <h3>Dua mode, pilih salah satu (atau dua-duanya)</h3>
         <p>BobbyTools punya dua cara pakai. <strong>Mode Web/Router</strong> (halaman ini) buat yang mau anti-limit 429 otomatis. <strong>Mode Klasik/CLI</strong> buat yang cuma mau launch cepat satu akun tanpa ribet. Isi provider & akun sekali, dua mode langsung kepake dua-duanya, datanya sama (<code>~/.bobbytools/config.json</code>).</p>
 
