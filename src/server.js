@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
 import { store } from './store.js';
 import { logStore } from './logstore.js';
-import { resolveBaseUrl, reviveLimitedAccounts, slugify, isLocalUrl, fetchWithConnectTimeout, computeStats, parseRetryAfter, rollupMetrics, resolveModelId, findFallbackProvider, isTrustedControlRequest, resolveComboSpecs, normalizeFetchedModels, extractModelPricing, DEFAULT_ROUTER_PORT } from './helpers.js';
+import { resolveBaseUrl, reviveLimitedAccounts, slugify, isLocalUrl, fetchWithConnectTimeout, computeStats, parseRetryAfter, rollupMetrics, resolveModelId, findFallbackProvider, isTrustedControlRequest, resolveComboSpecs, normalizeFetchedModels, extractModelPricing, buildTargetUrl, DEFAULT_ROUTER_PORT } from './helpers.js';
 import {
   translateRequest, translateResponse, translateStream, normalizeFormat, sniffUsage,
 } from './translate.js';
@@ -678,25 +678,13 @@ export async function startRouterServer(port = DEFAULT_ROUTER_PORT, background =
           // :streamGenerateContent?alt=sse when streaming — Gemini carries the
           // model in the URL, not the body). When formats already match we keep
           // the client's own suffix (covers /v1beta and other variants).
-          let endpointPath;
-          if (inboundFmt === providerFmt) {
-            endpointPath = req.url.startsWith('/v1/') ? req.url.slice(3) : req.url;
-          } else if (providerFmt === 'gemini') {
-            const verb = wantsStream ? 'streamGenerateContent?alt=sse' : 'generateContent';
-            endpointPath = `/v1beta/models/${encodeURIComponent(payload.model)}:${verb}`;
-          } else if (providerFmt === 'anthropic') {
-            endpointPath = '/messages';
-          } else if (providerFmt === 'responses') {
-            endpointPath = '/responses';
-          } else {
-            endpointPath = '/chat/completions';
-          }
-          // Gemini base URLs are conventionally the API root (…/v1beta lives in the
-          // path we build), so strip a trailing /v1 or /v1beta the user may have set.
-          const effectiveBase = providerFmt === 'gemini'
-            ? baseUrl.replace(/\/v1(beta)?$/, '')
-            : baseUrl;
-          const targetUrl = effectiveBase + endpointPath;
+          // Endpoint path is fixed by the PROVIDER's format, not the client's — and
+          // the API-version segment (/v1, /v1beta) is normalized onto the base URL
+          // there too. Both the fast path (formats match) and cross-format translate
+          // route through the same builder, so a bare-origin base like
+          // "https://api.hcnsec.cn" correctly becomes /v1/messages instead of the
+          // old /messages (which returned the site's HTML homepage as a bogus 200).
+          const targetUrl = buildTargetUrl(baseUrl, providerFmt, { model: payload.model, wantsStream });
 
           // Resolve the outbound credential. For apikey providers this is the
           // stored secret (unchanged). For oauth2 providers it mints/refreshes a

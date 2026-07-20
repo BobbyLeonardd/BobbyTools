@@ -356,6 +356,47 @@ export function extractModelPricing(rawModels = []) {
 }
 
 /**
+ * Build the upstream URL to POST a chat request to, given the provider's base URL
+ * and the wire format it speaks. The endpoint suffix is format-fixed (OpenAI wants
+ * /chat/completions, Anthropic /messages, Responses /responses, Gemini a
+ * model-scoped verb) — but the API-VERSION segment (/v1, /v1beta) belongs to the
+ * base URL, and providers spell it inconsistently.
+ *
+ * Why this exists (the glm-5.2 bug): gateways like api.hcnsec.cn / agentrouter.org
+ * are added with a bare origin base URL ("https://api.hcnsec.cn") yet their
+ * Anthropic endpoint lives at /v1/messages. The old code hardcoded "/messages",
+ * so a bare base URL got POSTed to https://api.hcnsec.cn/messages — which returns
+ * the site's HTML homepage with HTTP 200, and the client chokes parsing it. The
+ * fix: ensure the version prefix is present exactly once. If the base URL already
+ * ends in the needed version segment we don't add it again; otherwise we do.
+ *
+ * - openai / anthropic / responses : version is /v1, suffix /chat/completions |
+ *   /messages | /responses.
+ * - gemini : version is /v1beta and the verb carries the model; base URLs
+ *   conventionally omit it, and a trailing /v1 or /v1beta is normalized off first.
+ *
+ * `wantsStream` only affects gemini (its verb differs when streaming). `model` is
+ * needed for the gemini path. Pure — no I/O.
+ */
+export function buildTargetUrl(baseUrl, providerFmt, { model, wantsStream } = {}) {
+  const base = (baseUrl || '').replace(/\/+$/, '');
+  if (providerFmt === 'gemini') {
+    const root = base.replace(/\/v1(beta)?$/, '');
+    const verb = wantsStream ? 'streamGenerateContent?alt=sse' : 'generateContent';
+    return `${root}/v1beta/models/${encodeURIComponent(model)}:${verb}`;
+  }
+  // openai gateways carry the version IN the base URL and it's spelled every which
+  // way (/v1, /v3/openai, /openai/v1, /v1/solar) — so we trust the base and just
+  // append the bare endpoint. anthropic/responses instead put the version in the
+  // well-known path (/v1/messages, /v1/responses) and are added with a bare origin
+  // base, so we prepend /v1 there — unless the user already tacked it on the base.
+  if (providerFmt === 'openai') return base + '/chat/completions';
+  const suffix = providerFmt === 'responses' ? '/responses' : '/messages';
+  const versioned = /\/v1$/.test(base) ? base : `${base}/v1`;
+  return versioned + suffix;
+}
+
+/**
  * Resolve a "combo" — a user-defined, ordered list of `provider/model` specs the
  * router tries in turn, dropping to the NEXT model only when the current one has
  * no live account left anywhere. Combos live in `config.combos` as
