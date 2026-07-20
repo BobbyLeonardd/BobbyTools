@@ -439,6 +439,20 @@ async function showTutorial() {
   console.log(chalk.gray('           Kalo format CLI == format provider, Bobby lewat jalur cepat (diterusin apa adanya, nol overhead).\n'));
 
   divider();
+  console.log(chalk.white.bold('\n  🎨 BIKIN GAMBAR (OpenAI Images API)\n'));
+  console.log(chalk.gray('  Endpoint ') + chalk.cyan('/v1/images/generations') + chalk.gray(' sama ') + chalk.cyan('/v1/images/edits') + chalk.gray(' juga lewat router. Jadi model image-gen'));
+  console.log(chalk.gray('  (') + chalk.cyan('dall-e-3') + chalk.gray(', ') + chalk.cyan('gpt-image-1') + chalk.gray(', dst) yang dipajang provider lo ikut kena rotasi key + fallback, sama kayak chat.'));
+  console.log(chalk.gray('  Panggil model-nya tetep format ') + chalk.yellow('<provider>/<model>') + chalk.gray(' (misal ') + chalk.cyan('openai/dall-e-3') + chalk.gray('). Kena 429? pindah akun, lo gak usah tau.'));
+  console.log(chalk.gray('  Gak ada terjemahan format di sini: Images API bentuknya sama dua sisi (OpenAI ke OpenAI). Arahin base URL CLI-nya ke router, udah.\n'));
+
+  divider();
+  console.log(chalk.white.bold('\n  📊 PANTAU TOKEN & BIAYA (mode router)\n'));
+  console.log(chalk.gray('  Tiap request yang lewat router, Bobby ngitung ') + chalk.white('token input/output/cached') + chalk.gray('-nya (dibaca dari jawaban provider,'));
+  console.log(chalk.gray('  lo gak usah setel apa-apa) dan numpuk per provider + per model. Jalan buat semua format, streaming maupun enggak.'));
+  console.log(chalk.gray('  Liatnya di ') + chalk.yellow('web dashboard tab Overview') + chalk.gray(': key mana idup/kebakar, hitung mundur cooldown, request per menit, grafik lalu-lintas.'));
+  console.log(chalk.gray('  Mau taksiran duit? toggle ') + chalk.cyan('Tokens ⇄ Costs') + chalk.gray('. Harga OpenRouter keisi otomatis pas Fetch; provider lain isi manual di Settings, gratisan biarin kosong.\n'));
+
+  divider();
   console.log(chalk.white.bold('\n  🧠 NGATUR MODEL (Manage Providers -> Edit Provider -> Edit Models)\n'));
   console.log(chalk.gray('  Tiap provider punya daftar model sendiri. Di menu Edit Models lo bisa:'));
   console.log(chalk.gray('  • ') + chalk.white('Add/Rename/Delete') + chalk.gray(' model manual.'));

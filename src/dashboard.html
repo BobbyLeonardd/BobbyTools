@@ -678,6 +678,23 @@ aider --model openrouter/anthropic/claude-3-haiku</code></pre>
           <p style="margin-bottom: 0;"><strong>Jujur ya:</strong> login browser (mbuka browser + nangkep hasilnya di <code>127.0.0.1</code>) jalan pas nambah akun lewat menu/dashboard, dan token-nya di-mint &amp; di-refresh di <strong>mode router</strong>, jadi buat provider OAuth, pake router, bukan launcher klasik. Kalo refresh token dicabut/expired, Bobby nandain akunnya mati (sama kayak key statis kena 401) dan pindah ke akun berikutnya, bukan retry percuma.</p>
         </div>
 
+        <h3 style="margin-top: 2rem;">7. Bikin Gambar (Images API) 🖼️</h3>
+        <p>Model bikin gambar (kayak <code>dall-e-3</code>, <code>gpt-image-2</code>) yang dipajang provider lewat endpoint OpenAI Images juga diterusin. Sambungin CLI/tool-nya ke router kayak biasa, panggil pake format <code>provider/model</code>, Bobby yang muterin key-nya sama persis kayak chat: kena 429, pindah akun, retry.</p>
+        <ul style="padding-left: 1.5rem; color: var(--text-muted);">
+          <li style="margin-bottom: 0.5rem"><code>/v1/images/generations</code> (body JSON): <code>model</code>-nya di-split dari <code>provider/model</code> jadi id asli buat provider, rotasi key penuh.</li>
+          <li style="margin-bottom: 0.5rem"><code>/v1/images/edits</code> (kirimannya <code>multipart/form-data</code>): diterusin apa adanya, key tetep dirotasi, cuma nama model gak ikut di-rewrite (body-nya bukan JSON, alias gak kebaca dari situ).</li>
+          <li>Di sini gak ada penerjemah format: Images API bentuknya sama di kedua sisi (OpenAI ke OpenAI). Provider yang jawab bentuk non-OpenAI di endpoint ini belum ketemu, jadi belum ada translator-nya.</li>
+        </ul>
+
+        <h3 style="margin-top: 2rem;">8. Pantau Token &amp; Biaya (tab Overview) 📊</h3>
+        <p>Begitu router nyala, tab <strong>Overview</strong> (kebuka duluan pas masuk dashboard) mantau semuanya sendiri, auto-refresh tiap 3 detik, gak usah pencet-pencet. Isinya kebagi rapi per bagian:</p>
+        <ul style="padding-left: 1.5rem; color: var(--text-muted);">
+          <li style="margin-bottom: 0.5rem"><strong>Key health:</strong> berapa key idup vs kebakar kena 429, plus hitung mundur key limit balik aktif dalam berapa detik.</li>
+          <li style="margin-bottom: 0.5rem"><strong>Traffic:</strong> grafik lalu-lintas yang rentangnya bisa lo geser (<code>30m</code> / <code>1h</code> / <code>6h</code> / <code>24h</code>), arahin kursor ke bar buat liat jam + jumlah ok/fail-nya, plus peta rute BobbyTools ke provider mana aja.</li>
+          <li><strong>Tokens &amp; cost:</strong> tiap request yang lewat, Bobby ngitung token input/output/cached (dibaca dari jawaban provider, lo gak usah setel apa-apa) dan numpuk per provider &amp; per model. Jalan buat semua format (OpenAI, Anthropic, Gemini, Responses), streaming maupun non-streaming, termasuk pas request-nya diterjemahin antar-format. Server lokal (Ollama/LM Studio mode OpenAI-compat) juga kehitung selama dia ngirim data usage.</li>
+        </ul>
+        <p>Angka yang berubah nge-<em>flash</em> sebentar biar keliatan lagi update. Mau tau taksiran duit? Ada toggle <strong>Tokens ⇄ Costs</strong>: biaya = token × harga model. Provider <strong>OpenRouter</strong> harganya keisi otomatis pas lo <strong>Fetch</strong> model; provider lain (kebanyakan gratisan) isi harga manual di <strong>Settings → Model Pricing</strong>, atau biarin kosong kalo emang gratis. Model tanpa harga muncul "—", bukan angka ngasal.</p>
+
         <h3 style="margin-top: 2rem;">📚 Daftar Perintah (Commands) BobbyTools</h3>
         <ul style="padding-left: 1.5rem; color: var(--text-muted);">
           <li style="margin-bottom: 0.5rem"><strong><code>bobby</code></strong><br/>Buka menu utama interaktif (nambah akun, pilih model, atur provider, dll).</li>
