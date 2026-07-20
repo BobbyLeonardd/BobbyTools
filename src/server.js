@@ -365,7 +365,7 @@ export async function startRouterServer(port = DEFAULT_ROUTER_PORT, background =
           // same rule as chat: match by slug or raw id.
           const modelStr = payload.model || '';
           const slash = modelStr.indexOf('/');
-          if (!slash || slash < 1) {
+          if (slash < 1) {
             res.writeHead(400);
             res.end(JSON.stringify({ error: 'Image generation needs a model in provider/model form' }));
             return;

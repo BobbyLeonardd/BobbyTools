@@ -37,11 +37,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/bobbytools/bobbytools.git"
+    "url": "git+https://github.com/BobbyLeonardd/BobbyTools.git"
   },
-  "homepage": "https://github.com/bobbytools/bobbytools#readme",
+  "homepage": "https://github.com/BobbyLeonardd/BobbyTools#readme",
   "bugs": {
-    "url": "https://github.com/bobbytools/bobbytools/issues"
+    "url": "https://github.com/BobbyLeonardd/BobbyTools/issues"
   },
   "files": [
     "bin/",
