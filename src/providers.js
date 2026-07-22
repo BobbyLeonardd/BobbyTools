@@ -377,7 +377,7 @@ function listProviders() {
     const acctInfo = p.accounts.length > 0
       ? chalk.green(`${p.accounts.length} akun`)
       : chalk.gray('belum ada akun');
-    const modelInfo = p.models.length > 0
+    const modelInfo = p.models?.length > 0
       ? `${p.models.length} model ke-cache`
       : p.modelsEndpoint ? 'bisa di-fetch' : 'manual';
 

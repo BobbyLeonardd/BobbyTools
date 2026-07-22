@@ -265,7 +265,7 @@ async function selectAccountForLaunch(provider) {
         results.push({ name: chalk.gray('[0] ↩️  Back'), value: null });
       }
       
-      for (const acc of provider.accounts) {
+      for (const acc of activeAccounts) {
         const status = statusDot(acc.status);
         const current = acc.id === provider.lastAccountId ? chalk.yellow(' ← terakhir dipake') : '';
         const lastUsed = acc.lastUsed ? chalk.gray(` (${timeAgo(acc.lastUsed)})`) : chalk.gray(' (belum pernah)');
