@@ -13,7 +13,7 @@ export async function fetchModels(provider, account) {
   // list (prefixed again each time) — junk, not a real model list. Local providers
   // are manual-only: add models by hand in Edit Models.
   if (isLocalUrl(resolveBaseUrl(provider, account))) {
-    warn('Local base URL: models endpoint is disabled to avoid loops. Add models manually.');
+    warn('Base URL lokal: endpoint models dimatiin biar gak loop. Tambahin model manual aja.');
     return null;
   }
 
@@ -25,7 +25,7 @@ export async function fetchModels(provider, account) {
     const apiKey = await resolveAccessToken(provider, account);
     const url = `${baseUrl}${provider.modelsEndpoint}`;
 
-    info(`Fetching models from ${chalk.dim(url)}...`);
+    info(`Lagi fetch model dari ${chalk.dim(url)}...`);
 
     const headers = {};
     if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
@@ -33,7 +33,7 @@ export async function fetchModels(provider, account) {
     const res = await fetch(url, { headers, signal: AbortSignal.timeout(15000) });
 
     if (!res.ok) {
-      warn(`Failed to fetch models (HTTP ${res.status})`);
+      warn(`Gagal fetch model (HTTP ${res.status})`);
       return null;
     }
 
@@ -46,7 +46,7 @@ export async function fetchModels(provider, account) {
 
     return models.length > 0 ? models : null;
   } catch (err) {
-    warn(`Could not fetch models: ${err.message}`);
+    warn(`Gak bisa fetch model: ${err.message}`);
     return null;
   }
 }
@@ -70,15 +70,15 @@ export async function selectModel(provider, account) {
       saveConfig(config);
     }
   } else if (p && p.models && p.models.length > 0) {
-    info('Using cached model list');
+    info('Pake daftar model dari cache');
     models = p.models;
   } else if (provider.models && provider.models.length > 0) {
-    info('Using cached model list');
+    info('Pake daftar model dari cache');
     models = provider.models;
   }
 
   const selected = await search({
-    message: `Select Model (${provider.name})`,
+    message: `Pilih Model (${provider.name})`,
     source: async (term) => {
       term = term || '';
       const termLower = term.toLowerCase();
@@ -91,7 +91,7 @@ export async function selectModel(provider, account) {
         results.push({ name: chalk.gray('[0] ↩️  Back'), value: null });
       }
       if (showManual) {
-        results.push({ name: chalk.cyan('[m] ✍️  Enter model manually'), value: '__manual__' });
+        results.push({ name: chalk.cyan('[m] ✍️  Ketik model manual'), value: '__manual__' });
       }
       
       if (models && models.length > 0) {
@@ -110,7 +110,7 @@ export async function selectModel(provider, account) {
   if (selected === null) return null;
 
   if (selected === '__manual__') {
-    const model = await input({ message: 'Model name/ID (type "<" to go back):' });
+    const model = await input({ message: 'Nama/ID model (ketik "<" buat balik):' });
     if (model === '<') return selectModel(provider, account);
     if (!model) return selectModel(provider, account);
 

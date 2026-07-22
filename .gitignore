@@ -3,3 +3,4 @@ node_modules/
 .ai-context.md
 scratch.js
 .claude/
+.playwright-mcp/

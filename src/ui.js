@@ -20,9 +20,9 @@ export function showBanner() {
                         /____/                          
 `;
   console.log(BRAND.bold(logo));
-  console.log(BRAND.bold(`                                           v${VERSION}`));
-  console.log(chalk.gray('        AI Provider Manager & CLI Launcher'));
-  console.log(BRAND('  ───────────────────────────────────────────────────'));
+  console.log(ACCENT.bold(`                                           v${VERSION}`));
+  console.log(chalk.gray('        Ngatur Provider AI & Launcher CLI'));
+  console.log(ACCENT('  ───────────────────────────────────────────────────'));
   console.log();
 }
 
@@ -51,5 +51,5 @@ export function clearScreen() {
 export async function pause() {
   console.log();
   const { input } = await import('@inquirer/prompts');
-  await input({ message: chalk.gray('Press Enter to continue (or type "<" to go back)...') });
+  await input({ message: chalk.gray('Pencet Enter buat lanjut (atau ketik "<" buat balik)...') });
 }

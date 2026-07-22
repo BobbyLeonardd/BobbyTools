@@ -39,13 +39,41 @@ export function resolveBaseUrl(provider, account) {
 }
 
 /**
+ * The secret credential field a provider authenticates with (first required
+ * secret, else first secret). Shared by getApiKey and anthropicUsesBearer so
+ * both agree on "which credential is the key".
+ */
+function primarySecretCred(provider) {
+  return (
+    provider.credentials.find((c) => c.secret && c.required !== false) ||
+    provider.credentials.find((c) => c.secret) ||
+    null
+  );
+}
+
+/**
  * Extract the API key (first secret credential) from an account.
  */
 export function getApiKey(provider, account) {
-  const field =
-    provider.credentials.find((c) => c.secret && c.required !== false) ||
-    provider.credentials.find((c) => c.secret);
+  const field = primarySecretCred(provider);
   return field ? account.credentials[field.key] || null : null;
+}
+
+/**
+ * Anthropic-format gateways split into two auth conventions for the SAME static
+ * secret: native Anthropic wants `x-api-key`, while many third-party gateways
+ * (agentrouter, etc.) want `Authorization: Bearer` and document the credential
+ * as ANTHROPIC_AUTH_TOKEN. The config already encodes this — the credential's
+ * envVar is exactly what the provider's own docs told the user to set — so we
+ * read that instead of inventing a new field/toggle. Pure: provider in, bool out.
+ *
+ * ponytail: inference is by env-var name (ANTHROPIC_AUTH_TOKEN => Bearer). A
+ * bearer gateway that names its credential something else won't be detected;
+ * upgrade path is an explicit provider.authHeader field if one ever shows up.
+ */
+export function anthropicUsesBearer(provider) {
+  const field = primarySecretCred(provider);
+  return field?.envVar === 'ANTHROPIC_AUTH_TOKEN';
 }
 
 /**

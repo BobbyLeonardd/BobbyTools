@@ -667,7 +667,7 @@ function geminiRespToOpenai(body) {
     id: body.responseId || undefined,
     object: 'chat.completion',
     model: body.modelVersion || body.model,
-    choices: [{ index: 0, message, finish_reason: GEMINI_FINISH_TO_OAI[cand.finishReason] ?? 'stop' }],
+    choices: [{ index: 0, message, finish_reason: funcCalls.length ? 'tool_calls' : (GEMINI_FINISH_TO_OAI[cand.finishReason] ?? 'stop') }],
     usage: { prompt_tokens: promptTok, completion_tokens: compTok, total_tokens: promptTok + compTok },
   };
 }
@@ -698,6 +698,10 @@ function openaiRespToGemini(body) {
 async function* geminiStreamToOpenai(source, { model = 'unknown', id = 'chatcmpl_stream' } = {}) {
   const chunk = (delta, finish = null) => oaiFrame({ id, object: 'chat.completion.chunk', model, choices: [{ index: 0, delta, finish_reason: finish }] });
   let started = false, finish = null;
+  // slot/sawTool persist across chunks: Gemini usually sends all functionCall
+  // parts in one chunk, but if two calls arrive in separate chunks they must get
+  // distinct indices (not both 0), and the final finish_reason must be tool_calls.
+  let slot = 0, sawTool = false;
   for await (const data of sseData(source)) {
     if (data === '[DONE]') break; // Gemini omits this, but tolerate it.
     let f; try { f = JSON.parse(data); } catch { continue; }
@@ -711,14 +715,13 @@ async function* geminiStreamToOpenai(source, { model = 'unknown', id = 'chatcmpl
     // read it, and it's stripped before any OpenAI/Anthropic client sees a frame.
     const images = geminiImagePartsToHub(parts);
     if (images.length) yield chunk({ images });
-    let slot = 0;
     for (const p of parts) {
-      if (p?.functionCall) yield chunk({ tool_calls: [{ index: slot, id: `call_${slot}`, type: 'function', function: { name: p.functionCall.name, arguments: argsObjectToString(p.functionCall.args) } }] }), slot++;
+      if (p?.functionCall) { sawTool = true; yield chunk({ tool_calls: [{ index: slot, id: `call_${slot}`, type: 'function', function: { name: p.functionCall.name, arguments: argsObjectToString(p.functionCall.args) } }] }); slot++; }
     }
     if (cand.finishReason) finish = cand.finishReason;
   }
   if (!started) yield chunk({ role: 'assistant' });
-  yield chunk({}, GEMINI_FINISH_TO_OAI[finish] ?? 'stop');
+  yield chunk({}, sawTool ? 'tool_calls' : (GEMINI_FINISH_TO_OAI[finish] ?? 'stop'));
   yield 'data: [DONE]\n\n';
 }
 

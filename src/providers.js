@@ -28,7 +28,7 @@ export async function manageProviders() {
 
     choices.push({ name: '↩️   Back', value: 'back' });
 
-    const action = await select({ message: 'Provider Management', choices, pageSize: 15 });
+    const action = await select({ message: 'Mau ngapain?', choices, pageSize: 15 });
     if (action === 'back') return;
 
     switch (action) {
@@ -55,7 +55,7 @@ async function addProvider() {
     console.log(chalk.bold('  ➕ Add Provider\n'));
 
     const source = await select({
-      message: 'How to add?',
+      message: 'Nambahnya gimana?',
       pageSize: 15,
       choices: [
         { name: `📦  From Template (${PROVIDER_TEMPLATES.length} providers)`, value: 'template' },
@@ -75,8 +75,8 @@ async function addProvider() {
     const config = getConfig();
     config.providers.push(provider);
     saveConfig(config);
-    success(`Provider "${provider.name}" added with ${provider.credentials.length} credential field(s)!`);
-    info('Next: add accounts via Manage Providers → Manage Accounts');
+    success(`Provider "${provider.name}" masuk dengan ${provider.credentials.length} field credential!`);
+    info('Selanjutnya: tambahin akun lewat Manage Providers → Manage Accounts');
     await pause();
     return;
   }
@@ -89,7 +89,7 @@ async function addFromTemplate() {
   const { search } = await import('@inquirer/prompts');
 
   const template = await search({
-    message: 'Select Provider Template',
+    message: 'Pilih Template Provider',
     source: async (term) => {
       term = (term || '').toLowerCase();
       
@@ -122,10 +122,10 @@ async function addFromTemplate() {
   if (template === 'back') return 'back';
 
   const confirmAdd = await select({
-    message: `Add ${template.name}?`,
+    message: `Tambahin ${template.name}?`,
     choices: [
-      { name: 'Yes', value: true },
-      { name: 'No', value: false },
+      { name: 'Yoi', value: true },
+      { name: 'Gak', value: false },
       { name: '↩️  Back', value: 'back' }
     ]
   });
@@ -136,8 +136,8 @@ async function addFromTemplate() {
   // distinct name instead of silently shadowing the existing one.
   let name = template.name;
   while (slugTaken(getConfig(), name)) {
-    warn(`A provider named "${name}" already exists.`);
-    const alt = await input({ message: 'Enter a distinct name (e.g. "Groq 2") (type "<" to cancel):', default: `${name} 2` });
+    warn(`Provider namanya "${name}" udah ada.`);
+    const alt = await input({ message: 'Kasih nama yang beda (misal "Groq 2") (ketik "<" buat batal):', default: `${name} 2` });
     if (alt === '<') return 'back';
     name = alt.trim();
     if (!name) name = template.name;
@@ -147,7 +147,7 @@ async function addFromTemplate() {
   if (!cli) {
     const { selectCliTool } = await import('./launcher.js');
     const config = getConfig();
-    cli = await selectCliTool(config, `Default CLI tool for ${template.name}?`);
+    cli = await selectCliTool(config, `CLI default buat ${template.name}?`);
     if (!cli) return 'back';
   }
 
@@ -188,11 +188,11 @@ async function addCustom() {
       clearScreen();
       showBanner();
       console.log(chalk.bold('  ✍️  Custom Provider Setup\n'));
-      name = await input({ message: 'Provider name (type "<" to cancel):', default: name || '' });
+      name = await input({ message: 'Nama provider (ketik "<" buat batal):', default: name || '' });
       if (name === '<') return 'back';
       if (!name) continue;
       if (slugTaken(getConfig(), name)) {
-        error(`A provider named "${name}" already exists (names must be unique). Pick another.`);
+        error(`Provider namanya "${name}" udah ada (nama harus unik). Pilih yang lain.`);
         await pause();
         name = '';
         continue;
@@ -201,19 +201,19 @@ async function addCustom() {
     } 
     else if (step === 1) {
       console.log();
-      info('URL supports {fieldName} placeholders for per-account values');
-      dim('Example: https://api.cf.com/{accountId}/v1');
-      baseUrlTemplate = await input({ message: 'Base URL template (type "<" to go back):', default: baseUrlTemplate || '' });
+      info('URL bisa pake placeholder {namaField} buat nilai per-akun');
+      dim('Contoh: https://api.cf.com/{accountId}/v1');
+      baseUrlTemplate = await input({ message: 'Template Base URL (ketik "<" buat balik):', default: baseUrlTemplate || '' });
       if (baseUrlTemplate === '<') { step = 0; continue; }
       if (!baseUrlTemplate) continue;
       step = 2;
     } 
     else if (step === 2) {
       const choice = await select({
-        message: 'Has /models endpoint?',
+        message: 'Punya endpoint /models?',
         choices: [
-          { name: 'Yes', value: true },
-          { name: 'No', value: false },
+          { name: 'Yoi', value: true },
+          { name: 'Gak', value: false },
           { name: '↩️  Back', value: 'back' }
         ]
       });
@@ -223,7 +223,7 @@ async function addCustom() {
     } 
     else if (step === 3) {
       baseUrlEnvVar = await input({
-        message: 'Env var name for base URL (type "<" to go back):',
+        message: 'Nama env var buat base URL (ketik "<" buat balik):',
         default: baseUrlEnvVar || 'OPENAI_BASE_URL',
       });
       if (baseUrlEnvVar === '<') { step = 2; continue; }
@@ -231,10 +231,10 @@ async function addCustom() {
     } 
     else if (step === 4) {
       console.log();
-      info('Define credential fields for each account.');
-      dim('Most providers just need an API Key.');
+      info('Tentuin field credential buat tiap akun.');
+      dim('Mayoritas provider cukup API Key doang.');
       apiKeyEnv = await input({
-        message: 'API Key env var name (type "<" to go back):',
+        message: 'Nama env var API Key (ketik "<" buat balik):',
         default: apiKeyEnv || 'OPENAI_API_KEY',
       });
       if (apiKeyEnv === '<') { step = 3; continue; }
@@ -242,10 +242,10 @@ async function addCustom() {
     } 
     else if (step === 5) {
       const choice = await select({
-        message: 'Add extra credential fields (Account ID, Org ID, etc.)?',
+        message: 'Tambahin field credential ekstra (Account ID, Org ID, dll)?',
         choices: [
-          { name: 'No, finish setup', value: false },
-          { name: 'Yes, add extra field', value: true },
+          { name: 'Gak, kelarin aja', value: false },
+          { name: 'Iya, tambah field ekstra', value: true },
           { name: '↩️  Back', value: 'back' }
         ]
       });
@@ -275,8 +275,8 @@ async function addCustom() {
     else if (step === 6) {
       if (extraStep === 0) {
         console.log();
-        dim(`Extra credential #${currentExtraFieldIndex + 1}:`);
-        const label = await input({ message: 'Label (e.g. "Account ID") (type "<" to go back):', default: tempExtraField.label || '' });
+        dim(`Credential ekstra #${currentExtraFieldIndex + 1}:`);
+        const label = await input({ message: 'Label (misal "Account ID") (ketik "<" buat balik):', default: tempExtraField.label || '' });
         if (label === '<') { step = 5; continue; }
         if (!label) continue;
         tempExtraField.label = label;
@@ -285,7 +285,7 @@ async function addCustom() {
       else if (extraStep === 1) {
         const defaultKey = tempExtraField.label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
         const key = await input({
-          message: 'Key identifier (type "<" to go back):',
+          message: 'Key identifier (ketik "<" buat balik):',
           default: tempExtraField.key || defaultKey,
         });
         if (key === '<') { extraStep = 0; continue; }
@@ -294,17 +294,17 @@ async function addCustom() {
         extraStep = 2;
       }
       else if (extraStep === 2) {
-        const envVar = await input({ message: 'Env var (leave empty if none, "<" to go back):', default: tempExtraField.envVar || '' });
+        const envVar = await input({ message: 'Env var (kosongin kalo gak ada, "<" buat balik):', default: tempExtraField.envVar || '' });
         if (envVar === '<') { extraStep = 1; continue; }
         tempExtraField.envVar = envVar;
         extraStep = 3;
       }
       else if (extraStep === 3) {
         const secret = await select({
-          message: 'Is this a secret?',
+          message: 'Ini rahasia (secret)?',
           choices: [
-            { name: 'Yes', value: true },
-            { name: 'No', value: false },
+            { name: 'Yoi', value: true },
+            { name: 'Gak', value: false },
             { name: '↩️  Back', value: 'back' }
           ]
         });
@@ -314,10 +314,10 @@ async function addCustom() {
       }
       else if (extraStep === 4) {
         const required = await select({
-          message: 'Is this required?',
+          message: 'Ini wajib diisi?',
           choices: [
-            { name: 'Yes', value: true },
-            { name: 'No', value: false },
+            { name: 'Yoi', value: true },
+            { name: 'Gak', value: false },
             { name: '↩️  Back', value: 'back' }
           ]
         });
@@ -332,7 +332,7 @@ async function addCustom() {
         }
       }
       else if (extraStep === 5) {
-        const defaultVal = await input({ message: 'Default value (leave empty for none, "<" to go back):', default: tempExtraField.default || '' });
+        const defaultVal = await input({ message: 'Nilai default (kosongin kalo gak ada, "<" buat balik):', default: tempExtraField.default || '' });
         if (defaultVal === '<') { extraStep = 4; continue; }
         tempExtraField.default = defaultVal;
         extraFields.push({ ...tempExtraField });
@@ -343,7 +343,7 @@ async function addCustom() {
     else if (step === 7) {
       const { selectCliTool } = await import('./launcher.js');
       const config = getConfig();
-      const cli = await selectCliTool(config, 'Default CLI tool for this provider?');
+      const cli = await selectCliTool(config, 'CLI default buat provider ini?');
       if (!cli) { step = 5; continue; } // go back to extra fields prompt
       
       return {
@@ -369,17 +369,17 @@ function listProviders() {
   console.log();
 
   if (config.providers.length === 0) {
-    dim('No providers configured.');
+    dim('Belum ada provider.');
     return;
   }
 
   for (const p of config.providers) {
     const acctInfo = p.accounts.length > 0
-      ? chalk.green(`${p.accounts.length} account(s)`)
-      : chalk.gray('no accounts');
+      ? chalk.green(`${p.accounts.length} akun`)
+      : chalk.gray('belum ada akun');
     const modelInfo = p.models.length > 0
-      ? `${p.models.length} models cached`
-      : p.modelsEndpoint ? 'fetchable' : 'manual';
+      ? `${p.models.length} model ke-cache`
+      : p.modelsEndpoint ? 'bisa di-fetch' : 'manual';
 
     console.log(chalk.bold(`  📦 ${p.name}`) + ` [${acctInfo}]`);
     dim(`URL: ${p.baseUrlTemplate}`);
@@ -401,7 +401,7 @@ async function editProvider() {
     showBanner();
     console.log(chalk.bold('  ✏️  Edit Provider\n'));
 
-    const provider = await selectProvider(config, 'Select provider to edit');
+    const provider = await selectProvider(config, 'Pilih provider buat di-edit');
     if (!provider) return;
 
     while (true) {
@@ -438,11 +438,11 @@ async function editProvider() {
 
       if (field === 'defaultCli') {
         const { selectCliTool } = await import('./launcher.js');
-        const newCli = await selectCliTool(config, 'Select new default CLI');
+        const newCli = await selectCliTool(config, 'Pilih CLI default baru');
         if (!newCli) continue;
         provider.defaultCli = newCli;
         saveConfig(config);
-        success('Provider updated!');
+        success('Provider ke-update!');
         await pause();
         continue;
       }
@@ -453,7 +453,7 @@ async function editProvider() {
       // format the client sent. See src/translate.js.
       if (field === 'apiFormat') {
         const newFmt = await select({
-          message: 'API format this provider speaks',
+          message: 'Format API yang dipake provider ini',
           choices: [
             { name: 'openai: Chat Completions (Groq, OpenRouter, most)', value: 'openai' },
             { name: 'anthropic: Messages API (api.anthropic.com)', value: 'anthropic' },
@@ -464,7 +464,7 @@ async function editProvider() {
         });
         provider.apiFormat = newFmt;
         saveConfig(config);
-        success('Provider updated!');
+        success('Provider ke-update!');
         await pause();
         continue;
       }
@@ -477,7 +477,7 @@ async function editProvider() {
       // per-account under "Manage Accounts".
       if (field === 'authType') {
         const newType = await select({
-          message: 'How do accounts authenticate?',
+          message: 'Akun-akun ini login-nya gimana?',
           choices: [
             { name: 'apikey: static API key (default)', value: 'apikey' },
             { name: 'oauth2: minted access tokens (Google login / service account)', value: 'oauth2' },
@@ -488,13 +488,13 @@ async function editProvider() {
           delete provider.authType;
           delete provider.oauth;
           saveConfig(config);
-          success('Provider updated (static API key).');
+          success('Provider ke-update (static API key).');
           await pause();
           continue;
         }
         // oauth2: pick a grant and collect its endpoints.
         const grantType = await select({
-          message: 'OAuth grant type',
+          message: 'Grant type OAuth',
           choices: [
             { name: 'refresh_token: browser login (user OAuth)', value: 'refresh_token' },
             { name: 'jwt-bearer: service account key (no browser)', value: 'jwt-bearer' },
@@ -502,14 +502,14 @@ async function editProvider() {
           default: provider.oauth?.grantType || 'refresh_token',
         });
         const oauth = { ...(provider.oauth || {}), grantType };
-        const tokenUrl = await input({ message: 'Token URL (type "<" to cancel):', default: oauth.tokenUrl || 'https://oauth2.googleapis.com/token' });
+        const tokenUrl = await input({ message: 'Token URL (ketik "<" buat batal):', default: oauth.tokenUrl || 'https://oauth2.googleapis.com/token' });
         if (tokenUrl === '<') continue;
         oauth.tokenUrl = tokenUrl;
-        const scope = await input({ message: 'Scope (space-separated, type "<" to cancel):', default: oauth.scope || '' });
+        const scope = await input({ message: 'Scope (pisah spasi, ketik "<" buat batal):', default: oauth.scope || '' });
         if (scope === '<') continue;
         oauth.scope = scope;
         if (grantType === 'refresh_token') {
-          const authUrl = await input({ message: 'Authorization URL (browser consent, type "<" to cancel):', default: oauth.authUrl || 'https://accounts.google.com/o/oauth2/v2/auth' });
+          const authUrl = await input({ message: 'Authorization URL (consent browser, ketik "<" buat batal):', default: oauth.authUrl || 'https://accounts.google.com/o/oauth2/v2/auth' });
           if (authUrl === '<') continue;
           oauth.authUrl = authUrl;
           // Google needs these for a refresh_token; harmless for other providers.
@@ -522,17 +522,17 @@ async function editProvider() {
         provider.authType = 'oauth2';
         provider.oauth = oauth;
         saveConfig(config);
-        success('Provider updated (oauth2). Re-add accounts to enter OAuth credentials.');
+        success('Provider ke-update (oauth2). Tambahin ulang akun buat isi credential OAuth.');
         await pause();
         continue;
       }
 
       if (field === 'opencodeNpm') {
-        const newVal = await input({ message: 'Opencode Plugin (e.g. @ai-sdk/anthropic) (type "<" to cancel):', default: provider.opencodeNpm || '@ai-sdk/openai-compatible' });
+        const newVal = await input({ message: 'Opencode Plugin (misal @ai-sdk/anthropic) (ketik "<" buat batal):', default: provider.opencodeNpm || '@ai-sdk/openai-compatible' });
         if (newVal === '<') continue;
         provider.opencodeNpm = newVal || null;
         saveConfig(config);
-        success('Provider updated!');
+        success('Provider ke-update!');
         await pause();
         continue;
       }
@@ -540,39 +540,39 @@ async function editProvider() {
       if (field.startsWith('credEnv_')) {
         const idx = parseInt(field.split('_')[1], 10);
         const cred = provider.credentials[idx];
-        const newVal = await input({ message: `${cred.label} Env Var (type "<" to cancel):`, default: cred.envVar || '' });
+        const newVal = await input({ message: `Env Var ${cred.label} (ketik "<" buat batal):`, default: cred.envVar || '' });
         if (newVal === '<') continue;
         cred.envVar = newVal || null;
         saveConfig(config);
-        success('Provider updated!');
+        success('Provider ke-update!');
         await pause();
         continue;
       }
 
       const current = provider[field] || '';
-      const newValue = await input({ message: 'New value (type "<" to cancel):', default: current });
+      const newValue = await input({ message: 'Nilai baru (ketik "<" buat batal):', default: current });
       if (newValue === '<') continue;
 
       // Renaming to a name another provider already owns (by slug) would make
       // the router ambiguous. Reject it — excludeId lets us keep our own name.
       if (field === 'name') {
         const trimmed = (newValue || '').trim();
-        if (!trimmed) { error('Name cannot be empty.'); await pause(); continue; }
+        if (!trimmed) { error('Nama gak boleh kosong.'); await pause(); continue; }
         if (slugTaken(config, trimmed, provider.id)) {
-          error(`Another provider already uses the name "${trimmed}". Names must be unique.`);
+          error(`Provider lain udah pake nama "${trimmed}". Nama harus unik.`);
           await pause();
           continue;
         }
         provider.name = trimmed;
         saveConfig(config);
-        success('Provider updated!');
+        success('Provider ke-update!');
         await pause();
         continue;
       }
 
       provider[field] = newValue || null;
       saveConfig(config);
-      success('Provider updated!');
+      success('Provider ke-update!');
       await pause();
     }
   }
@@ -590,12 +590,12 @@ async function editModels(config, provider) {
 
     const count = provider.models?.length || 0;
     const local = isLocalUrl(provider.baseUrlTemplate);
-    info(`${count} model(s) cached`);
+    info(`${count} model ke-cache`);
     dim(local
-      ? 'Local base URL: manual entry only (endpoint fetch disabled to avoid loops)'
+      ? 'Base URL lokal: cuma manual (fetch endpoint dimatiin biar gak loop)'
       : provider.modelsEndpoint
         ? `Endpoint: ${provider.baseUrlTemplate}${provider.modelsEndpoint}`
-        : 'No models endpoint: manual entry only');
+        : 'Gak ada endpoint models: cuma manual');
     console.log();
 
     const choices = [{ name: '➕  Add Model (manual)', value: 'add' }];
@@ -618,7 +618,7 @@ async function editModels(config, provider) {
       { name: chalk.gray('↩️   Back'), value: 'back' },
     );
 
-    const action = await select({ message: 'Model Management', choices, pageSize: 15 });
+    const action = await select({ message: 'Mau ngapain?', choices, pageSize: 15 });
     if (action === 'back') return;
 
     switch (action) {
@@ -626,7 +626,7 @@ async function editModels(config, provider) {
       case 'list':
         clearScreen();
         showBanner();
-        console.log(chalk.bold(`  📋 Models: ${provider.name}\n`));
+        console.log(chalk.bold(`  📋 Model: ${provider.name}\n`));
         provider.models.forEach((m, i) => console.log(`  ${chalk.gray(`${i + 1}.`)} ${m}`));
         await pause();
         break;
@@ -641,36 +641,36 @@ async function editModels(config, provider) {
 async function addModel(config, provider) {
   if (!provider.models) provider.models = [];
   while (true) {
-    const name = await input({ message: 'Model name/ID (type "<" to cancel):' });
+    const name = await input({ message: 'Nama/ID model (ketik "<" buat batal):' });
     if (name === '<' || !name.trim()) return;
     const model = name.trim();
     if (provider.models.includes(model)) {
-      warn(`"${model}" already exists.`);
+      warn(`"${model}" udah ada.`);
       await pause();
       return;
     }
     provider.models.push(model);
     saveConfig(config);
-    success(`Added "${model}".`);
+    success(`"${model}" ditambahin.`);
     await pause();
     return;
   }
 }
 
 async function renameModel(config, provider) {
-  const target = await pickModel(provider, 'Select model to rename');
+  const target = await pickModel(provider, 'Pilih model buat di-rename');
   if (!target) return;
-  const newName = await input({ message: 'New name (type "<" to cancel):', default: target });
+  const newName = await input({ message: 'Nama baru (ketik "<" buat batal):', default: target });
   if (newName === '<' || !newName.trim()) return;
   const renamed = newName.trim();
   if (renamed !== target && provider.models.includes(renamed)) {
-    warn(`"${renamed}" already exists.`);
+    warn(`"${renamed}" udah ada.`);
     await pause();
     return;
   }
   provider.models[provider.models.indexOf(target)] = renamed;
   saveConfig(config);
-  success(`Renamed to "${renamed}".`);
+  success(`Di-rename jadi "${renamed}".`);
   await pause();
 }
 
@@ -678,24 +678,24 @@ async function deleteModels(config, provider) {
   const { checkbox } = await import('@inquirer/prompts');
   const choices = provider.models.map((m) => ({ name: m, value: m }));
 
-  dim('Press <Space> to select, <Enter> to confirm, or <Enter> with 0 selected to cancel.');
+  dim('Pencet <Space> buat milih, <Enter> buat konfirmasi. <Enter> tanpa milih = batal.');
   console.log();
 
-  const selected = await checkbox({ message: 'Select model(s) to delete:', choices, pageSize: 15 });
+  const selected = await checkbox({ message: 'Pilih model yang mau dihapus:', choices, pageSize: 15 });
   if (selected.length === 0) return;
 
-  const confirmed = await confirm({ message: `Delete ${selected.length} model(s)?`, default: false });
+  const confirmed = await confirm({ message: `Hapus ${selected.length} model?`, default: false });
   if (!confirmed) return;
 
   provider.models = provider.models.filter((m) => !selected.includes(m));
   saveConfig(config);
-  success(`Deleted ${selected.length} model(s).`);
+  success(`${selected.length} model dihapus.`);
   await pause();
 }
 
 async function fetchModelsInto(config, provider) {
   if (provider.accounts.length === 0) {
-    error('Need at least one account to fetch models (uses its API key).');
+    error('Butuh minimal satu akun buat fetch model (pake API key-nya).');
     await pause();
     return;
   }
@@ -705,7 +705,7 @@ async function fetchModelsInto(config, provider) {
   const { fetchModels } = await import('./models.js');
   const fetched = await fetchModels(provider, account);
   if (!fetched || fetched.length === 0) {
-    warn('No models returned. Endpoint or key may be wrong.');
+    warn('Gak ada model yang balik. Endpoint atau key-nya mungkin salah.');
     await pause();
     return;
   }
@@ -722,22 +722,22 @@ async function fetchModelsInto(config, provider) {
     provider.modelAliases = { ...(provider.modelAliases || {}), ...aliases };
   }
   saveConfig(config);
-  const aliasNote = Object.keys(aliases).length ? `, ${Object.keys(aliases).length} auto-aliased` : '';
-  success(`Fetched ${fetched.length} model(s): ${added} new, ${merged.length} total${aliasNote}.`);
+  const aliasNote = Object.keys(aliases).length ? `, ${Object.keys(aliases).length} auto-alias` : '';
+  success(`Ke-fetch ${fetched.length} model: ${added} baru, ${merged.length} total${aliasNote}.`);
   await pause();
 }
 
 async function editModelsEndpoint(config, provider) {
-  info('Path appended to Base URL for listing models (e.g. /models).');
-  dim('Leave empty for manual-only providers.');
+  info('Path yang ditempel ke Base URL buat listing model (misal /models).');
+  dim('Kosongin buat provider yang manual-only.');
   const newVal = await input({
-    message: 'Models endpoint (type "<" to cancel):',
+    message: 'Endpoint models (ketik "<" buat batal):',
     default: provider.modelsEndpoint || '',
   });
   if (newVal === '<') return;
   provider.modelsEndpoint = newVal.trim() || null;
   saveConfig(config);
-  success('Models endpoint updated!');
+  success('Endpoint models ke-update!');
   await pause();
 }
 
@@ -770,7 +770,7 @@ async function deleteProvider() {
     console.log(chalk.bold('  🗑️  Delete Provider(s)\n'));
 
     if (config.providers.length === 0) {
-      error('No providers to delete!');
+      error('Gak ada provider buat dihapus!');
       await pause();
       return;
     }
@@ -778,15 +778,15 @@ async function deleteProvider() {
     const { checkbox } = await import('@inquirer/prompts');
     
     const choices = config.providers.map(p => ({
-      name: `${p.name} ${chalk.gray(`(${p.accounts.length} accts)`)}`,
+      name: `${p.name} ${chalk.gray(`(${p.accounts.length} akun)`)}`,
       value: p.id
     }));
-    
-    dim('Press <Space> to select, <Enter> to confirm, or <Enter> with 0 selected to cancel.');
+
+    dim('Pencet <Space> buat milih, <Enter> buat konfirmasi. <Enter> tanpa milih = batal.');
     console.log();
-    
+
     const selectedIds = await checkbox({
-      message: 'Select provider(s) to delete:',
+      message: 'Pilih provider yang mau dihapus:',
       choices,
       pageSize: 15
     });
@@ -794,7 +794,7 @@ async function deleteProvider() {
     if (selectedIds.length === 0) return;
 
     const confirmed = await confirm({
-      message: `Delete ${selectedIds.length} provider(s)?`,
+      message: `Hapus ${selectedIds.length} provider?`,
       default: false,
     });
 
@@ -805,7 +805,7 @@ async function deleteProvider() {
       config.lastSession = null;
     }
     saveConfig(config);
-    success(`Deleted ${selectedIds.length} provider(s)!`);
+    success(`${selectedIds.length} provider dihapus!`);
     await pause();
     return;
   }
@@ -816,7 +816,7 @@ async function deleteProvider() {
 async function accountsMenu() {
   const config = getConfig();
   while (true) {
-    const provider = await selectProvider(config, 'Manage accounts for');
+    const provider = await selectProvider(config, 'Manage akun buat');
     if (!provider) return;
     await manageAccounts(provider.id);
   }
@@ -824,11 +824,11 @@ async function accountsMenu() {
 
 // ── Shared selector (exported for launcher) ──
 
-export async function selectProvider(configOrNull, message = 'Select provider') {
+export async function selectProvider(configOrNull, message = 'Pilih provider') {
   const config = configOrNull || getConfig();
 
   if (config.providers.length === 0) {
-    error('No providers configured. Add one first!');
+    error('Belum ada provider. Tambahin dulu satu!');
     return null;
   }
 

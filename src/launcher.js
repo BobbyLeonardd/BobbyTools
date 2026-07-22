@@ -70,11 +70,11 @@ export async function launchSession() {
     console.log(chalk.bold('  🚀 Start Session\n'));
 
     if (step === 0) {
-      provider = await selectProvider(config, 'Select Provider');
+      provider = await selectProvider(config, 'Pilih Provider');
       if (!provider) return; // Exit to main menu
 
       if (provider.accounts.length === 0) {
-        error(`No accounts for "${provider.name}". Add accounts first!`);
+        error(`Belum ada akun buat "${provider.name}". Tambahin akun dulu!`);
         await pause();
         // stays at step 0
       } else {
@@ -117,7 +117,7 @@ export async function quickLaunch() {
   const config = getConfig();
 
   if (!config.lastSession) {
-    warn('No previous session. Starting interactive...');
+    warn('Belum ada sesi sebelumnya. Mulai interaktif...');
     await pause();
     return launchSession();
   }
@@ -125,27 +125,27 @@ export async function quickLaunch() {
   const { providerId, accountId, model, cli } = config.lastSession;
   const provider = config.providers.find((p) => p.id === providerId);
   if (!provider) {
-    warn('Previous provider no longer exists.');
+    warn('Provider yang kemaren udah gak ada.');
     await pause();
     return launchSession();
   }
 
   const account = provider.accounts.find((a) => a.id === accountId);
   if (!account) {
-    warn('Previous account no longer exists.');
+    warn('Akun yang kemaren udah gak ada.');
     await pause();
     return launchSession();
   }
 
   if (account.status === 'limited') {
-    warn(`"${account.name}" is marked as limited.`);
+    warn(`"${account.name}" statusnya lagi limited.`);
     const activeAlt = provider.accounts.find((a) => a.status === 'active');
     if (!activeAlt) {
-      error('No active accounts available!');
+      error('Gak ada akun aktif yang bisa dipake!');
       await pause();
       return;
     }
-    info(`Switching to "${activeAlt.name}" instead.`);
+    info(`Pindah ke "${activeAlt.name}" aja.`);
     return doLaunch(config, provider, activeAlt, model, cli);
   }
 
@@ -160,7 +160,7 @@ async function doLaunch(config, provider, account, model, cli) {
 
   console.log();
   divider();
-  info(chalk.bold('Launching Session'));
+  info(chalk.bold('Ngebuka Sesi'));
   label('Provider', provider.name);
   label('Account', `${account.name} ${statusDot(account.status)}`);
   if (model) label('Model', model);
@@ -193,21 +193,21 @@ async function doLaunch(config, provider, account, model, cli) {
     args = ['-m', `${provider.id}/${model}`];
   }
 
-  info(`Starting ${cli}... (Ctrl+C to exit)`);
+  info(`Ngejalanin ${cli}... (Ctrl+C buat keluar)`);
   console.log();
 
   const code = await launchCommand(command, args, env);
 
   console.log();
   if (code === 0) {
-    success('Session ended.');
+    success('Sesi kelar.');
   } else {
-    warn(`Session exited with code ${code}`);
+    warn(`Sesi keluar dengan code ${code}`);
 
     // Smart post-session: ask if account hit its limit
     try {
       const hitLimit = await confirm({
-        message: `Did "${account.name}" hit its rate limit?`,
+        message: `"${account.name}" kena rate limit gak?`,
         default: false,
       });
 
@@ -218,17 +218,17 @@ async function doLaunch(config, provider, account, model, cli) {
         if (a) {
           a.status = 'limited';
           saveConfig(freshConfig);
-          success(`"${account.name}" marked as limited.`);
+          success(`"${account.name}" ditandain limited.`);
         }
 
         const nextActive = p?.accounts.find(
           (x) => x.status === 'active' && x.id !== account.id,
         );
         if (nextActive) {
-          info(`Next active account: ${chalk.bold(nextActive.name)}`);
-          dim('Run "bobby" or "bobby go" to continue.');
+          info(`Akun aktif berikutnya: ${chalk.bold(nextActive.name)}`);
+          dim('Jalanin "bobby" atau "bobby go" buat lanjut.');
         } else {
-          warn('No more active accounts for this provider!');
+          warn('Udah gak ada akun aktif buat provider ini!');
         }
       }
     } catch {
@@ -246,7 +246,7 @@ async function selectAccountForLaunch(provider) {
   const activeAccounts = provider.accounts.filter((a) => a.status === 'active');
 
   if (activeAccounts.length === 0) {
-    error('No active accounts! All marked as limited.');
+    error('Gak ada akun aktif! Semua lagi limited.');
     await pause();
     return null;
   }
@@ -254,7 +254,7 @@ async function selectAccountForLaunch(provider) {
   const { search } = await import('@inquirer/prompts');
 
   return search({
-    message: 'Select Account',
+    message: 'Pilih Akun',
     source: async (term) => {
       term = (term || '').toLowerCase();
       
@@ -267,8 +267,8 @@ async function selectAccountForLaunch(provider) {
       
       for (const acc of provider.accounts) {
         const status = statusDot(acc.status);
-        const current = acc.id === provider.lastAccountId ? chalk.yellow(' ← last used') : '';
-        const lastUsed = acc.lastUsed ? chalk.gray(` (${timeAgo(acc.lastUsed)})`) : chalk.gray(' (never)');
+        const current = acc.id === provider.lastAccountId ? chalk.yellow(' ← terakhir dipake') : '';
+        const lastUsed = acc.lastUsed ? chalk.gray(` (${timeAgo(acc.lastUsed)})`) : chalk.gray(' (belum pernah)');
         const displayName = `${status} ${acc.name}${lastUsed}${current}`;
         
         if (acc.name.toLowerCase().includes(term)) {
@@ -282,8 +282,8 @@ async function selectAccountForLaunch(provider) {
   });
 }
 
-export async function selectCliTool(config, message = 'Target CLI command to launch') {
-  const cmd = await input({ message: `${message} (e.g. opencode) (type "<" to go back):`, default: 'opencode' });
+export async function selectCliTool(config, message = 'CLI target yang mau dijalanin') {
+  const cmd = await input({ message: `${message} (misal opencode) (ketik "<" buat balik):`, default: 'opencode' });
   if (cmd === '<') return null;
   if (!cmd.trim()) return selectCliTool(config, message);
   return cmd.trim();
@@ -299,7 +299,7 @@ function launchCommand(command, args, envVars) {
       env: { ...process.env, ...envVars },
     });
     child.on('error', (err) => {
-      error(`Failed to launch "${command}": ${err.message}`);
+      error(`Gagal ngejalanin "${command}": ${err.message}`);
       resolve(1);
     });
     child.on('close', (code) => resolve(code ?? 0));

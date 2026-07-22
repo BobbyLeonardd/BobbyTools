@@ -14,7 +14,7 @@ export async function manageAccounts(providerId) {
     const config = getConfig();
     const provider = config.providers.find((p) => p.id === providerId);
     if (!provider) {
-      error('Provider not found!');
+      error('Provider-nya gak ketemu!');
       await pause();
       return;
     }
@@ -40,7 +40,7 @@ export async function manageAccounts(providerId) {
 
     choices.push({ name: '↩️   Back', value: 'back' });
 
-    const action = await select({ message: 'Account Management', choices });
+    const action = await select({ message: 'Mau ngapain?', choices });
     if (action === 'back') return;
 
     switch (action) {
@@ -68,7 +68,7 @@ async function addAccount(config, provider) {
 
   while (true) {
     if (step === 0) {
-      name = await input({ message: 'Account name (e.g. tuyul-1, type "<" to cancel):', default: name || '' });
+      name = await input({ message: 'Nama akun (misal tuyul-1, ketik "<" buat batal):', default: name || '' });
       if (name === '<') return;
       if (!name) continue;
       step = 1;
@@ -79,7 +79,7 @@ async function addAccount(config, provider) {
       const promptFn = cred.secret ? password : input;
       
       const opts = {
-        message: `${cred.label}${isOptional ? ' (optional)' : ''} (type "<" to go back):`,
+        message: `${cred.label}${isOptional ? ' (opsional)' : ''} (ketik "<" buat balik):`,
       };
       if (cred.secret) opts.mask = '*';
       if (cred.default) opts.default = cred.default;
@@ -90,7 +90,7 @@ async function addAccount(config, provider) {
       if (value === '<') { step--; continue; }
 
       if (!value && !isOptional && !cred.default) {
-        error(`${cred.label} is required!`);
+        error(`${cred.label} wajib diisi!`);
         continue; // Stay on same step
       }
 
@@ -111,15 +111,15 @@ async function addAccount(config, provider) {
     && provider.oauth?.authUrl;
   if (isOauthLogin && !credentials.refreshToken) {
     if (!credentials.clientId) {
-      error('OAuth Client ID is required to start the browser login. Add it and retry.');
+      error('OAuth Client ID wajib diisi buat mulai login browser. Isi dulu, terus coba lagi.');
       await pause();
       return;
     }
-    const ok = await confirm({ message: 'Open your browser to sign in and authorize now?', default: true });
+    const ok = await confirm({ message: 'Buka browser buat login & authorize sekarang?', default: true });
     if (ok) {
       try {
         const { runBrowserAuthFlow } = await import('./oauth-flow.js');
-        info('Opening browser… complete the consent, then return here.');
+        info('Buka browser... beresin consent-nya, terus balik ke sini.');
         const tokens = await runBrowserAuthFlow({
           authUrl: provider.oauth.authUrl,
           tokenUrl: provider.oauth.tokenUrl,
@@ -127,18 +127,18 @@ async function addAccount(config, provider) {
           clientSecret: credentials.clientSecret || undefined,
           scope: provider.oauth.scope || '',
           extraAuthParams: provider.oauth.extraAuthParams || {},
-          onPrompt: (url) => dim(`If the browser didn't open, visit:\n  ${url}`),
+          onPrompt: (url) => dim(`Kalo browser-nya gak kebuka, buka manual:\n  ${url}`),
         });
         credentials.refreshToken = tokens.refreshToken;
-        success('Authorized. Refresh token stored.');
+        success('Berhasil login. Refresh token kesimpen.');
       } catch (err) {
-        error(`Browser login failed: ${err.message}`);
-        dim('You can paste a Refresh Token manually instead, or retry.');
+        error(`Login browser gagal: ${err.message}`);
+        dim('Bisa tempel Refresh Token manual, atau coba lagi.');
         await pause();
         return;
       }
     } else {
-      warn('Skipped browser login. This account has no refresh token and will fail until you add one.');
+      warn('Login browser di-skip. Akun ini belum punya refresh token, bakal gagal terus sampe lo isi.');
     }
   }
 
@@ -154,7 +154,7 @@ async function addAccount(config, provider) {
 
   provider.accounts.push(account);
   saveConfig(config);
-  success(`Account "${name}" added to ${provider.name}!`);
+  success(`Akun "${name}" masuk ke ${provider.name}!`);
   await pause();
 }
 
@@ -163,13 +163,13 @@ async function addAccount(config, provider) {
 function listAccounts(provider) {
   console.log(chalk.bold('  📋 Account List\n'));
   if (provider.accounts.length === 0) {
-    dim('No accounts configured.');
+    dim('Belum ada akun.');
     return;
   }
 
   for (const acc of provider.accounts) {
     const status = statusDot(acc.status, true);
-    const lastUsed = acc.lastUsed ? timeAgo(acc.lastUsed) : 'never';
+    const lastUsed = acc.lastUsed ? timeAgo(acc.lastUsed) : 'belum pernah';
     const isCurrent = provider.lastAccountId === acc.id ? chalk.yellow(' ← current') : '';
 
     console.log(`  ${chalk.bold(acc.name)} ${status}${isCurrent}`);
@@ -179,7 +179,7 @@ function listAccounts(provider) {
       if (val) dim(`${cred.label}: ${maskValue(val, cred.secret)}`);
     }
 
-    dim(`Used: ${acc.usageCount}x | Last: ${lastUsed}`);
+    dim(`Kepake: ${acc.usageCount}x | Terakhir: ${lastUsed}`);
     divider();
   }
 }
@@ -192,7 +192,7 @@ async function editAccount(config, provider) {
     showBanner();
     console.log(chalk.bold('  ✏️  Edit Account\n'));
 
-    const account = await pickAccount(provider, 'Select account to edit');
+    const account = await pickAccount(provider, 'Pilih akun buat di-edit');
     if (!account) return;
 
     while (true) {
@@ -214,13 +214,13 @@ async function editAccount(config, provider) {
       if (field === 'back') break; // break inner loop, go back to select account
 
       if (field === '__name__') {
-        const newName = await input({ message: 'New name (type "<" to cancel):', default: account.name });
+        const newName = await input({ message: 'Nama baru (ketik "<" buat batal):', default: account.name });
         if (newName === '<') continue;
         if (newName) account.name = newName;
       } else {
         const cred = provider.credentials.find((c) => c.key === field);
         const promptFn = cred.secret ? password : input;
-        const opts = { message: `New ${cred.label} (type "<" to cancel):` };
+        const opts = { message: `${cred.label} baru (ketik "<" buat batal):` };
         if (cred.secret) opts.mask = '*';
 
         const newValue = await promptFn(opts);
@@ -229,7 +229,7 @@ async function editAccount(config, provider) {
       }
 
       saveConfig(config);
-      success('Account updated!');
+      success('Akun ke-update!');
       await pause();
     }
   }
@@ -244,7 +244,7 @@ async function deleteAccount(config, provider) {
     console.log(chalk.bold('  🗑️  Delete Account(s)\n'));
 
     if (provider.accounts.length === 0) {
-      error('No accounts to delete!');
+      error('Gak ada akun buat dihapus!');
       await pause();
       return;
     }
@@ -256,25 +256,25 @@ async function deleteAccount(config, provider) {
       value: a.id
     }));
 
-    dim('Press <Space> to select, <Enter> to confirm, or <Enter> with 0 selected to cancel.');
+    dim('Pencet <Space> buat milih, <Enter> buat konfirmasi. <Enter> tanpa milih apa-apa = batal.');
     console.log();
-    
+
     const selectedIds = await checkbox({
-      message: 'Select account(s) to delete:',
+      message: 'Pilih akun yang mau dihapus:',
       choices,
       pageSize: 15
     });
 
     if (selectedIds.length === 0) return;
 
-    const confirmed = await confirm({ message: `Delete ${selectedIds.length} account(s)?`, default: false });
+    const confirmed = await confirm({ message: `Hapus ${selectedIds.length} akun?`, default: false });
     if (!confirmed) continue;
 
     provider.accounts = provider.accounts.filter((a) => !selectedIds.includes(a.id));
     if (selectedIds.includes(provider.lastAccountId)) provider.lastAccountId = null;
     
     saveConfig(config);
-    success(`Deleted ${selectedIds.length} account(s)!`);
+    success(`${selectedIds.length} akun dihapus!`);
     await pause();
     return;
   }
@@ -283,10 +283,10 @@ async function deleteAccount(config, provider) {
 // ── Test connection ──
 
 async function testAccount(provider) {
-  const account = await pickAccount(provider, 'Select account to test');
+  const account = await pickAccount(provider, 'Pilih akun buat dites');
   if (!account) return;
 
-  info('Testing connection...');
+  info('Lagi ngetes koneksi...');
   try {
     const baseUrl = resolveBaseUrl(provider, account);
     // Static key for apikey providers, a minted OAuth token for oauth2 ones — a
@@ -303,13 +303,13 @@ async function testAccount(provider) {
     const res = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
 
     if (res.ok) {
-      success(`Connection OK! (HTTP ${res.status})`);
+      success(`Koneksi oke! (HTTP ${res.status})`);
     } else {
       const body = await res.text().catch(() => '');
       error(`HTTP ${res.status}: ${res.statusText}${body ? `: ${body.slice(0, 120)}` : ''}`);
     }
   } catch (err) {
-    error(`Connection failed: ${err.message}`);
+    error(`Koneksi gagal: ${err.message}`);
   }
   await pause();
 }
@@ -323,7 +323,7 @@ async function toggleAccount(config, provider) {
     console.log(chalk.bold('  🔄  Toggle Account Status\n'));
 
     if (provider.accounts.length === 0) {
-      error('No accounts to toggle!');
+      error('Gak ada akun buat di-toggle!');
       await pause();
       return;
     }
@@ -335,11 +335,11 @@ async function toggleAccount(config, provider) {
       value: a.id
     }));
     
-    dim('Press <Space> to select, <a> to select all, <Enter> to confirm, or <Enter> with 0 selected to cancel.');
+    dim('Pencet <Space> buat milih, <a> buat pilih semua, <Enter> buat konfirmasi. <Enter> tanpa milih = batal.');
     console.log();
-    
+
     const selectedIds = await checkbox({
-      message: 'Select account(s) to toggle their status:',
+      message: 'Pilih akun yang mau diganti statusnya:',
       choices,
       pageSize: 15
     });
@@ -357,7 +357,7 @@ async function toggleAccount(config, provider) {
     }
     
     saveConfig(config);
-    success(`Toggled status for ${selectedIds.length} account(s)!`);
+    success(`Status ${selectedIds.length} akun diubah!`);
     await pause();
     return;
   }
@@ -367,7 +367,7 @@ async function toggleAccount(config, provider) {
 
 async function pickAccount(provider, message) {
   if (provider.accounts.length === 0) {
-    error('No accounts. Add one first!');
+    error('Belum ada akun. Tambahin dulu satu!');
     return null;
   }
 

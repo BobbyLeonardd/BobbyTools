@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
 import { store } from './store.js';
 import { logStore } from './logstore.js';
-import { resolveBaseUrl, reviveLimitedAccounts, slugify, isLocalUrl, fetchWithConnectTimeout, computeStats, parseRetryAfter, rollupMetrics, resolveModelId, findFallbackProvider, isTrustedControlRequest, resolveComboSpecs, normalizeFetchedModels, extractModelPricing, buildTargetUrl, DEFAULT_ROUTER_PORT } from './helpers.js';
+import { resolveBaseUrl, reviveLimitedAccounts, slugify, isLocalUrl, fetchWithConnectTimeout, computeStats, parseRetryAfter, rollupMetrics, resolveModelId, findFallbackProvider, isTrustedControlRequest, resolveComboSpecs, normalizeFetchedModels, extractModelPricing, buildTargetUrl, anthropicUsesBearer, DEFAULT_ROUTER_PORT } from './helpers.js';
 import {
   translateRequest, translateResponse, translateStream, normalizeFormat, sniffUsage,
 } from './translate.js';
@@ -88,8 +88,11 @@ export async function startRouterServer(port = DEFAULT_ROUTER_PORT, background =
       const __dirname = path.dirname(__filename);
       try {
         const html = fs.readFileSync(path.join(__dirname, 'dashboard.html'), 'utf8');
+        // dashboard.html hardcodes the default port in its Base URL / copy-button
+        // display strings; rewrite to the port we actually bound so a custom -p
+        // shows the right URL. All fetch()es are relative, so only display needs it.
         res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(html);
+        res.end(port === DEFAULT_ROUTER_PORT ? html : html.replaceAll(String(DEFAULT_ROUTER_PORT), String(port)));
       } catch (err) {
         res.writeHead(500);
         res.end('Dashboard file not found');
@@ -557,7 +560,6 @@ export async function startRouterServer(port = DEFAULT_ROUTER_PORT, background =
         // Outer loop over combo specs (one iteration for a plain request). Each
         // spec runs the full account-rotation + cross-provider fallback pipeline;
         // when a spec is fully exhausted we advance to the next combo model.
-        let handled = false;   // a response was sent (success or a real upstream error)
         let lastError = null;  // for the final "all specs exhausted" message
         for (const spec of modelSpecs) {
           const modelParts = (spec || '').split('/');
@@ -740,7 +742,20 @@ export async function startRouterServer(port = DEFAULT_ROUTER_PORT, background =
             if (providerFmt === 'gemini') {
               headers['x-goog-api-key'] = apiKey; // Gemini: key in x-goog-api-key header
             } else if (providerFmt === 'anthropic') {
-              headers['x-api-key'] = apiKey;
+              // Anthropic gateways split on the SAME static secret: native wants
+              // x-api-key, bearer gateways (agentrouter etc., documented as
+              // ANTHROPIC_AUTH_TOKEN) want Authorization: Bearer. anthropicUsesBearer
+              // reads that from the credential's envVar — no new field needed.
+              // Clear the other scheme's header too: on an anthropic->anthropic
+              // passthrough the strip above is skipped, so the client's own
+              // x-api-key/authorization would otherwise ride along stale.
+              if (anthropicUsesBearer(provider)) {
+                delete headers['x-api-key'];
+                headers['authorization'] = `Bearer ${apiKey}`;
+              } else {
+                delete headers['authorization'];
+                headers['x-api-key'] = apiKey;
+              }
               // Anthropic requires a version header; supply a default when the
               // client didn't send one (e.g. an OpenAI client we translated).
               if (!headers['anthropic-version']) headers['anthropic-version'] = '2023-06-01';
@@ -912,7 +927,6 @@ export async function startRouterServer(port = DEFAULT_ROUTER_PORT, background =
           responseHeaders['content-type'] = 'application/json';
           res.writeHead(response.status, responseHeaders);
           res.end(outText);
-          handled = true;
           return;
           } // end while (account rotation for this spec)
 
@@ -925,15 +939,12 @@ export async function startRouterServer(port = DEFAULT_ROUTER_PORT, background =
           }
           res.writeHead(429);
           res.end(JSON.stringify({ error: 'All accounts for this provider hit limits' }));
-          handled = true;
           return;
         } // end for (combo specs)
 
         // Only reached when every combo spec was exhausted without a response.
-        if (!handled) {
-          res.writeHead(429);
-          res.end(JSON.stringify({ error: `All combo models exhausted${lastError ? ` (last: ${lastError})` : ''}` }));
-        }
+        res.writeHead(429);
+        res.end(JSON.stringify({ error: `All combo models exhausted${lastError ? ` (last: ${lastError})` : ''}` }));
 
       } catch (err) {
         // AbortError = we cancelled the fetch on purpose (client hung up, or the

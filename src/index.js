@@ -184,7 +184,7 @@ async function mainMenu() {
       { name: '❌  Exit', value: 'exit' },
     );
 
-    const action = await select({ message: 'What would you like to do?', choices, pageSize: 15 });
+    const action = await select({ message: 'Mau ngapain nih?', choices, pageSize: 15 });
 
     switch (action) {
       case 'launch':
@@ -241,9 +241,9 @@ function showQuickStatus() {
   const ac = config.providers.reduce((s, p) => s + p.accounts.length, 0);
 
   if (pc > 0) {
-    dim(`${pc} provider(s), ${ac} account(s) configured`);
+    dim(`${pc} provider, ${ac} akun kesimpen`);
   } else {
-    dim('No providers yet, add one to get started!');
+    dim('Belum ada provider, tambahin satu dulu gih!');
   }
   console.log();
 }
@@ -252,7 +252,7 @@ function showFullStatus() {
   const config = getConfig();
 
   if (config.providers.length === 0) {
-    dim('No providers configured.');
+    dim('Belum ada provider.');
     return;
   }
 
@@ -264,12 +264,12 @@ function showFullStatus() {
     dim(`Credentials: ${credLabels}`);
 
     if (p.accounts.length === 0) {
-      dim('No accounts');
+      dim('Belum ada akun');
     } else {
       for (const a of p.accounts) {
         const status = statusDot(a.status);
         const current = p.lastAccountId === a.id ? chalk.yellow(' ← current') : '';
-        console.log(`    ${status} ${a.name} (used ${a.usageCount}x)${current}`);
+        console.log(`    ${status} ${a.name} (kepake ${a.usageCount}x)${current}`);
       }
     }
     console.log();
@@ -319,7 +319,7 @@ async function manageSettings() {
     console.log(chalk.bold('  🔧 Settings\n'));
 
     const action = await select({
-      message: 'Settings',
+      message: 'Mau ngapain?',
       pageSize: 15,
       choices: [
         { name: chalk.red('⚠️  Factory Reset Semua Data'), value: 'reset' },
