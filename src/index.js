@@ -519,7 +519,8 @@ function showHelp() {
   console.log(chalk.white('     Nyalain Local AI Router / Web Dashboard tapi di depan layar (foreground). Kalo terminalnya lo tutup, servernya ikut mati.\n'));
   
   console.log(chalk.yellow('  4. 👻 bobby serve-bg'));
-  console.log(chalk.white('     Nyalain Local AI Router / Web Dashboard di belakang layar (background). Terminal bebas lo tutup, server tetep jalan jadi setan/daemon, plus otomatis ngebukain browser ke http://127.0.0.1:13337.\n'));
+  console.log(chalk.white('     Nyalain Local AI Router / Web Dashboard di belakang layar (background). Terminal bebas lo tutup, server tetep jalan jadi setan/daemon, plus otomatis ngebukain browser ke http://127.0.0.1:13337.'));
+  console.log(chalk.gray('     Port 13337-nya kepake? Tambahin ') + chalk.yellow('--port <angka>') + chalk.gray(' (atau ') + chalk.yellow('-p') + chalk.gray('), jalan buat serve maupun serve-bg. Misal: ') + chalk.yellow('bobby serve-bg --port 8080') + chalk.gray('.\n'));
   
   console.log(chalk.yellow('  5. 📜 bobby list'));
   console.log(chalk.white('     Nampilin daftar lengkap semua Provider dan API Key (Akun) yang udah lo simpen, tanpa masuk ke menu.\n'));
